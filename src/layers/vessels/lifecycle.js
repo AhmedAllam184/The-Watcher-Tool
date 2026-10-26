@@ -170,6 +170,7 @@ export function createLifecycle({
       holdContinuousRender('ais-vessels'); // per-frame animator (perf wave 2)
       const activeViewer = viewer || state.viewer;
       components.rendering.ensureCollections(activeViewer);
+      components.dark.start(activeViewer);
       components.selection.installInteraction(activeViewer);
       components.rendering.setVisible(true);
       // Height-datum fix: warm the geoid grid once per layer-enable, never
@@ -213,6 +214,7 @@ export function createLifecycle({
       releaseContinuousRender('ais-vessels');
       unregisterPickOwner('ais-live-vessels');
       components.rendering.setVisible(false);
+      components.dark.stop();
       vesselState._vesselOverlayHost.clearSource(VESSEL_OVERLAY_SOURCE_ID);
       components.selection.clearVesselInspection();
       components.tracking.destroySelectedVesselTrail();
@@ -234,6 +236,7 @@ export function createLifecycle({
       unregisterPickOwner('ais-live-vessels');
       components.selection.clearVesselInspection();
       components.tracking.destroySelectedVesselTrail();
+      components.dark.destroy();
       if (state.billboardCollection && activeViewer?.scene?.primitives) {
         activeViewer.scene.primitives.remove(state.billboardCollection);
       }

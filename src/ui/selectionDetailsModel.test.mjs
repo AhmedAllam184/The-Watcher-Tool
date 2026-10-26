@@ -168,6 +168,32 @@ test('flight details handle ground contacts, stale status and military layers', 
   assert.deepEqual(military.links.map((link) => link.label), ['ADS-B Exchange']);
 });
 
+test('a gone-dark vessel reads as inferred, explains itself and raises an amber alert', () => {
+  const dark = buildSelectionDetails(
+    vesselRecord({
+      dark: true,
+      inference: 'Silent 60 min while nearby ships still report',
+      lastPositionEpoch: NOW - 60 * 60000,
+    }),
+    { now: NOW },
+  );
+  assert.equal(rowValue(dark, 'Status'), 'Gone dark (inferred)');
+  assert.equal(
+    rowValue(dark, 'Why flagged'),
+    'Silent 60 min while nearby ships still report',
+  );
+  assert.equal(rowValue(dark, 'Last position'), '1 h ago');
+  assert.equal(
+    dark.alert,
+    'No AIS signal for 1 h while under way. Inferred from silence where nearby ships still report — not confirmed.',
+  );
+  assert.equal(dark.alertTone, 'warn');
+
+  const live = buildSelectionDetails(vesselRecord(), { now: NOW });
+  assert.equal(live.alert, null);
+  assert.equal(live.alertTone, undefined);
+});
+
 test('flight squawk shows the code, names emergencies and raises an alert', () => {
   const routine = buildSelectionDetails(flightRecord({ squawk: '1200' }), {
     now: NOW,

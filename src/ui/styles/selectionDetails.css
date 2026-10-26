@@ -104,6 +104,11 @@
 .selection-details__alert[hidden] {
   display: none;
 }
+.selection-details__alert--warn {
+  border-color: #fbbf24;
+  background: rgba(251, 191, 36, 0.14);
+  color: #fbbf24;
+}
 .selection-details__notice {
   margin: 0;
   padding: 6px 10px;

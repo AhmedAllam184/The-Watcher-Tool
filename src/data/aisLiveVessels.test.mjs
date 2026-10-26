@@ -239,6 +239,7 @@ function makeFakeAisRuntime(startMs = 1000) {
         id: ++nextId,
         callback,
         dueAt: nowMs + delayMs,
+        delayMs,
         cleared: false,
         fired: false,
       };
@@ -269,8 +270,14 @@ function makeFakeAisRuntime(startMs = 1000) {
     fireIgnoringClear(timer) {
       timer.callback();
     },
-    activeCount() {
-      return scheduled.filter((timer) => !timer.cleared && !timer.fired).length;
+    /** Active timers, optionally only those scheduled with one delay. */
+    activeCount(delayMs = null) {
+      return scheduled.filter(
+        (timer) =>
+          !timer.cleared &&
+          !timer.fired &&
+          (delayMs === null || timer.delayMs === delayMs),
+      ).length;
     },
   };
 }
@@ -1212,7 +1219,7 @@ test('enable owns one grace timer and disable/re-enable starts a new session', a
     await aisLiveVesselsLayer.enable(harness.viewer);
     const first = _getVesselFeedStateForTest();
     assert.equal(first.firstConnectPhase, 'loading');
-    assert.equal(clock.activeCount(), 1);
+    assert.equal(clock.activeCount(AIS_FIRST_CONNECT_GRACE_MS), 1);
 
     clock.advance(5000);
     await aisLiveVesselsLayer.enable(harness.viewer);
@@ -1220,17 +1227,17 @@ test('enable owns one grace timer and disable/re-enable starts a new session', a
     assert.equal(duplicateEnable.sessionId, first.sessionId);
     assert.equal(duplicateEnable.firstConnectStartedAt, first.firstConnectStartedAt);
     assert.equal(duplicateEnable.firstConnectDeadline, first.firstConnectDeadline);
-    assert.equal(clock.activeCount(), 1);
+    assert.equal(clock.activeCount(AIS_FIRST_CONNECT_GRACE_MS), 1);
 
     aisLiveVesselsLayer.disable();
-    assert.equal(clock.activeCount(), 0);
+    assert.equal(clock.activeCount(AIS_FIRST_CONNECT_GRACE_MS), 0);
     await aisLiveVesselsLayer.enable(harness.viewer);
     const replacement = _getVesselFeedStateForTest();
     assert.notEqual(replacement.sessionId, first.sessionId);
     assert.equal(replacement.firstConnectStartedAt, 25000);
     assert.equal(replacement.firstConnectDeadline, 25000 + AIS_FIRST_CONNECT_GRACE_MS);
     assert.equal(replacement.firstConnectPhase, 'loading');
-    assert.equal(clock.activeCount(), 1);
+    assert.equal(clock.activeCount(AIS_FIRST_CONNECT_GRACE_MS), 1);
   } finally {
     globalThis.fetch = priorFetch;
     harness.cleanup();

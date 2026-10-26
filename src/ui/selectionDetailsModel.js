@@ -262,13 +262,17 @@ function buildVessel(record, properties, now) {
   pushRow(rows, 'MMSI', mmsi);
   pushRow(rows, 'IMO', imo);
   pushRow(rows, 'Flag', flagFromMmsi(mmsi));
-  pushRow(
-    rows,
-    'Last position',
-    formatRelativeTime(epochToMs(entity.lastPositionEpoch), now),
-  );
-  const stale = (entity.missedRefreshes || 0) > 0;
-  pushRow(rows, 'Status', stale ? 'Stale — missed updates' : 'Live');
+  const lastSeen = formatRelativeTime(epochToMs(entity.lastPositionEpoch), now);
+  pushRow(rows, 'Last position', lastSeen);
+  // A gone-dark ship is an inference from silence, not a feed fault.
+  const dark = entity.dark === true;
+  if (dark) {
+    pushRow(rows, 'Status', 'Gone dark (inferred)');
+    pushRow(rows, 'Why flagged', entity.inference);
+  } else {
+    const stale = (entity.missedRefreshes || 0) > 0;
+    pushRow(rows, 'Status', stale ? 'Stale — missed updates' : 'Live');
+  }
   if (mmsi) {
     links.push({
       label: 'MarineTraffic',
@@ -278,6 +282,18 @@ function buildVessel(record, properties, now) {
       label: 'VesselFinder',
       href: `https://www.vesselfinder.com/vessels/details/${encodeURIComponent(mmsi)}`,
     });
+  }
+  if (dark) {
+    const silent = lastSeen ? lastSeen.replace(/ ago$/, '') : 'a while';
+    return {
+      kind: 'vessel',
+      title: String(entity.name || record.label || ''),
+      subtitle: type,
+      rows,
+      links,
+      alert: `No AIS signal for ${silent} while under way. Inferred from silence where nearby ships still report — not confirmed.`,
+      alertTone: 'warn',
+    };
   }
   return {
     kind: 'vessel',
@@ -340,8 +356,9 @@ function buildOther(record, properties) {
  * Turn a context record into the plain-language panel model.
  * @param {object|null} record Shared context record (see src/data/contextStore.js).
  * @param {{now?: number}} [options] Clock used for relative times.
- * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, latitude: number|null, longitude: number|null}|null}
- *   `alert` is set only for an emergency transponder squawk.
+ * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, alertTone?: string, latitude: number|null, longitude: number|null}|null}
+ *   `alert` is set for an emergency transponder squawk (`alertTone` unset) or a
+ *   gone-dark vessel (`alertTone: 'warn'`).
  */
 export function buildSelectionDetails(record, { now = Date.now() } = {}) {
   if (!record || typeof record !== 'object') return null;

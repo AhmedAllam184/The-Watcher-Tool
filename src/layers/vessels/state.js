@@ -79,6 +79,23 @@ export function createVesselState({ source, services }) {
     /** @type {number} Monotonic token — invalidates in-flight backfill responses */
     trailBackfillToken: 0,
     trailAbort: null,
+    /**
+     * Gone-dark ships inferred by /api/vessels/dark (dark.js). Cleared while
+     * the layer is disabled; `collections` exist only while it is enabled.
+     */
+    dark: {
+      vessels: [],
+      note: '',
+      rule: null,
+      feedHealthy: false,
+      fetchedAt: null,
+      error: null,
+      sessionId: null,
+      timer: null,
+      abort: null,
+      listener: null,
+      collections: null,
+    },
   };
   return vesselState;
 }

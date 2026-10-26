@@ -138,6 +138,11 @@ export function createSelectionDetailsPanel({
     const alertText = details.alert || '';
     if (alertLine.textContent !== alertText) alertLine.textContent = alertText;
     alertLine.hidden = !alertText;
+    const alertClass =
+      details.alertTone === 'warn'
+        ? 'selection-details__alert selection-details__alert--warn'
+        : 'selection-details__alert';
+    if (alertLine.className !== alertClass) alertLine.className = alertClass;
 
     noticeLine.textContent = notice;
     noticeLine.hidden = !notice;

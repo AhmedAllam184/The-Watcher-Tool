@@ -1,4 +1,10 @@
-import { coordinates, epoch, finite, LiveSourceError } from './contract.js';
+import {
+  cleanText,
+  coordinates,
+  epoch,
+  finite,
+  LiveSourceError,
+} from './contract.js';
 
 /** AIS positions are sea-surface observations; heading and course are distinct. */
 export function normalizeVesselObservation(row, reference = null) {
@@ -93,4 +99,49 @@ export function normalizeVesselTrack(samples) {
       },
     ];
   });
+}
+
+/**
+ * Gone-dark inferences from /api/vessels/dark. A row needs an MMSI and a
+ * finite position; the server's inference fields are kept as plain values.
+ */
+export function normalizeDarkVessels(payload) {
+  const rows = Array.isArray(payload?.vessels) ? payload.vessels : [];
+  const vessels = [];
+  for (const row of rows) {
+    const mmsi = String(row?.mmsi || '').trim();
+    const latitude = finite(row?.lat),
+      longitude = finite(row?.lon);
+    if (!mmsi || !coordinates(latitude, longitude)) continue;
+    vessels.push({
+      mmsi,
+      name: String(row.name || mmsi),
+      type: String(row.type || ''),
+      imo: String(row.imo || ''),
+      destination: String(row.destination || ''),
+      latitude,
+      longitude,
+      lastSpeedKt: finite(row.lastSpeedKt),
+      course: finite(row.course),
+      heading: finite(row.heading),
+      lastSeenMs: epoch(row.lastSeenMs),
+      silentMs: finite(row.silentMs),
+      neighbours: finite(row.neighbours),
+      inference: cleanText(row.inference),
+    });
+  }
+  const rule =
+    payload?.rule && typeof payload.rule === 'object' ? payload.rule : {};
+  return {
+    feedHealthy: payload?.feedHealthy === true,
+    note: cleanText(payload?.note),
+    rule: {
+      minSilenceMin: finite(rule.minSilenceMin),
+      minSpeedKt: finite(rule.minSpeedKt),
+      minReports: finite(rule.minReports),
+      coverage: cleanText(rule.coverage),
+    },
+    count: vessels.length,
+    vessels,
+  };
 }

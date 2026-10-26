@@ -37,6 +37,7 @@ export const HELP_SHORTCUTS = Object.freeze([
 const AIRCRAFT_CIVIL_COLOR = '#ffffff'; // src/layers/flights/rendering.js fleet billboard (Cesium.Color.WHITE)
 const AIRCRAFT_MILITARY_COLOR = '#ffb800'; // src/layers/flights/policy.js MIL_TINT (matches src/layers/military/policy.js MIL_ICON_COLOR)
 const EARTHQUAKE_SHALLOW_COLOR = '#ff0000'; // src/layers/earthquakes/model.js depthColor, under 70 km (Cesium.Color.RED)
+const DARK_SHIP_COLOR = '#f87171'; // src/layers/vessels/dark.js DARK_COLOR
 
 const SHIP_TYPES = Object.freeze([
   { label: 'Cargo', sample: 'Cargo' },
@@ -134,13 +135,16 @@ export function createHelpPanel({
     return item;
   }
 
-  function makeSwatchItem(list, color, label) {
+  function makeSwatchItem(list, color, label, { ring = false } = {}) {
     const item = doc.createElement('li');
     item.className = 'help-panel__swatch-row';
     const swatch = doc.createElement('span');
-    swatch.className = 'help-panel__swatch';
+    swatch.className = ring
+      ? 'help-panel__swatch help-panel__swatch--ring'
+      : 'help-panel__swatch';
     swatch.setAttribute('aria-hidden', 'true');
-    swatch.style.background = color;
+    if (ring) swatch.style.borderColor = color;
+    else swatch.style.background = color;
     const text = doc.createElement('span');
     text.textContent = label;
     item.append(swatch, text);
@@ -203,6 +207,9 @@ export function createHelpPanel({
   otherHeading.textContent = 'Other layers';
   legend.appendChild(otherHeading);
   const otherList = makeList(legend, 'help-panel__legend');
+  makeSwatchItem(shipList, DARK_SHIP_COLOR, 'Ship gone dark (inferred)', {
+    ring: true,
+  });
   makeSwatchItem(
     otherList,
     `rgb(${accentForSeverity('orange')})`,

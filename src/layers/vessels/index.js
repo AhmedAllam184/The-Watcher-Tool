@@ -10,6 +10,7 @@ import { createCards } from './cards.js';
 import { createTesting } from './testing.js';
 import { createEvidence } from './evidence.js';
 import { createQueries } from './queries.js';
+import { createDarkVessels } from './dark.js';
 /** Compose one vessel layer with application-owned scene services. */
 export function createVesselLayer({ source, services, options = {} } = {}) {
   const vesselState = createVesselState({ source, services });
@@ -24,6 +25,7 @@ export function createVesselLayer({ source, services, options = {} } = {}) {
   parts.testing = createTesting(context);
   parts.evidence = createEvidence(context);
   parts.queries = createQueries(context);
+  parts.dark = createDarkVessels(context);
   parts.snapshots = createVesselSnapshotRenderer({
     state: vesselState.state,
     records: vesselState.state.records,
@@ -56,6 +58,7 @@ export function createVesselLayer({ source, services, options = {} } = {}) {
     parts.queries.methods,
     parts.lifecycle.methods,
     parts.ingestion.methods,
+    parts.dark.methods,
   );
   layer.source = source?.label || 'Vessels';
   Object.assign(layer, {

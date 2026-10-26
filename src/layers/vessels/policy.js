@@ -13,6 +13,12 @@ export const DEFAULT_ACTIVE_LABELS = 900;
 
 export const REFRESH_MS = 60000;
 
+/** Gone-dark inference (/api/vessels/dark) cadence, and the wait before its first poll. */
+
+export const DARK_POLL_MS = 60000;
+
+export const DARK_FIRST_POLL_MS = 5000;
+
 /** Bounded wait for the first accepted vessel position in one enabled session. */
 
 export const AIS_FIRST_CONNECT_GRACE_MS = 30000;

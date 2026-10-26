@@ -11,7 +11,11 @@ import {
   readsbSnapshot,
   readsbIdentities,
 } from './aircraft.js';
-import { normalizeVesselTrack, vesselSnapshot } from './vessels.js';
+import {
+  normalizeDarkVessels,
+  normalizeVesselTrack,
+  vesselSnapshot,
+} from './vessels.js';
 
 const defaultFetch = (...args) => globalThis.fetch(...args);
 const header = (response, name) => response.headers?.get?.(name);
@@ -236,6 +240,18 @@ export function createVesselSource({
         records: normalizeVesselTrack(payload?.samples),
         complete: false,
       };
+    },
+    /** Ships inferred to have gone dark; a 503 names the missing key. */
+    async getDarkVessels({ signal } = {}) {
+      const url = new URL(`${apiUrl.replace(/\/+$/, '')}/dark`, origin());
+      const { response, payload } = await readResponse(
+        fetchImpl,
+        url.toString(),
+        { signal, cache: 'no-store' },
+        'Vessels',
+      );
+      if (!response.ok) throw httpError(response, 'Vessels');
+      return normalizeDarkVessels(payload);
     },
   };
 }

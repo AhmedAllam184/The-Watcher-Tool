@@ -295,6 +295,62 @@ test('a malformed vessel row cannot prevent admission of valid positions', async
   assert.equal(snapshot.complete, false);
 });
 
+test('gone-dark vessels come from the dark route and keep only valid rows', async () => {
+  const urls = [];
+  const source = createVesselSource({
+    origin: () => 'http://example.test',
+    fetchImpl: async (url) => {
+      urls.push(url);
+      return response({
+        feedHealthy: true,
+        note: 'Inferred from silence.',
+        rule: {
+          minSilenceMin: 20,
+          minSpeedKt: 3,
+          minReports: 5,
+          coverage: 'three neighbours',
+        },
+        count: 2,
+        vessels: [
+          {
+            mmsi: '232000001',
+            name: 'LOST',
+            lat: 30,
+            lon: -97,
+            lastSpeedKt: 9,
+            lastSeenMs: now - 3600000,
+            silentMs: 3600000,
+            inference: 'silent 60 min',
+          },
+          { mmsi: '', lat: 30, lon: -97 },
+          { mmsi: '232000002', lat: 'x', lon: -97 },
+        ],
+      });
+    },
+  });
+  const dark = await source.getDarkVessels();
+  assert.equal(urls[0], 'http://example.test/api/vessels/dark');
+  assert.equal(dark.feedHealthy, true);
+  assert.equal(dark.note, 'Inferred from silence.');
+  assert.equal(dark.rule.minSilenceMin, 20);
+  assert.equal(dark.count, 1);
+  assert.equal(dark.vessels[0].name, 'LOST');
+  assert.equal(dark.vessels[0].lastSeenMs, now - 3600000);
+  assert.equal(dark.vessels[0].inference, 'silent 60 min');
+});
+
+test('a refused dark-route request reports its status', async () => {
+  const source = createVesselSource({
+    origin: () => 'http://example.test',
+    fetchImpl: async () =>
+      response({ error: 'AISSTREAM_API_KEY not set', vessels: [] }, {}, 503),
+  });
+  await assert.rejects(
+    source.getDarkVessels(),
+    (error) => error.status === 503 && /Vessels HTTP 503/.test(error.message),
+  );
+});
+
 test('out-of-range source epochs do not reach Date or globe time constructors', () => {
   const row = [...aircraft];
   row[3] = 1e100;

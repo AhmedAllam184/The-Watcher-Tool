@@ -1,6 +1,6 @@
 # Tools and the MCP server
 
-Tools answer questions from God's Eye View data for language-model clients.
+Tools answer questions from The Watcher data for language-model clients.
 They are defined once and exposed through adapters: the Model Context Protocol
 (MCP) and function calling, which voice uses.
 
@@ -18,8 +18,8 @@ To use them from Claude or Codex, see [MCP setup](MCP_SETUP.md).
 | `server/mcp/`        | Node composition: points the sources at a running app's `/api` routes; serves stdio and `/mcp`  |
 | `server/standalone/voiceTools.js`, `src/standalone/toolCatalog.js` | Standalone voice composition: the session's tool list and the browser catalog |
 
-Dependencies point downward only. `gods-eye-view/tools` and
-`gods-eye-view/tools/mcp` are portable exports: they reach no application,
+Dependencies point downward only. `the-watcher/tools` and
+`the-watcher/tools/mcp` are portable exports: they reach no application,
 rendering, Node, Cesium or browser-global code, which
 `npm run check:boundaries` enforces. In the application, only voice reaches
 them: `withToolCatalog` in `src/voice/gevRealtime.js` imports the
@@ -70,14 +70,14 @@ reported to clients without details.
 
 ## Services
 
-`gods-eye-view/tools/services` builds the default set with
+`the-watcher/tools/services` builds the default set with
 `createToolServices({ fetchImpl, appUrl })`. Services are the portable source factories the layers already use, such as
 `createUsgsEarthquakeSource`, `createFirmsSource` and `createLaunchSource`,
 plus a `places` service with `resolve(name, { signal })`. Sources request
 relative `/api/...` paths through an injected `fetchImpl`, so the same tool
 code runs wherever an application routes those paths.
 The `weather`, `regional`, `terrain`, `summary` and `features` services are the
-application request services from `gods-eye-view/application/requests`.
+application request services from `the-watcher/application/requests`.
 `situation_brief` and `military_awareness` run each section whose services are supplied and mark the
 others unavailable. `app` is `{ baseUrl }`, the address links open. The `bikeshare` service is `{ systems, getStations }`: the system registry and
 the GBFS source. `createGeocodePlaceService` resolves place names through `/api/geocode`;
@@ -86,7 +86,7 @@ is configured; `createRouteService` plans routes through `/api/route`.
 
 ## Views
 
-`gods-eye-view/view` (`src/view/index.js`) describes what the app shows,
+`the-watcher/view` (`src/view/index.js`) describes what the app shows,
 independent of how it is shown: a camera (lat, lon, altitude, heading,
 pitch), data layers, visual style, map imagery, and an aircraft, military
 aircraft or satellite to follow. `createView` builds and bounds one,
@@ -107,7 +107,7 @@ tilted camera over an area looks at its center from behind; camera fields
 given with an area override its framing. `resolveViewArguments` turns them
 into a view.
 
-### The God's Eye View panel
+### The Watcher panel
 
 `show_in_gods_eye_view` names an MCP Apps view (`io.modelcontextprotocol/ui`):
 `_meta.ui.resourceUri` is `ui://gods-eye-view/globe`, a `text/html;profile=mcp-app`
@@ -119,7 +119,7 @@ the conversation. The panel completes the MCP Apps handshake
 `ui/notifications/size-changed`), and for each
 `ui/notifications/tool-result` carrying a view it loads the app in inline
 embed mode the first time and posts later views to that same app, so the
-globe changes without reloading. Its "Open in God's Eye View" button asks
+globe changes without reloading. Its "Open in The Watcher" button asks
 the host to open the link (`ui/open-link`).
 
 Hosts serve panels from their own sites and may refuse other addresses;
@@ -298,5 +298,5 @@ and the development server's internal routes. See SECURITY.md.
 | `situation_brief` | `weather` | Weather, earthquakes, fires, aircraft, ships and cyclones for an area, by section |
 | `military_awareness` | `military` | Military and other aircraft, ships and military installations within 250 km of a point, by section |
 | `get_hud_caption` | `weather`, `summary` | The app's heads-up display caption for an area |
-| `show_in_gods_eye_view` | `app` | A view in God's Eye View: the live panel in clients with MCP Apps, and a link everywhere; takes another answer's view or an area or camera, layers, style, map, marks and something to follow |
-| `panel_request` | `app` | Panel only: loads a path from the app's server for the God's Eye View panel |
+| `show_in_gods_eye_view` | `app` | A view in The Watcher: the live panel in clients with MCP Apps, and a link everywhere; takes another answer's view or an area or camera, layers, style, map, marks and something to follow |
+| `panel_request` | `app` | Panel only: loads a path from the app's server for The Watcher panel |

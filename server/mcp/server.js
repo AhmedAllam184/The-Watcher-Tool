@@ -15,12 +15,12 @@ import { createMcpServer } from '../../src/tools/mcp/index.js';
 import { DEFAULT_API_BASE, createLocalToolServices } from './services.js';
 
 const INSTRUCTIONS =
-  "Tools answer questions from God's Eye View's live public data. Location " +
+  "Tools answer questions from The Watcher's live public data. Location " +
   'tools take an area: a place name, a bbox, or lat/lon with radius_km. ' +
   'Results are capped; check truncated and total before concluding there is nothing more. ' +
-  "Answers that can be shown in God's Eye View include data.view; to show one, call " +
+  'Answers that can be shown in The Watcher include data.view; to show one, call ' +
   'show_in_gods_eye_view with that view, adding layers, style, a camera or marks as ' +
-  "needed. It shows live God's Eye View where the client displays apps and " +
+  'needed. It shows live The Watcher where the client displays apps and ' +
   'returns a link everywhere.';
 
 /** Construct the local MCP server for Core's tools. */

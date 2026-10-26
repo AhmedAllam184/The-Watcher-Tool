@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import * as Cesium from 'cesium';
-import { createInfrastructureLayers } from 'gods-eye-view/infrastructure';
-import { createLocalGeoJsonLayer } from 'gods-eye-view/infrastructure/geojson';
+import { createInfrastructureLayers } from 'the-watcher/infrastructure';
+import { createLocalGeoJsonLayer } from 'the-watcher/infrastructure/geojson';
 
 function services() {
   const records = new Map();
@@ -45,9 +45,9 @@ test('package exports import without an application, DOM, fetch, or timers', () 
     for (const key of ['window', 'document']) {
       delete globalThis[key];
     }
-    await import('gods-eye-view/infrastructure');
-    await import('gods-eye-view/infrastructure/geojson');
-    await import('gods-eye-view/infrastructure/lod');
+    await import('the-watcher/infrastructure');
+    await import('the-watcher/infrastructure/geojson');
+    await import('the-watcher/infrastructure/lod');
   `,
     ],
     { cwd: new URL('../..', import.meta.url), encoding: 'utf8' },
@@ -179,9 +179,7 @@ test('consumer build includes only infrastructure code and resolves assets under
       write: false,
       assetsInlineLimit: 0,
       rollupOptions: {
-        input: fileURLToPath(
-          import.meta.resolve('gods-eye-view/infrastructure'),
-        ),
+        input: fileURLToPath(import.meta.resolve('the-watcher/infrastructure')),
         external: ['cesium'],
         preserveEntrySignatures: 'strict',
       },

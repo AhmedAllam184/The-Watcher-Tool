@@ -1,4 +1,4 @@
-# God's Eye View Current State
+# The Watcher Current State
 
 Vessel sources can report healthy empty coverage using a current, complete
 snapshot with zero raw rows, a healthy transport and a positive last-message
@@ -44,12 +44,12 @@ provider registration rejects compositions that cannot fit rather than truncatin
 identities. A malformed or duplicate entry invalidates the complete custom-switch
 field. Existing whole-link size limits still apply.
 
-## God's Eye View in conversations — October 2, 2026
+## The Watcher in conversations — October 2, 2026
 
-Tool answers that can be shown in God's Eye View include a view: camera, layers,
+Tool answers that can be shown in The Watcher include a view: camera, layers,
 style, map, marks and an aircraft or satellite to follow, written in the
-share-link format (`gods-eye-view/view`). `show_in_gods_eye_view` shows a view as live
-God's Eye View inside clients that display MCP Apps, and as a link everywhere.
+share-link format (`the-watcher/view`). `show_in_gods_eye_view` shows a view as live
+The Watcher inside clients that display MCP Apps, and as a link everywhere.
 The panel runs the app's panel build (`npm run build:panel`, served at
 `/panel/`) and loads it, with its data, through the MCP server, so it works
 in Claude Desktop and in the Codex and ChatGPT desktop apps with a local
@@ -73,8 +73,8 @@ Windows/Claude Desktop Cowork confirmation remains outstanding (#927).
 
 ## Tools and local MCP server — October 1, 2026
 
-`gods-eye-view/tools` defines queries that answer questions from the app's data,
-and `gods-eye-view/tools/mcp` exposes a composed catalog over the Model Context
+`the-watcher/tools` defines queries that answer questions from the app's data,
+and `the-watcher/tools/mcp` exposes a composed catalog over the Model Context
 Protocol. `npm run mcp` serves Core's tools over stdio to a local MCP client,
 reading from a running app's `/api` routes (default `http://localhost:4173`).
 The development and preview servers also serve the tools over HTTP at `/mcp`,
@@ -778,7 +778,7 @@ sea-surface placement, click ownership and card selection policy are unchanged.
 
 ## Military-flight components and aircraft mechanics
 
-`gods-eye-view/layers/military` exports `createMilitaryFlightLayer`. It uses the
+`the-watcher/layers/military` exports `createMilitaryFlightLayer`. It uses the
 same normalized observation contract as civil flights, with separate military
 classification, styling, model and tracking policy. Each instance owns its
 contacts, history, scratch objects, model loads and cancellation lifetime.
@@ -787,7 +787,7 @@ Applications supply the existing scene services and resolve model asset URLs;
 A source may retain a bounded stale-status reason; the standalone cached-feed
 behavior remains unchanged.
 
-`gods-eye-view/aircraft` exports the existing shared classification, icon,
+`the-watcher/aircraft` exports the existing shared classification, icon,
 metadata, motion, altitude, model-anchor, proximity and selection calculations.
 It also exports `createMilitaryRegistry`, an explicitly constructed owner for
 known military identities and active-layer transitions. Its optional background
@@ -800,7 +800,7 @@ starts no network request. Both standalone aircraft layers use one registry.
 
 ## Civil-flight components
 
-`gods-eye-view/layers/flights` exports `createCivilFlightLayer`. Each instance
+`the-watcher/layers/flights` exports `createCivilFlightLayer`. Each instance
 owns its contacts, histories, model collections, scratch objects and lifecycle.
 State, ingestion, enrichment, motion/floor interpolation, rendering, tracking and
 queries live in separate files under `src/layers/flights`. The standalone
@@ -817,7 +817,7 @@ camera, terrain floor, trail, selection and measured model-size policies remain.
 ## Browser live-source observations
 
 Flights, Military Flights and AIS Vessels obtain snapshots and optional history
-through `gods-eye-view/sources/live`. The standalone adapters use the existing
+through `the-watcher/sources/live`. The standalone adapters use the existing
 same-origin routes. Aircraft observations distinguish barometric metres from
 WGS84 ellipsoid metres and retain source position/contact epochs; vessel records
 retain separate heading/course and sea-surface datum. History is a best-effort
@@ -844,7 +844,7 @@ Scene controls consume playback state and editing outcomes from the director.
 Progress updates carry a small playback snapshot and preserve shot-row identity;
 editing outcomes include a copy of the affected scene or shot. Subscriptions
 start with current state, isolate listener failures and stop on disposal.
-`gods-eye-view/scenes` exports the same director used by the standalone app.
+`the-watcher/scenes` exports the same director used by the standalone app.
 
 ## UI shell and component ownership
 
@@ -1145,8 +1145,8 @@ Local composition now imports separate Node modules for Re:Earth heights,
 TomTom flow tiles, NASA FIRMS detections and GBFS station feeds. Existing routes,
 plugin order, server-key selection, validation, disk caches, budgets, retries
 and stale/error responses remain unchanged. Each has a Node-only package entry
-under `gods-eye-view/server/providers/`. Portable terrain mechanics, traffic tile
-math and GBFS source rules are available under `gods-eye-view/sources/`.
+under `the-watcher/server/providers/`. Portable terrain mechanics, traffic tile
+math and GBFS source rules are available under `the-watcher/sources/`.
 The browser layers and their rendering remain in their existing modules.
 
 ## Terrain height cache bound
@@ -1180,7 +1180,7 @@ retain their established behavior.
 `server/providers/space/` owns the CelesTrak TLE and Launch Library 2 Node
 proxies. Their routes, six-hour/15-minute caches, disk storage, stale fallback,
 request coalescing and optional LL2 server token retain existing behavior.
-The Node-only `gods-eye-view/server/providers/space` export supplies factories;
+The Node-only `the-watcher/server/providers/space` export supplies factories;
 `sources/space` supplies fixed upstream URL builders with no I/O or environment
 access. Callers retain validation, transport and response policy.
 
@@ -1193,7 +1193,7 @@ provider families own their middleware and process state in focused modules.
 Provider URLs, key selection, cache behavior, setup restrictions and routes are
 unchanged.
 
-`gods-eye-view/build/vite` is a Node-only export for explicit browser build
+`the-watcher/build/vite` is a Node-only export for explicit browser build
 settings: Cesium assets, caller-supplied plugins, browser key defines, server
 binding and document/credential protections. It never reads an environment file
 or constructs providers. The standalone caller owns those choices.
@@ -1369,10 +1369,10 @@ in `ais-store.js`. Common response caps, request coalescing and query parsing
 have their own modules. `server/providers/local.js` composes these with the
 remaining providers and retains existing named compatibility exports.
 
-`gods-eye-view/server/providers/live` is a Node-only entry for the existing
+`the-watcher/server/providers/live` is a Node-only entry for the existing
 plugins and shared request helpers. Importing it starts no sockets or timers.
 The existing aircraft normalizer is separately available through the portable
-`gods-eye-view/sources/adsb-lol` export. Provider URLs, local credentials, cache
+`the-watcher/sources/adsb-lol` export. Provider URLs, local credentials, cache
 policy, fallback behavior, response shapes and rendering remain unchanged.
 
 ## Control names for assistive technology
@@ -4328,7 +4328,7 @@ are omitted rather than framing the wrong part of the globe.
 - A successful Pinokio install writes the owner-only `pinokio/.installed`
   marker. The nested launcher menu resolves that marker from its own directory:
   an absent marker exposes Install, a present marker exposes Start, and a
-  running server with a captured ready URL exposes Open God's Eye View.
+  running server with a captured ready URL exposes Open The Watcher.
 - Build gate: `npm run build`
 - Network access: local-only by default (`HOST=localhost` in dev-fresh.sh); LAN is an explicit opt-in via `HOST=0.0.0.0` (launcher prints a key-exposure warning + LAN URL; see SECURITY.md)
 - OpenSky default mode: OAuth (`OPENSKY_AUTH_MODE=oauth`; `anon` works without credentials)

@@ -215,7 +215,7 @@ test('upsert is idempotent for a repeated save', () => {
 test('a real .env.example round-trip: the curated file keeps its shape', () => {
   // A representative slice of the shipped .env.example.
   const example = [
-    '# God\'s Eye View — environment variables',
+    '# The Watcher — environment variables',
     'GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here',
     '',
     '# Optional: OpenAI Realtime voice control. Do not prefix with VITE_.',

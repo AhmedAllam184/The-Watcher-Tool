@@ -52,7 +52,7 @@ test('a panel page from one server process is refused by another without a share
   assert.equal(refused.result.isError, true);
   assert.match(
     refused.result.content[0].text,
-    /Only the God's Eye View panel may make this request/,
+    /Only The Watcher panel may make this request/,
   );
 });
 

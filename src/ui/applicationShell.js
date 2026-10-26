@@ -38,7 +38,7 @@ import { ShellFeedback } from './shellFeedback.js';
 import { runCctvLayerEnableTransition } from '../cctvFocusPolicy.js';
 
 /**
- * Central UI orchestrator for the God's Eye View application.
+ * Central UI orchestrator for The Watcher application.
  *
  * Responsibilities:
  * - Visual controls and presets backed by the VisualEffects controller.

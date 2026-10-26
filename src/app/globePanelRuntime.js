@@ -1,5 +1,5 @@
 /**
- * The God's Eye View panel's script, run inside the panel page a host shows.
+ * The Watcher panel's script, run inside the panel page a host shows.
  * It is sent as source text (see src/tools/globePanel.js), so it must not use
  * imports or anything outside the function.
  *
@@ -459,7 +459,7 @@ export function panelRuntime(config) {
   }
 
   /**
-   * Load God's Eye View into this page from the app's panel build, in
+   * Load The Watcher into this page from the app's panel build, in
    * inline embed mode, starting at the first view as its link would.
    */
   async function startApp(url, view) {
@@ -541,9 +541,9 @@ export function panelRuntime(config) {
         const notice = document.createElement('div');
         notice.id = 'status';
         notice.textContent =
-          "This panel lost its 3D graphics, likely because other God's Eye " +
-          "View panels in this conversation hold them. Use Open in God's " +
-          'Eye View above, or show it in a new conversation.';
+          'This panel lost its 3D graphics, likely because other The Watcher ' +
+          'panels in this conversation hold them. Use Open in The Watcher ' +
+          'above, or show it in a new conversation.';
         document.body.appendChild(notice);
       },
       { capture: true, once: true },
@@ -568,16 +568,16 @@ export function panelRuntime(config) {
     queued = view;
     if (started) return;
     started = true;
-    say("Loading God's Eye View…");
+    say('Loading The Watcher…');
     startApp(url, view).catch((error) =>
-      say(`God's Eye View could not load here: ${error?.message || error}.`),
+      say(`The Watcher could not load here: ${error?.message || error}.`),
     );
     setTimeout(() => {
       if (!ready)
         say(
-          "God's Eye View did not load here" +
+          'The Watcher did not load here' +
             (blocked ? ` (${blocked})` : '') +
-            ". Use Open in God's Eye View above.",
+            '. Use Open in The Watcher above.',
         );
     }, config.loadTimeoutMs);
   }
@@ -640,7 +640,7 @@ export function panelRuntime(config) {
     appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] },
     appInfo: {
       name: 'gods-eye-view',
-      title: "God's Eye View",
+      title: 'The Watcher',
       version: '1.0.0',
     },
     protocolVersion: config.protocolVersion,
@@ -655,7 +655,7 @@ export function panelRuntime(config) {
     },
     (error) =>
       say(
-        "This client did not accept the God's Eye View panel" +
+        'This client did not accept The Watcher panel' +
           (error?.message ? `: ${error.message}` : '.'),
       ),
   );

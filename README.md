@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🌐 God's Eye View
+# 🌐 The Watcher
+
+The Watcher is a fork of [God's Eye View](https://github.com/bilawalsidhu/gods-eye-view) by Bilawal Sidhu (MIT License).
 
 [![CI](https://github.com/bilawalsidhu/gods-eye-view/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bilawalsidhu/gods-eye-view/actions/workflows/ci.yml) [![Reached #1 on GitHub Trending](https://img.shields.io/badge/%231_GitHub_Trending-thank_you!-F0A63C?style=flat-square&logo=github)](https://x.com/bilawalsidhu/status/2093798887815348521)
 
@@ -13,7 +15,7 @@ _No place left behind._
 ![Orbital HUD, a tracked live globe, FLIR terrain — then OPEN SOURCED](docs/media/hero-open-source-reveal.gif)
 
 <a href="https://www.youtube.com/@bilawalsidhu">
-  <img src="docs/media/youtube-popular-videos.png" alt="The God's Eye View video series on YouTube" width="100%">
+  <img src="docs/media/youtube-popular-videos.png" alt="God's Eye View video series on YouTube" width="100%">
 </a>
 
 ▶️ **From the project behind the viral God's Eye View series** _(formerly WorldView)_ — [5M+ on YouTube](https://youtube.com/playlist?list=PL6qSg2I-7_koPbDnSMo0QeeHX_RknA2uv&si=nBGYMoHWQw41v93Q) · [25M+ across socials](https://www.google.com/search?q=god%27s+eye+view)
@@ -40,9 +42,9 @@ _“pretty cool”_ — [Brendan Eich](https://x.com/BrendanEich/status/20945920
 
 ## 🌍 Why This Exists
 
-God's Eye View brings public signals into one explorable globe. Track the world live. Talk to it. Break it. Extend it.
+The Watcher brings public signals into one explorable globe. Track the world live. Talk to it. Break it. Extend it.
 
-Flight transponders, ship beacons, orbital elements, seismographs, and public cameras already tell us a lot about the world. God's Eye View puts them in the same place, so you can move between a global picture and an individual aircraft, ship, or street. It runs locally in your browser, with source code you can inspect and extend.
+Flight transponders, ship beacons, orbital elements, seismographs, and public cameras already tell us a lot about the world. The Watcher puts them in the same place, so you can move between a global picture and an individual aircraft, ship, or street. It runs locally in your browser, with source code you can inspect and extend.
 
 > Half the magic is that it looks like a forbidden cockpit. The other half is that every line of code is inspectable.
 
@@ -106,7 +108,7 @@ app's **POWER UP** panel; [Keys & Costs](#-api-keys) explains the options.
 ### Path 1 — One click, no terminal
 
 1. Install or update [Pinokio](https://desktop.pinokio.co/) to **8.2 or later**.
-2. Open [God's Eye View in Pinokio](https://pinokio.co/apps/github-com-bilawalsidhu-gods-eye-view).
+2. Open [The Watcher in Pinokio](https://pinokio.co/apps/github-com-bilawalsidhu-gods-eye-view).
 3. Click **Install**, then **Start**.
 
 Available on **Windows, macOS, and Linux**. The Pinokio maintainer reports
@@ -285,7 +287,7 @@ _Ask for radio near anywhere and the globe starts broadcasting — every station
 
 ---
 
-**💬 Or ask from Claude and Codex.** God's Eye View is also an MCP server: ask Claude Desktop, Codex or ChatGPT desktop to show a place, and the live globe opens right in the conversation. Setup takes a minute — see [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+**💬 Or ask from Claude and Codex.** The Watcher is also an MCP server: ask Claude Desktop, Codex or ChatGPT desktop to show a place, and the live globe opens right in the conversation. Setup takes a minute — see [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
 ## 🛰️ What's on the Globe
 
@@ -543,7 +545,7 @@ a separately reviewed authentication proxy if remote access is required.
 
 ## 📋 Responsible & Open
 
-God's Eye View runs on **public data, clear sources, and local-first execution.** No secrets, no private datasets, no mystery scraping — anything involving a private key is brokered server-side. It has the visual grammar of a classified ops room, built entirely from open signals and inspectable code.
+The Watcher runs on **public data, clear sources, and local-first execution.** No secrets, no private datasets, no mystery scraping — anything involving a private key is brokered server-side. It has the visual grammar of a classified ops room, built entirely from open signals and inspectable code.
 
 **The line.** This project models **events, assets, infrastructure, and systems** — aircraft, vessels, satellites, fires, cameras, cities. It does not build features for named-person search, face recognition, or tracking individuals, and pull requests that cross that line won't be merged. People are not a query type here.
 
@@ -556,7 +558,7 @@ God's Eye View runs on **public data, clear sources, and local-first execution.*
 <sub>Media note: the capture GIFs on this page show Google Photorealistic 3D Tiles and live data layers, used promotionally with in-frame attribution; they aren't licensed for standalone reuse. See [media provenance and permissions](docs/media/README.md); full source terms in [DATA_SOURCES.md](DATA_SOURCES.md).</sub>
 
 > [!IMPORTANT]
-> God's Eye View is an exploratory visualization of public and third-party data.
+> The Watcher is an exploratory visualization of public and third-party data.
 > Data may be delayed, incomplete, modeled, inferred, or wrong. Do not use it
 > for flight or maritime navigation, emergency response, medical or health
 > decisions, investment decisions, or other safety-critical or operational
@@ -574,7 +576,7 @@ So here it is. Step inside the spy-thriller cockpit — except the data is real 
 
 One heads-up from the inside: build in this space for a week and you learn that **the present is the cheap part**. The moment you try to go back in time — tiling, serving, and scrubbing _what happened_ and _what changed_ at any real resolution — the data gets expensive and the compute gets brutal. That's the long game.
 
-**Update — a hosted version is coming.** We originally planned to keep this repository as the open-source client and build a separate professional product. Then the launch happened, and the loudest request wasn't another feature — it was _"just give me a link."_ So we're building an official hosted God's Eye View at [Halfpixel](https://halfpixel.ai): no installation, just open it in your browser. The hosted version is the easiest way into this open-source project. More soon.
+**Update — a hosted version is coming.** We originally planned to keep this repository as the open-source client and build a separate professional product. Then the launch happened, and the loudest request wasn't another feature — it was _"just give me a link."_ So we're building an official hosted The Watcher at [Halfpixel](https://halfpixel.ai): no installation, just open it in your browser. The hosted version is the easiest way into this open-source project. More soon.
 
 ---
 
@@ -582,6 +584,6 @@ One heads-up from the inside: build in this space for a week and you learn that 
 
 ▶️ [Watch the God's Eye View series](https://youtube.com/playlist?list=PL6qSg2I-7_koPbDnSMo0QeeHX_RknA2uv&si=nBGYMoHWQw41v93Q) · 📬 [Map the World](https://maptheworld.ai/) — the newsletter behind the project
 
-**🌐 God's Eye View. No place left behind.**
+**🌐 The Watcher. No place left behind.**
 
 </div>

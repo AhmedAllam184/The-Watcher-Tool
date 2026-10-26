@@ -2,7 +2,7 @@
 
 Installed 2026-10-11 from https://github.com/bilawalsidhu/gods-eye-view.
 
-Double-click `Start Gods Eye View.cmd` to start. Keep its terminal open. Close it to stop the app. If the browser opens before startup finishes, refresh it after the terminal displays the local address.
+Double-click `Start The Watcher.cmd` to start. Keep its terminal open. Close it to stop the app. If the browser opens before startup finishes, refresh it after the terminal displays the local address.
 
 URL: http://127.0.0.1:4173
 

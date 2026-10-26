@@ -1,6 +1,6 @@
 # MCP setup
 
-Use God's Eye View from Claude and Codex: tools, links, and the live globe
+Use The Watcher from Claude and Codex: tools, links, and the live globe
 inside the conversation. Agents: follow these steps in order and check each
 one before going on.
 
@@ -51,7 +51,7 @@ args = ["/abs/path/gods-eye-view/server/mcp/stdio.js", "--api-base", "http://loc
 
 Fully quit the client (on Windows, from the tray icon) and reopen it, then
 start a new chat; clients keep the server they started with. Ask: *"Show San
-Diego in God's Eye View with military flights on."*
+Diego in The Watcher with military flights on."*
 
 - Claude Desktop (a chat, not the Code tab), Codex and ChatGPT desktop show
   the live globe; the first load takes 10–20 seconds.
@@ -60,7 +60,7 @@ Diego in God's Eye View with military flights on."*
 ## Troubleshooting
 
 - **The server does not appear:** run the command from step 2 in a terminal;
-  it should print `God's Eye View MCP server reading http://localhost:4173`
+  it should print `The Watcher MCP server reading http://localhost:4173`
   and wait. A path or `args` mistake fails here.
 - **The panel says it could not load:** `npm run build:panel` was not run, or
   the dev server is down.

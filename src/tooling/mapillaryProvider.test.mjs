@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { after } from 'node:test';
 import { PbfWriter } from 'pbf';
-import { mapillaryProxy } from 'gods-eye-view/server/providers/mapillary';
+import { mapillaryProxy } from 'the-watcher/server/providers/mapillary';
 import {
   listTileLayers,
   stripTileLayers,

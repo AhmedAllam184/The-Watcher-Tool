@@ -29,6 +29,7 @@ import { createApplicationCables } from './layers/submarineCables.js';
 import { createApplicationStreetLevel } from './layers/streetLevel.js';
 import { createGpsJamLayer } from '../layers/gpsJam/index.js';
 import { createInfrastructureLayers } from '../data/infrastructure.js';
+import { createAirportStatusOverlay } from '../layers/airportStatus/overlay.js';
 import { localGeoJsonServices } from './localGeojsonServices.js';
 import { createBhoteKoshiEventLayer } from '../data/bhoteKoshiEvent.js';
 import { createBhoteKoshiLocatorLayer } from '../data/bhoteKoshiLocator.js';
@@ -162,7 +163,11 @@ export function createApplicationCatalog({
         }),
         createCyclonesLayer({ feed: sources.cyclones }),
         createGpsJamLayer({ feed: sources['gps-jam'] }),
-        ...createInfrastructureLayers(localGeoJsonServices),
+        ...createInfrastructureLayers(localGeoJsonServices, {
+          airportStatus: createAirportStatusOverlay({
+            services: localGeoJsonServices,
+          }),
+        }),
         createApplicationCables({ source: sources.cables }),
         createApplicationFirms({
           surface,

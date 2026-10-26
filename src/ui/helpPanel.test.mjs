@@ -237,6 +237,23 @@ test('the legend swatches come from the modules that draw the map', (t) => {
   ]);
 });
 
+test('the airport disrupted and watch rings are in the legend with their colours', (t) => {
+  const { panel } = setup(t);
+  const ringFor = (label) => {
+    const row = findAll(
+      panel,
+      (el) =>
+        el.className === 'help-panel__swatch-row' &&
+        el.children.some((child) => child.text === label),
+    )[0];
+    assert.ok(row, `${label} renders`);
+    return row.children.find((child) => child.className.includes('--ring'))
+      .style.borderColor;
+  };
+  assert.equal(ringFor('Airport disrupted (inferred)'), '#f87171');
+  assert.equal(ringFor('Airport watch (inferred)'), '#fbbf24');
+});
+
 test('the feed dots reuse the shared feed-dot class and health values', (t) => {
   const { panel } = setup(t);
   const dots = byClass(panel, 'feed-dot');

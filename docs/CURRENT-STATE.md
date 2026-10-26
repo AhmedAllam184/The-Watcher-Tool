@@ -1390,6 +1390,28 @@ polled one at a time every 20 s, only while a request has arrived in the last 10
 Each viewport request adds a temporary region for 15 min, up to three at once.
 Failed regions back off for 5 min. The grid is kept on disk in `.gev-cache/gps-jam.json`.
 
+## Airport disruption inference (server and Airports layer)
+
+`/api/airports/status` (`server/providers/aircraft/airport-watch.js`, rules in
+`src/data/holdingDetection.js` and `src/data/gpsJam.js`) rates 32 watched airports
+from live adsb.lol positions within 40 nm of each one. An aircraft counts as holding
+when its recent track shows a circling episode (at least 330 degrees of net turn in
+25 min) that ended in the last 20 min, within 40 km of the airport and below 20,000 ft.
+The degraded GPS share uses the same NIC and NACp rule as the GPS interference map and
+needs at least 6 judged aircraft. Airports are rated disrupted at 3 or more holding
+aircraft or a 25% GPS share, watch at 1 or more holding or a 10% share, and unknown
+until a sample is recent. Viewed large airports are sent as `?codes=` (8 at most) and
+join the rotation for 15 min. The Airports layer draws a ring around each affected
+airport, lists them in its row and adds the status to the details panel. The overlay
+polls every 60 s and after the camera settles, only while the Airports layer is on. The
+endpoint responds with its own inference note. Track history and the last samples are
+kept in `.gev-cache/airport-watch.json`. Sampling uses a tiered schedule: one poll per
+10 s tick. Up to four viewed or watch/disrupted airports
+are polled about every 60 s, and the base watchlist is polled at least every 30 s
+(about 16 min per airport). Holding is reported only when an airport's last three
+polls were at most 3 min apart (`holdingReliable`); otherwise its holding reads as not
+assessed. The GPS share is available from every sample.
+
 ## Control names for assistive technology
 
 Scope, Bloom, Sharpen and location search have explicit accessible names.

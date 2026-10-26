@@ -4,9 +4,16 @@ import { INFRASTRUCTURE_DATA_URLS } from '../sources/infrastructureData.js';
 /**
  * Create fresh datacenter, dam and airport layers without starting or loading them.
  * @param {object} services Caller-owned context, overlay and render operations.
+ * @param {object} [options]
+ * @param {object} [options.airportStatus] Airport disruption controller
+ *   (src/layers/airportStatus/overlay.js). It wraps the airports' context
+ *   services and decorates the airports layer, which stays one layer.
  * @returns {object[]} Datacenters, dams, then airports, with stable standalone identities.
  */
-export function createInfrastructureLayers(services) {
+export function createInfrastructureLayers(
+  services,
+  { airportStatus = null } = {},
+) {
   const datacentersUrl = INFRASTRUCTURE_DATA_URLS['local-datacenters'];
   const damsUrl = INFRASTRUCTURE_DATA_URLS['local-dams'];
   const airportsUrl = INFRASTRUCTURE_DATA_URLS['local-airports'];
@@ -55,8 +62,12 @@ export function createInfrastructureLayers(services) {
       labelMax: 600,
       labelGridPx: 150,
     },
-    services,
+    airportStatus ? airportStatus.wrapServices(services) : services,
   );
 
-  return [datacenters, dams, airports];
+  return [
+    datacenters,
+    dams,
+    airportStatus ? airportStatus.decorate(airports) : airports,
+  ];
 }

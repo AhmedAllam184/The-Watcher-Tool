@@ -7,6 +7,7 @@ import { adsbdbProxy } from './aircraft/enrichment.js';
 import { aircraftPhotoProxy } from './aircraft/photos.js';
 import { aircraftTraceProxy } from './aircraft/trace.js';
 import { gpsJamProxy } from './aircraft/gps-jam.js';
+import { airportWatchProxy } from './aircraft/airport-watch.js';
 import { overpassProxy } from './overpass.js';
 import { militaryInstallationsProxy } from './military-installations.js';
 import { regionalBriefProxy } from './regional/briefing.js';
@@ -46,6 +47,7 @@ function localProviderPlugins({ realtime } = {}) {
     aircraftPhotoProxy(),
     aircraftTraceProxy(),
     gpsJamProxy(),
+    airportWatchProxy(),
     overpassProxy(),
     militaryInstallationsProxy(),
     regionalBriefProxy(),

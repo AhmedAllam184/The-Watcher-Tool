@@ -9,6 +9,7 @@ import { accentForSeverity } from '../data/firmsLabels.js';
 import { SATELLITE_CLASSES } from '../data/satelliteClass.js';
 import { accentForVesselType } from '../data/vesselLabels.js';
 import { GPS_JAM_STYLE } from '../data/gpsJamLabels.js';
+import { AIRPORT_STATUS_STYLE } from '../data/airportStatusLabels.js';
 import { applyTextSize, readLargeTextPreference } from './textSize.js';
 
 export const HELP_PANEL_ID = 'help-panel';
@@ -235,6 +236,18 @@ export function createHelpPanel({
     otherList,
     GPS_JAM_STYLE.high.swatch,
     'GPS interference, over 10% (inferred)',
+  );
+  makeSwatchItem(
+    otherList,
+    AIRPORT_STATUS_STYLE.disrupted.swatch,
+    'Airport disrupted (inferred)',
+    { ring: true },
+  );
+  makeSwatchItem(
+    otherList,
+    AIRPORT_STATUS_STYLE.watch.swatch,
+    'Airport watch (inferred)',
+    { ring: true },
   );
 
   // 4. Feed status dots

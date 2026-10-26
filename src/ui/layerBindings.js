@@ -131,6 +131,20 @@ export class LayerBindings {
     });
   }
 
+  /** Give the Airports layer the shell's navigation policy for its focus flights. */
+  _connectAirportCamera() {
+    const airports = this._dataManager?.layers?.get('local-airports')?.module;
+    if (this._airportShellModule !== airports)
+      this._airportShellModule?.attachShellServices?.(null);
+    this._airportShellModule = null;
+    if (typeof airports?.attachShellServices !== 'function') return;
+    this._airportShellModule = airports;
+    airports.attachShellServices({
+      runNavigation: (navigate) =>
+        this.runImmediateNavigation('airport', navigate),
+    });
+  }
+
   _connectWeatherCamera() {
     for (const layer of this._weatherShellModules)
       layer.attachShellServices?.(null);
@@ -251,6 +265,7 @@ export class LayerBindings {
     this._connectDirectionsCamera();
     this._connectWeatherCamera();
     this._connectGpsCamera();
+    this._connectAirportCamera();
     if (!this._awarenessSelectedHandler) {
       this._awarenessSelectedHandler = (event) =>
         this._persistAwarenessSelection(event, false);
@@ -304,5 +319,6 @@ export class LayerBindings {
     this._dataManager = null;
     this._connectWeatherCamera();
     this._connectGpsCamera();
+    this._connectAirportCamera();
   }
 }

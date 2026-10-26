@@ -91,10 +91,11 @@ Start with the included data sources, then add your own. Each layer is a separat
 
 ## ⚡ Quick Start
 
-**Start without an account or API keys.** Both paths open the same app with
-Esri satellite imagery and keyless terrain. OSM is the fallback if Esri is
-unreachable. Flights, military traffic, satellites, earthquakes, public
-cameras, radio, and launches are available without keys.
+**Start without an account or API keys.** Both paths open the same app over
+Egypt on a flat street map (OpenStreetMap) with every layer off. Turn on what
+you need in **DATA LAYERS**, and switch to Satellite or Google 3D in **MAP
+SOURCE**. Flights, military traffic, satellites, earthquakes, public cameras,
+radio, and launches are available without keys.
 
 For photorealistic 3D, add a **Cesium ion token** for eligible personal,
 non-commercial use, or a **Google Maps key** for the direct, metered route and

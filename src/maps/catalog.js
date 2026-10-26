@@ -1,4 +1,6 @@
 import * as Cesium from 'cesium';
+export { DEFAULT_MAP_STACK_ID } from './stackIds.js';
+
 export const MAP_STACKS = [
   {
     id: 'photoreal',

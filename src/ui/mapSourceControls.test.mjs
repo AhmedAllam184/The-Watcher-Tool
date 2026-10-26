@@ -224,6 +224,34 @@ test('restoration may select without claiming or publishing a user gesture', asy
   f.controls.destroy();
 });
 
+test('a visitor pick is remembered for the next start, and a restore never overwrites it', async () => {
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const values = new Map();
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
+  });
+  try {
+    const f = fixture();
+    const pick = f.controls.select('esri-imagery');
+    f.requests[0].resolve(f.change('esri-imagery'));
+    await pick;
+    assert.equal(values.get('watcher.mapStack'), 'esri-imagery');
+
+    const restore = f.controls.select('osm', { syncShare: false });
+    f.requests[1].resolve(f.change('osm'));
+    await restore;
+    assert.equal(values.get('watcher.mapStack'), 'esri-imagery');
+    f.controls.destroy();
+  } finally {
+    if (saved) Object.defineProperty(globalThis, 'localStorage', saved);
+    else delete globalThis.localStorage;
+  }
+});
+
 test('refresh removes detached chip listeners and destruction removes all subscriptions', () => {
   const f = fixture();
   const old = f.chip('esri-imagery');

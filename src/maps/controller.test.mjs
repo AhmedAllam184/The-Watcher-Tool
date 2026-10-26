@@ -85,7 +85,14 @@ function publicFixture() {
       create: async () => ({ provider: { id: 'terrain' } }),
     };
   }
-  return { ...fixture(registry), registry, providers, tileset };
+  // The registry's default is now OSM (flat streets). These lease tests were
+  // written about a Google 3D start, so that start is pinned here explicitly.
+  return {
+    ...fixture(registry, { initialStack: 'photoreal' }),
+    registry,
+    providers,
+    tileset,
+  };
 }
 
 test('an additional imagery source needs no controller branch and owns its cached resources', async () => {

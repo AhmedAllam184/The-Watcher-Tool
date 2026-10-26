@@ -2,7 +2,7 @@ import * as Cesium from 'cesium';
 
 /**
  * Camera presets for notable locations.
- * Phase 1 default: fly to Austin, TX on load.
+ * Startup opens on START_VIEW (Egypt), see flyToStartView.
  */
 export const CAMERA_PRESETS = {
   austin: {
@@ -47,36 +47,35 @@ export function flyToPreset(viewer, presetName, duration = 3.0) {
 }
 
 /**
- * Set camera to Austin on load with a cinematic fly-in.
- * @returns {Function} Cancels the pending or active startup flight.
+ * Where the app opens when no share link is present. Straight-down framing
+ * over the country at a flat-map scale; reuse this rather than restating it.
  */
-export function flyToAustin(viewer) {
-  // Start from a high altitude, then fly down
+export const START_VIEW = Object.freeze({
+  name: 'Egypt',
+  lat: 26.8,
+  lon: 30.8,
+  heightM: 2200000,
+});
+
+/**
+ * Set the startup camera to START_VIEW: north-up and straight down, in one
+ * step. There is no fly-in, so the first frame is already the flat map.
+ * @returns {Function} Teardown; cancels any flight that may still be running.
+ */
+export function flyToStartView(viewer) {
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(-97.7431, 30.2672, 25000),
+    destination: Cesium.Cartesian3.fromDegrees(
+      START_VIEW.lon,
+      START_VIEW.lat,
+      START_VIEW.heightM,
+    ),
     orientation: {
       heading: Cesium.Math.toRadians(0),
       pitch: Cesium.Math.toRadians(-90),
       roll: 0.0,
     },
   });
-
-  // Cinematic fly-in after a brief pause
-  const timer = setTimeout(() => {
-    if (viewer.isDestroyed()) return;
-    viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(-97.7431, 30.2672, 600),
-      orientation: {
-        heading: Cesium.Math.toRadians(15),
-        pitch: Cesium.Math.toRadians(-30),
-        roll: 0.0,
-      },
-      duration: 4.0,
-      easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
-    });
-  }, 500);
   return () => {
-    clearTimeout(timer);
     if (!viewer.isDestroyed()) viewer.camera.cancelFlight();
   };
 }

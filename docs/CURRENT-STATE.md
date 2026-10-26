@@ -1471,6 +1471,14 @@ fetching, trailing-24-hour filtering and partial-success caching are unchanged.
   point to Provider Settings, while a configured Google 3D route that fails
   points to restrictions, quota, or connectivity. These hints do not expose keys.
 
+> **2026-10-26 — superseding the show policy below.** The card no longer opens
+> by itself. A fresh load starts over Egypt on a flat OSM street map, straight
+> down, with the HUD on minimal, Scope off and every data layer off. The card
+> opens only for `?welcome=1` or from **Quick-start missions…** in the Help
+> panel (`gev:quick-start-request`). Storage keys are still written on close but
+> are no longer read on load. The rest of this entry describes the mission
+> tiles, which are unchanged.
+>
 > **2026-08-23 — first-run mission launcher** (`src/firstRunExperience.js`,
 > `#first-run-launcher`, styles at the tail of `style.css`). After startup
 > settles, a fresh session gets one card offering **Live Contacts · Space

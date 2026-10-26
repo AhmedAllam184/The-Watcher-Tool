@@ -7,6 +7,8 @@ import {
 import { registerDataCredits } from '../data/dataCredits.js';
 import { configureCreditKeyboardAccess } from '../creditKeyboard.js';
 import { MapStackController } from '../mapStackController.js';
+import { DEFAULT_MAP_STACK_ID } from '../maps/stackIds.js';
+import { readRememberedMapStack } from '../maps/mapStackMemory.js';
 import { loadPhotorealisticTileset } from '../mapStartup.js';
 import { initLogoGaze } from '../logoGaze.js';
 import {
@@ -102,7 +104,9 @@ export async function createApplicationScene({
     ...mapOptions,
     googleTileset: tileset,
     cesiumToken,
-    initialStack: tileset ? 'photoreal' : 'esri-imagery',
+    // Flat OSM streets unless the visitor picked otherwise last time. A
+    // shared link's map value is applied later by share restoration and wins.
+    initialStack: readRememberedMapStack() || DEFAULT_MAP_STACK_ID,
     // Task 5 (height-datum fix): rebroadcast stack changes as a window
     // CustomEvent so data layers (CCTV per-regime ground resolution) can
     // react without coupling MapStackController to layer modules. Fires on
@@ -116,9 +120,12 @@ export async function createApplicationScene({
     onError: (message) => console.warn('[MapStack]', message),
   });
   defer(() => mapStackController.destroy());
-  await mapStackController.setStack(tileset ? 'photoreal' : 'esri-imagery', {
-    silent: true,
-  });
+  // The controller already resolved an unavailable or unknown start (for
+  // example Google 3D with no key) to its default, so activate what it chose.
+  await mapStackController.setStack(
+    mapStackController.getActiveId?.() ?? DEFAULT_MAP_STACK_ID,
+    { silent: true },
+  );
 
   signal.throwIfAborted();
   return { viewer, tileset, mapStackController, operations };

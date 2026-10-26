@@ -1530,6 +1530,9 @@ export class StyleManager extends ShellFacade {
         const chip = document.getElementById('key-setup-chip');
         return Boolean(chip) && !chip.hidden;
       },
+      // Handled by the mounted first-run launcher (gev:quick-start-request).
+      openQuickStart: () =>
+        document.dispatchEvent(new CustomEvent('gev:quick-start-request')),
     });
   }
 
@@ -1554,8 +1557,9 @@ export class StyleManager extends ShellFacade {
   // ── HUD Toggle ───────────────────────────────
 
   /**
-   * Wires the HUD toggle button, initializes the default HUD variant to 'tactical',
-   * and sets up the detection mode cycle button.
+   * Wires the HUD toggle button, initializes the default HUD variant to
+   * 'minimal' (simple view; GLOBAL_POST_DEFAULTS.hudVariant), and sets up the
+   * detection mode cycle button.
    * @returns {void}
    */
   /**
@@ -1571,9 +1575,9 @@ export class StyleManager extends ShellFacade {
 
   _initHUDToggle() {
     if (this._hudLayoutSelect) {
-      this._hudLayoutSelect.value = 'tactical';
+      this._hudLayoutSelect.value = 'minimal';
     }
-    this._setHudVariant('tactical');
+    this._setHudVariant('minimal');
     this.hud.setMode('on');
     this._updateHudButtonState();
 

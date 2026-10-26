@@ -6,20 +6,25 @@ import { createSurfaceKeyboard } from './ui/surfaceKeyboard.js';
 // would spend optional API quotas, surprise returning operators, and fight share
 // links. A new visitor instead gets one compact, explicit choice after startup.
 //
-// SHOW POLICY (owner ruling, 2026-08-23). The launcher is NOT one-shot. A new
-// operator needs the map explained more than once, so it returns every fresh
-// browser session until they say otherwise:
+// SHOW POLICY (owner ruling, 2026-10-26, superseding 2026-08-23). The launcher
+// does NOT open by itself. The map starts plain, with every layer off, and the
+// missions are an explicit choice made from:
 //
-//   - a share link never sees it — its author already chose the experience;
-//   - `?welcome=0` suppresses, `?welcome=1` replays (it outranks BOTH the
-//     session flag and the durable one, so support can always demo it);
-//   - ticking "Don't show this again" writes the DURABLE suppression — that
-//     tick is the only thing that stops it coming back;
-//   - any other close (a mission, Explore manually, ESC) writes only the
-//     SESSION flag, so it stays gone for this tab and returns next session.
+//   - `?welcome=1`, the demo and support link, which opens it on this load;
+//   - "Quick-start missions…" in the Help panel, at any time.
+//
+// A share link never sees it on load, and `?welcome=0` suppresses it. The
+// storage keys below are still written by the close paths, so nothing that was
+// saved before this ruling is lost, but no longer decides whether it shows.
 //
 // Choosing a mission is deliberately NOT durable suppression: picking a mission
 // is enthusiasm, not "never show me this again".
+
+/**
+ * Dispatched on the document by the Help panel's "Quick-start missions…". A
+ * mounted launcher reopens its card; with none mounted the event does nothing.
+ */
+export const QUICK_START_REQUEST_EVENT = 'gev:quick-start-request';
 
 /** Durable suppression. Written ONLY by the "Don't show this again" checkbox. */
 export const FIRST_RUN_STORAGE_KEY = 'gev:first-run-mission:v1';
@@ -152,15 +157,6 @@ function resolveStore(kind, injected) {
   }
 }
 
-/** Read one key, treating every failure as "nothing stored". */
-function readStored(kind, injected, key) {
-  try {
-    return resolveStore(kind, injected)?.getItem?.(key) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Write one key, best-effort. Never throws; REPORTS whether the value landed so
  * a caller that showed the visitor a promise ("don't show this again") can take
@@ -194,18 +190,16 @@ function removeStored(kind, injected, key) {
 }
 
 /**
- * Decide whether the launcher belongs in this page load.
+ * Decide whether the launcher opens by itself on this page load. It does only
+ * for `?welcome=1`; everything else starts on the plain map and reaches the
+ * missions from the Help panel. Storage is not consulted here any more.
  * @param {object} input
  * @param {boolean} [input.hasShareState]
- * @param {{getItem: Function}|null} [input.storage] Durable (localStorage).
- * @param {{getItem: Function}|null} [input.sessionStorageRef] Per-session.
  * @param {{search?: string}|null} [input.location]
  * @returns {boolean}
  */
 export function shouldShowFirstRun({
   hasShareState = false,
-  storage,
-  sessionStorageRef,
   location = globalThis.location,
 } = {}) {
   if (hasShareState) return false;
@@ -214,16 +208,8 @@ export function shouldShowFirstRun({
   // An embedded globe never shows the welcome launcher.
   if (params.get('embed') === '1' || globalThis.GEV_EMBED_INLINE === true)
     return false;
-  // The demo/support escape hatch outranks both suppressions on purpose.
-  if (params.get('welcome') === '1') return true;
-  if (readStored('local', storage, FIRST_RUN_STORAGE_KEY) === 'suppressed')
-    return false;
-  if (
-    readStored('session', sessionStorageRef, FIRST_RUN_SESSION_KEY) ===
-    'dismissed'
-  )
-    return false;
-  return true;
+  // The demo/support link: replays the launcher past any stored suppression.
+  return params.get('welcome') === '1';
 }
 
 /**
@@ -328,7 +314,7 @@ export function exclusiveSurfaceActive(documentRef = globalThis.document) {
  * @param {Storage} [input.storage]
  * @param {Storage} [input.sessionStorageRef]
  * @param {Location} [input.location]
- * @returns {null|{dismiss: Function}}
+ * @returns {null|{dismiss: Function, isTopmost: Function, open: Function, destroy: Function}}
  */
 export function initFirstRunExperience({
   styleManager,
@@ -342,17 +328,13 @@ export function initFirstRunExperience({
   if (!root || root.dataset.initialized === 'true') return null;
   root.dataset.initialized = 'true';
 
-  if (
-    !shouldShowFirstRun({
-      hasShareState: styleManager?.hasShareState,
-      storage,
-      sessionStorageRef,
-      location,
-    })
-  ) {
-    root.remove();
-    return null;
-  }
+  // The card stays in the page either way: the Help panel reopens it on
+  // demand, so only the automatic reveal depends on this page load's policy.
+  let wantOpen = shouldShowFirstRun({
+    hasShareState: styleManager?.hasShareState,
+    location,
+  });
+  let destroyed = false;
 
   // The tile name is owner-switchable from one constant, so paint it from the
   // module rather than trusting the markup to have been edited to match.
@@ -418,17 +400,23 @@ export function initFirstRunExperience({
   const dismiss = ({ restoreFocus = true } = {}) => {
     if (closing) return;
     closing = true;
+    wantOpen = false;
+    revealed = false;
     rememberFirstRunSessionDismissed(sessionStorageRef);
     root.classList.remove('visible');
     root.setAttribute('aria-hidden', 'true');
     globalThis.removeEventListener?.('resize', onViewportResize);
     surfaceObserver?.disconnect();
-    const remove = () => root.remove();
-    root.addEventListener('transitionend', remove, { once: true });
+    // Hide rather than remove, so the Help panel can reopen this same card.
+    // A reopen inside the fade keeps it visible: the hide checks `revealed`.
+    const hide = () => {
+      if (!revealed) root.hidden = true;
+    };
+    root.addEventListener('transitionend', hide, { once: true });
     // `transitionend` never fires under prefers-reduced-motion (no transition),
-    // so a bounded fallback is what actually removes the node there.
-    globalThis.setTimeout?.(remove, 400);
-    // Return the keyboard where it was, not to a node that is being removed —
+    // so a bounded fallback is what actually hides the card there.
+    globalThis.setTimeout?.(hide, 400);
+    // Return the keyboard where it was, not into a card that is fading out —
     // but never when yielding, because the surface taking over owns focus now.
     keyboard.deactivate({ restoreFocus });
   };
@@ -525,9 +513,6 @@ export function initFirstRunExperience({
 
   for (const button of buttons) button.addEventListener('click', onChoice);
   suppressBox?.addEventListener('change', onSuppressChange);
-  // Capture phase: the app binds its own global hotkeys (including bare letters
-  // that cycle detection and styles), and the launcher owns the keyboard first.
-  keyboard.activate();
 
   // The scroll fade is an affordance, so it may only appear when the list really
   // overflows. On a viewport where all five tiles fit, a faded bottom edge would
@@ -544,6 +529,10 @@ export function initFirstRunExperience({
     if (revealed || closing) return;
     revealed = true;
     root.hidden = false;
+    // Capture phase: the app binds its own global hotkeys (including bare letters
+    // that cycle detection and styles), and the launcher owns the keyboard first.
+    // Armed only while the card is on screen, so a hidden card takes no keys.
+    keyboard.activate();
     globalThis.requestAnimationFrame?.(() => {
       if (closing) return;
       root.classList.add('visible');
@@ -609,7 +598,7 @@ export function initFirstRunExperience({
     if (closing) return;
     const blocked = exclusiveSurfaceActive(documentRef);
     if (revealed && blocked) yieldToExclusiveSurface();
-    else if (!revealed && !blocked) reveal();
+    else if (!revealed && !blocked && wantOpen) reveal();
   };
 
   // A rotated phone changes which tiles fit, so the affordance re-measures.
@@ -630,13 +619,45 @@ export function initFirstRunExperience({
   }
   syncToExclusiveSurfaces();
 
+  // Reopen on demand (the Help panel's "Quick-start missions…"). It re-arms the
+  // card exactly like the automatic reveal, so a screen that is busy still makes
+  // it wait. Refused once torn down.
+  const open = () => {
+    if (destroyed) return false;
+    if (revealed) return true;
+    closing = false;
+    wantOpen = true;
+    globalThis.addEventListener?.('resize', onViewportResize);
+    if (documentRef.body) {
+      surfaceObserver?.observe(documentRef.body, {
+        attributes: true,
+        attributeFilter: ['class'],
+      });
+    }
+    syncToExclusiveSurfaces();
+    return true;
+  };
+
+  // The Help panel asks for the card by event, so the UI shell never imports this
+  // module. The name is pinned on both sides by firstRunExperience.test.mjs.
+  const onQuickStartRequest = () => open();
+  documentRef.addEventListener?.(
+    QUICK_START_REQUEST_EVENT,
+    onQuickStartRequest,
+  );
+
   // Teardown is not a user dismissal and must not change the show preference.
   const destroy = () => {
+    destroyed = true;
     closing = true;
     keyboard.destroy();
+    documentRef.removeEventListener?.(
+      QUICK_START_REQUEST_EVENT,
+      onQuickStartRequest,
+    );
     globalThis.removeEventListener?.('resize', onViewportResize);
     surfaceObserver?.disconnect();
     root.remove();
   };
-  return { dismiss, isTopmost, destroy };
+  return { dismiss, isTopmost, open, destroy };
 }

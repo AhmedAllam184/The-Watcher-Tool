@@ -111,7 +111,8 @@ export class ShareLinkManager {
     // question and deliberately stays at 5.
     this._detectionOutsideOpacityPct = 1;
     this._celestialRingEnabled = false;
-    this._scopeEnabled = true;
+    // Scope opens OFF (simple view, 2026-10-26); mirrors GLOBAL_POST_DEFAULTS.
+    this._scopeEnabled = false;
     // Feather opens on a soft 11% scope-mask edge (owner final lock 2026-08-24,
     // superseding the 08-22 hard-crop and 08-23 8% rulings) — mirrors
     // SCOPE_FEATHER_RATIO_DEFAULT in scopeMask.js and the slider's markup value.
@@ -119,7 +120,8 @@ export class ShareLinkManager {
     // null = the altitude-adaptive terminus (the default). A number pins the
     // outside-fill opacity as a percent, 94..100. (`sce`, 2026-08-17)
     this._scopeTerminusPct = null;
-    this._mapStack = 'photoreal';
+    // Mirrors DEFAULT_MAP_STACK_ID (src/maps/catalog.js); synced live after boot.
+    this._mapStack = 'osm';
     this._layerStateProvider = null;
     this._panelStateProvider = null;
     this._styleParamStateProvider = null;

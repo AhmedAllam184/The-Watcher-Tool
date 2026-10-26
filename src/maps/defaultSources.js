@@ -1,4 +1,5 @@
 import { MAP_STACKS } from './catalog.js';
+import { DEFAULT_MAP_STACK_ID } from './stackIds.js';
 import { photorealUnavailableReason } from './availability.js';
 import { keySetupRequirement } from '../keySetupCore.mjs';
 import {
@@ -26,7 +27,7 @@ export function createDefaultMapSources({
       : createKeylessTerrain,
   };
   return {
-    defaultId: googleTileset ? 'photoreal' : 'esri-imagery',
+    defaultId: DEFAULT_MAP_STACK_ID,
     unknownId: 'photoreal',
     recoveryId: googleTileset ? 'photoreal' : null,
     state: { hasCesiumIonToken: hasIon },

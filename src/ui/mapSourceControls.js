@@ -1,4 +1,5 @@
 import { renderMapStackChips, syncMapStackChips } from '../mapStackChips.js';
+import { writeRememberedMapStack } from '../maps/mapStackMemory.js';
 
 const LABELS_STORAGE_KEY = 'watcher.mapLabels';
 
@@ -82,6 +83,10 @@ export function createMapSourceControls({
     render(controller.getState());
     if (state?.activeId === before && stackId !== before && state?.lastError)
       onError(state.lastError);
+    // Only a choice the visitor made (syncShare) is remembered; scenes and
+    // share restores switch stacks without it and must not overwrite it.
+    if (syncShare && state?.activeId === stackId)
+      writeRememberedMapStack(stackId);
     if (syncShare) onStateChanged();
     return state;
   }

@@ -71,6 +71,7 @@ const GETTING_AROUND = Object.freeze([
  * @param {HTMLElement} [options.root=document.body] Element that receives the dialog.
  * @param {(() => void)|null} [options.openKeySetup] Opens the POWER UP key setup.
  * @param {(() => boolean)|null} [options.canOpenKeySetup] Whether that setup is reachable now.
+ * @param {(() => void)|null} [options.openQuickStart] Reopens the first-run mission card.
  * @param {HTMLElement|null} [options.toggleButton] Toolbar button that opens and closes the dialog.
  * @returns {{open: Function, close: Function, toggle: Function, isOpen: Function, destroy: Function}}
  */
@@ -78,6 +79,7 @@ export function createHelpPanel({
   root = document.body,
   openKeySetup = null,
   canOpenKeySetup = null,
+  openQuickStart = null,
   toggleButton = null,
 } = {}) {
   const doc = root.ownerDocument || document;
@@ -286,6 +288,16 @@ export function createHelpPanel({
     settings.appendChild(keySetupButton);
   }
 
+  // Appended after POWER UP so the POWER UP button stays first in the section.
+  let quickStartButton = null;
+  if (openQuickStart) {
+    quickStartButton = doc.createElement('button');
+    quickStartButton.type = 'button';
+    quickStartButton.className = 'help-panel__action';
+    quickStartButton.textContent = 'Quick-start missions…';
+    settings.appendChild(quickStartButton);
+  }
+
   panel.appendChild(card);
   root.appendChild(panel);
 
@@ -293,6 +305,7 @@ export function createHelpPanel({
   function focusables() {
     const items = [closeButton, largeText];
     if (keySetupButton && !keySetupButton.hidden) items.push(keySetupButton);
+    if (quickStartButton) items.push(quickStartButton);
     return items;
   }
 
@@ -361,6 +374,11 @@ export function createHelpPanel({
     openKeySetup?.();
   }
 
+  function onQuickStartClick() {
+    close();
+    openQuickStart?.();
+  }
+
   function onToggleClick() {
     toggle();
   }
@@ -370,6 +388,7 @@ export function createHelpPanel({
   closeButton.addEventListener('click', close);
   largeText.addEventListener('change', onLargeTextChange);
   keySetupButton?.addEventListener('click', onKeySetupClick);
+  quickStartButton?.addEventListener('click', onQuickStartClick);
   toggleButton?.addEventListener?.('click', onToggleClick);
   setExpanded(false);
   if (toggleButton) toggleButton.setAttribute?.('aria-controls', HELP_PANEL_ID);
@@ -388,6 +407,7 @@ export function createHelpPanel({
       closeButton.removeEventListener('click', close);
       largeText.removeEventListener('change', onLargeTextChange);
       keySetupButton?.removeEventListener('click', onKeySetupClick);
+      quickStartButton?.removeEventListener('click', onQuickStartClick);
       toggleButton?.removeEventListener?.('click', onToggleClick);
       setExpanded(false);
       panel.remove();

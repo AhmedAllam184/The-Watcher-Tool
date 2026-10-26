@@ -181,6 +181,7 @@ function setup(t, options = {}) {
     root: doc.body,
     openKeySetup: options.openKeySetup ?? null,
     canOpenKeySetup: options.canOpenKeySetup ?? null,
+    openQuickStart: options.openQuickStart ?? null,
     toggleButton: options.toggleButton ?? null,
   });
   const panel = doc.body.children.find((child) => child.id === 'help-panel');
@@ -400,6 +401,31 @@ test('the POWER UP button appears only when key setup is reachable and hands off
 test('without openKeySetup there is no POWER UP button', (t) => {
   const { keyButton } = setup(t);
   assert.equal(keyButton, null);
+});
+
+test('Quick-start missions… sits in Settings after POWER UP, closes the dialog and reopens the card', (t) => {
+  let opened = 0;
+  const { help, panel, keyButton } = setup(t, {
+    openKeySetup: () => {},
+    openQuickStart: () => {
+      opened += 1;
+    },
+  });
+  const quickStart = findAll(panel, (el) => el.text === 'Quick-start missions…');
+  assert.equal(quickStart.length, 1, 'the Settings section offers the missions');
+  assert.equal(quickStart[0].className, 'help-panel__action');
+  // POWER UP stays the first action button, so existing lookups keep finding it.
+  assert.equal(keyButton.textContent, 'Add API keys (POWER UP)');
+  help.open();
+  quickStart[0].click();
+  assert.equal(help.isOpen(), false);
+  assert.equal(panel.hidden, true);
+  assert.equal(opened, 1);
+});
+
+test('without openQuickStart there is no Quick-start button', (t) => {
+  const { panel } = setup(t);
+  assert.equal(findAll(panel, (el) => el.text === 'Quick-start missions…').length, 0);
 });
 
 test('destroy removes the dialog, its listeners and the toolbar wiring', (t) => {

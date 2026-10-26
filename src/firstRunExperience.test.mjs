@@ -13,6 +13,8 @@ import {
   FIRST_RUN_STORAGE_KEY,
   environmentalLabel,
   exclusiveSurfaceActive,
+  initFirstRunExperience,
+  QUICK_START_REQUEST_EVENT,
   rememberFirstRunSessionDismissed,
   runFirstRunChoice,
   setFirstRunSuppressed,
@@ -37,58 +39,46 @@ const fresh = () => ({
 
 // ── Show policy ──────────────────────────────────────────────────────────────
 
-test('a fresh session receives the launcher, and keeps receiving it', () => {
-  assert.equal(shouldShowFirstRun(fresh()), true);
-  // Not one-shot: a previous session's completion does not suppress a new one.
+// Owner ruling 2026-10-26 (was: returns every session). The map now opens plain
+// with every layer off, and the missions switch layers on, so the card is an
+// explicit choice: `?welcome=1`, or "Quick-start missions…" in the Help panel.
+test('a fresh session no longer receives the launcher on its own', () => {
+  assert.equal(shouldShowFirstRun(fresh()), false);
   const returning = fresh();
   returning.sessionStorageRef = memoryStorage(FIRST_RUN_SESSION_KEY);
-  assert.equal(shouldShowFirstRun(returning), true);
+  assert.equal(shouldShowFirstRun(returning), false);
+  assert.equal(shouldShowFirstRun({ ...fresh(), location: { search: '?welcome=1' } }), true);
 });
 
-test('dismissal is session-scoped; only the checkbox suppresses durably', () => {
+test('a dismissal writes only the session flag, never the durable key', () => {
   const session = memoryStorage(FIRST_RUN_SESSION_KEY);
   const storage = memoryStorage(FIRST_RUN_STORAGE_KEY);
 
   rememberFirstRunSessionDismissed(session);
   assert.equal(session.read(), 'dismissed');
-  // Gone for THIS session...
-  assert.equal(shouldShowFirstRun({ storage, sessionStorageRef: session, location: { search: '' } }), false);
-  // ...and back in the next one, because sessionStorage did not survive it.
+  // The replay link still shows the card after a dismissal.
   assert.equal(shouldShowFirstRun({
     storage,
-    sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
-    location: { search: '' },
+    sessionStorageRef: session,
+    location: { search: '?welcome=1' },
   }), true);
-  // Session dismissal must never have written the durable key.
   assert.equal(storage.read(), null);
 });
 
-test('the checkbox writes and clears durable suppression, and a storage reset undoes it', () => {
+test('the checkbox still writes and clears its durable key, and replay outranks it', () => {
+  // The key is no longer read on load (the card does not auto-open), so the
+  // checkbox is inert for auto-show. The write/clear contract stays pinned.
   const storage = memoryStorage(FIRST_RUN_STORAGE_KEY);
   setFirstRunSuppressed(true, storage);
   assert.equal(storage.read(), 'suppressed');
   assert.equal(shouldShowFirstRun({
     storage,
     sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
-    location: { search: '' },
-  }), false);
+    location: { search: '?welcome=1' },
+  }), true);
 
-  // Unticking before dismissing takes the suppression back.
   setFirstRunSuppressed(false, storage);
   assert.equal(storage.read(), null);
-  assert.equal(shouldShowFirstRun({
-    storage,
-    sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
-    location: { search: '' },
-  }), true);
-
-  // A cleared/hard-reset profile shows it again — an accepted, documented cost.
-  setFirstRunSuppressed(true, storage);
-  assert.equal(shouldShowFirstRun({
-    storage: memoryStorage(FIRST_RUN_STORAGE_KEY),
-    sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
-    location: { search: '' },
-  }), true);
 });
 
 test('welcome params work in both directions and outrank both suppressions', () => {
@@ -110,13 +100,17 @@ test('a share link never sees the launcher — its author already chose the view
   assert.equal(shouldShowFirstRun({ hasShareState: true, ...fresh() }), false);
 });
 
-test('privacy-restricted storage fails open and every write stays best-effort', () => {
+test('privacy-restricted storage cannot stop a replay, and every write stays best-effort', () => {
   const blocked = {
     getItem: () => { throw new Error('blocked'); },
     setItem: () => { throw new Error('blocked'); },
     removeItem: () => { throw new Error('blocked'); },
   };
-  assert.equal(shouldShowFirstRun({ storage: blocked, sessionStorageRef: blocked }), true);
+  assert.equal(shouldShowFirstRun({
+    storage: blocked,
+    sessionStorageRef: blocked,
+    location: { search: '?welcome=1' },
+  }), true);
   assert.doesNotThrow(() => setFirstRunSuppressed(true, blocked));
   assert.doesNotThrow(() => rememberFirstRunSessionDismissed(blocked));
 });
@@ -143,8 +137,13 @@ test('a THROWING storage getter still fails open — Safari private mode', () =>
     );
     assert.equal(
       shouldShowFirstRun({ location: { search: '' } }),
+      false,
+      'nothing is read from storage on load, so a hostile getter changes nothing',
+    );
+    assert.equal(
+      shouldShowFirstRun({ location: { search: '?welcome=1' } }),
       true,
-      'a visitor whose storage throws must still SEE the launcher',
+      'a visitor whose storage throws must still be able to SEE the launcher on replay',
     );
     assert.doesNotThrow(() => setFirstRunSuppressed(true));
     assert.doesNotThrow(() => setFirstRunSuppressed(false));
@@ -170,14 +169,15 @@ test('no storage is touched from a default parameter position', () => {
   // The only reads of the global areas live inside the guarded resolver.
   const globalReads = [...code.matchAll(/globalThis\.(local|session)Storage/g)];
   assert.equal(globalReads.length, 2, 'exactly two global storage reads, both in resolveStore');
-  const resolver = code.slice(code.indexOf('function resolveStore'), code.indexOf('function readStored'));
+  // readStored was retired with the auto-show gate: nothing reads storage on load.
+  const resolver = code.slice(code.indexOf('function resolveStore'), code.indexOf('function writeStored'));
   assert.equal(
     [...resolver.matchAll(/globalThis\.(local|session)Storage/g)].length,
     2,
     'both global storage reads must be inside resolveStore, inside its try',
   );
   assert.match(resolver, /try \{[\s\S]*globalThis\.sessionStorage[\s\S]*\} catch/);
-  assert.match(code, /function readStored\(kind, injected, key\)/);
+  assert.doesNotMatch(code, /function readStored\(/);
   assert.match(code, /function writeStored\(kind, injected, key, value\)/);
 });
 
@@ -367,7 +367,7 @@ test('the launcher yields on engage and waits when a surface is already up', () 
   // the screen; wait to reveal if something already has it.
   assert.match(
     module,
-    /if \(revealed && blocked\) yieldToExclusiveSurface\(\);\s*\n\s*else if \(!revealed && !blocked\) reveal\(\);/,
+    /if \(revealed && blocked\) yieldToExclusiveSurface\(\);\s*\n\s*else if \(!revealed && !blocked && wantOpen\) reveal\(\);/,
   );
   // Yielding is session-scoped and must not steal focus from the new surface.
   assert.match(module, /dismiss\(\{ restoreFocus: false \}\)/);
@@ -376,6 +376,119 @@ test('the launcher yields on engage and waits when a surface is already up', () 
   assert.match(module, /attributes: true,\s*attributeFilter: \['class'\]/);
   assert.match(module, /surfaceObserver\?\.disconnect\(\)/);
   assert.doesNotMatch(module, /setInterval|requestAnimationFrame\(function poll/);
+});
+
+// ── Reopen from the Help panel (behaviour, against a small DOM stand-in) ─────
+
+function classSet(initial = []) {
+  const names = new Set(initial);
+  return {
+    add: (name) => names.add(name),
+    remove: (name) => names.delete(name),
+    contains: (name) => names.has(name),
+    toggle(name, force) {
+      const on = force ?? !names.has(name);
+      if (on) names.add(name);
+      else names.delete(name);
+      return on;
+    },
+  };
+}
+
+function launcherStandIn() {
+  const root = {
+    dataset: {},
+    hidden: true,
+    isConnected: true,
+    classList: classSet(),
+    attributes: {},
+    setAttribute(name, value) {
+      this.attributes[name] = String(value);
+    },
+    getClientRects: () => [{}],
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 10, height: 10 }),
+    contains: () => false,
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+    removeEventListener() {},
+    remove() {
+      this.removed = true;
+    },
+  };
+  const handlers = new Map();
+  const documentRef = {
+    body: { classList: classSet() },
+    activeElement: null,
+    getElementById: (id) => (id === 'first-run-launcher' ? root : null),
+    addEventListener(type, handler) {
+      handlers.set(type, handler);
+    },
+    removeEventListener(type) {
+      handlers.delete(type);
+    },
+    // What the Help panel's button does: dispatch the request on the document.
+    requestQuickStart() {
+      handlers.get(QUICK_START_REQUEST_EVENT)?.();
+    },
+  };
+  return { root, documentRef };
+}
+
+test('a plain load keeps the card hidden, and the Help panel reopens it until teardown', async () => {
+  const { root, documentRef } = launcherStandIn();
+  const savedFrame = globalThis.requestAnimationFrame;
+  // Run frame callbacks at once: the stand-in has no animation loop.
+  globalThis.requestAnimationFrame = (callback) => {
+    callback();
+    return 0;
+  };
+  try {
+    const launcher = initFirstRunExperience({
+      styleManager: { hasShareState: false },
+      dataManager: {},
+      documentRef,
+      storage: memoryStorage(FIRST_RUN_STORAGE_KEY),
+      sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
+      location: { search: '' },
+    });
+    assert.ok(launcher, 'the card is wired even when it does not open by itself');
+    assert.equal(root.hidden, true, 'a plain load leaves the card hidden');
+    assert.equal(root.classList.contains('visible'), false);
+
+    documentRef.requestQuickStart();
+    assert.equal(root.hidden, false);
+    assert.equal(root.classList.contains('visible'), true);
+
+    launcher.dismiss();
+    assert.equal(root.classList.contains('visible'), false);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    assert.equal(root.hidden, true, 'a dismissed card is hidden, not removed');
+    assert.equal(root.removed, undefined, 'and stays in the page for the next open');
+
+    documentRef.requestQuickStart();
+    assert.equal(root.hidden, false, 'the Help panel reopens the same card');
+
+    launcher.destroy();
+    assert.equal(root.removed, true);
+    root.hidden = true;
+    documentRef.requestQuickStart();
+    assert.equal(root.hidden, true, 'nothing reopens after teardown');
+  } finally {
+    if (savedFrame === undefined) delete globalThis.requestAnimationFrame;
+    else globalThis.requestAnimationFrame = savedFrame;
+  }
+});
+
+test('the Help panel dispatches the event the launcher listens for, by the same name', () => {
+  // The shell cannot import this module (package ownership), so the name is the
+  // contract. Pinned here so a rename on one side cannot strand the button.
+  const shell = fs.readFileSync(new URL('./ui/applicationShell.js', import.meta.url), 'utf8');
+  assert.equal(QUICK_START_REQUEST_EVENT, 'gev:quick-start-request');
+  assert.ok(
+    shell.includes(`new CustomEvent('${QUICK_START_REQUEST_EVENT}')`),
+    'applicationShell must dispatch the same event name',
+  );
 });
 
 // ── Per-mission behavior ─────────────────────────────────────────────────────

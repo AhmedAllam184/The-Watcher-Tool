@@ -27,7 +27,22 @@ import {
 } from './scopeMask.js';
 import { KEYHOLE_OUTER_RADIUS } from './celestialRing.js';
 
-beforeEach(() => _resetScopeMaskForTest());
+// The module now starts with Scope OFF (simple view). Every test here exercises
+// the painted mask, so each starts with it on, which is the state these pins
+// were written against. The one test about the default is written separately.
+beforeEach(() => {
+  _resetScopeMaskForTest();
+  setScopeMaskEnabled(true);
+});
+
+test('Scope starts OFF on a fresh module load, and the reset restores that', async () => {
+  // A query string gives a separate module instance with its own pristine state.
+  const fresh = await import(`./scopeMask.js?fresh=${Date.now()}`);
+  assert.equal(fresh.isScopeMaskEnabled(), false);
+  fresh.setScopeMaskEnabled(true);
+  fresh._resetScopeMaskForTest();
+  assert.equal(fresh.isScopeMaskEnabled(), false);
+});
 
 test('geometry anchors the visible edge to the shared keyhole radius', () => {
   const geo = scopeMaskGeometry(1440, 860, 0.4);

@@ -38,10 +38,12 @@ import { AIRCRAFT_BRACKET_FLOOR_ANCHOR } from './data/detectionPolicy.js';
 import {
   SCOPE_FEATHER_RATIO_DEFAULT,
   getScopeMaskFeather,
+  isScopeMaskEnabled,
   scopeMaskGeometry,
   setScopeMaskFeather,
 } from './scopeMask.js';
 import { ShareLinkManager } from './sharelink.js';
+import { GLOBAL_POST_DEFAULTS } from './ui/visualPresets.js';
 
 // Follow the UI wiring and its extracted preset definitions.
 const uiSource = readShellSource()
@@ -266,6 +268,29 @@ test('detection-on-by-default is a default, not an operator override', () => {
   }
   assert.doesNotMatch(stylePresets, /\n  normal: \{/,
     'Normal gained a default, not a style preset — switching to it still touches nothing');
+});
+
+// ---------------------------------------------------------------------------
+// 5. Simple view on a first load (owner, 2026-10-26): the map reads like a
+//    plain street map, so the HUD starts minimal and the Scope vignette starts
+//    off. Both stay one click away, and a link's own values still win.
+// ---------------------------------------------------------------------------
+test('first run opens as a simple view: minimal HUD and Scope off, at every surface', () => {
+  assert.equal(GLOBAL_POST_DEFAULTS.hudVariant, 'minimal');
+  assert.equal(GLOBAL_POST_DEFAULTS.scopeEnabled, false);
+  assert.equal(isScopeMaskEnabled(), false, 'the mask module itself starts off');
+  assert.match(indexHtml, /<button class="pp-toggle-btn" id="scope-toggle"[^>]*aria-pressed="false"/,
+    'the Scope button markup starts unpressed');
+  assert.doesNotMatch(indexHtml, /id="scope-toggle"[^>]*aria-pressed="true"/);
+  assert.match(uiSource, /this\._hudLayoutSelect\.value = 'minimal';/);
+  assert.match(uiSource, /this\._setHudVariant\('minimal'\);/);
+  assert.doesNotMatch(uiSource, /this\._setHudVariant\('tactical'\);/,
+    'the retired tactical default is gone from the HUD init');
+  assert.match(shareSource, /this\._scopeEnabled = false;/,
+    'the link generator starts from the same Scope default');
+  // A link that carries its own Scope state still restores it on top.
+  assert.match(shareSource, /scopeEnabled: params\.has\('sc'\) \? params\.get\('sc'\) === '1' : true,/,
+    'a link that predates `sc` keeps the Scope it was authored with');
 });
 
 test('a share link that carries detection OFF still restores OFF', () => {

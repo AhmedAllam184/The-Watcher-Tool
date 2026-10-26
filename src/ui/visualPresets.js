@@ -44,8 +44,11 @@ export const MILITARY_DETECTION_PRESET = Object.freeze({
 export const GLOBAL_POST_DEFAULTS = {
   bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
   sharpen: { enabled: true, intensity: 49 },
-  hudVariant: 'tactical',
+  // Simple view on first load (2026-10-26): the minimal HUD and no Scope
+  // vignette, so the map reads like a plain street map. Both stay one click away.
+  hudVariant: 'minimal',
   hudVisible: true,
+  scopeEnabled: false,
   // Detection is ON for EVERY style on a first run, Normal included (owner
   // directive 2026-08-22: "detect should also be on by default"). It is the
   // same preset object the military styles and Contacts already apply, so there

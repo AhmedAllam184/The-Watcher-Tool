@@ -120,6 +120,12 @@ export const DATA_CREDITS = [
       'explicit permission of David J Taylor, Edinburgh',
   },
   {
+    key: 'aircraft-photos',
+    html:
+      'Aircraft photos: <a href="https://www.planespotters.net" target="_blank" rel="noopener">Planespotters.net</a> ' +
+      '(each photo credits its photographer and links to its page); fallback airport-data.com via adsbdb',
+  },
+  {
     key: 'aisstream',
     html:
       'Live vessels (AIS): ' +
@@ -310,6 +316,12 @@ export const DATA_CREDITS = [
   {
     key: 'dams',
     html: 'Dams: Open Infrastructure Map',
+  },
+  {
+    key: 'airports',
+    html:
+      'Airports: <a href="https://ourairports.com/data/" target="_blank" rel="noopener">OurAirports</a> ' +
+      '(public domain; attribution requested)',
   },
   {
     key: 'firms',

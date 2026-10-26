@@ -196,7 +196,13 @@ function buildFlight(record, properties) {
   const altitudeFeet = leadingNumber(altitude);
   const speedKt = leadingNumber(properties.speed);
   const headingDeg = leadingNumber(properties.heading);
-  pushRow(rows, 'Route', properties.route);
+  // City names when the flight's route is known, else the codes-only Route row.
+  const routeFrom = String(properties.routeFrom || '').trim();
+  const routeTo = String(properties.routeTo || '').trim();
+  if (routeFrom || routeTo) {
+    pushRow(rows, 'From', routeFrom);
+    pushRow(rows, 'To', routeTo);
+  } else pushRow(rows, 'Route', properties.route);
   pushRow(rows, 'Aircraft', properties.type);
   pushRow(rows, 'Registration', properties.registration);
   if (/on ground/i.test(altitude)) pushRow(rows, 'Altitude', 'On the ground');
@@ -239,6 +245,8 @@ function buildFlight(record, properties) {
     rows,
     links,
     alert,
+    // Hex for the aircraft photo lookup (lower-case, validated).
+    photoHex: /^[0-9a-f]{6}$/i.test(icao24) ? icao24.toLowerCase() : null,
   };
 }
 
@@ -356,7 +364,7 @@ function buildOther(record, properties) {
  * Turn a context record into the plain-language panel model.
  * @param {object|null} record Shared context record (see src/data/contextStore.js).
  * @param {{now?: number}} [options] Clock used for relative times.
- * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, alertTone?: string, latitude: number|null, longitude: number|null}|null}
+ * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, alertTone?: string, photoHex?: string|null, latitude: number|null, longitude: number|null}|null}
  *   `alert` is set for an emergency transponder squawk (`alertTone` unset) or a
  *   gone-dark vessel (`alertTone: 'warn'`).
  */

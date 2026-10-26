@@ -122,6 +122,42 @@ test('flagFromMmsi maps common MIDs and omits unknown ones', () => {
   assert.equal(flagFromMmsi(''), null);
 });
 
+test('flight details show From and To city names when the route is known', () => {
+  const details = buildSelectionDetails(
+    flightRecord({
+      route: 'LHR → JFK',
+      routeFrom: 'London (LHR)',
+      routeTo: 'New York (JFK)',
+    }),
+    { now: NOW },
+  );
+  assert.equal(rowValue(details, 'From'), 'London (LHR)');
+  assert.equal(rowValue(details, 'To'), 'New York (JFK)');
+  assert.equal(rowValue(details, 'Route'), undefined);
+});
+
+test('flight details fall back to the codes-only Route row', () => {
+  const details = buildSelectionDetails(flightRecord({ route: 'LHR → JFK' }), {
+    now: NOW,
+  });
+  assert.equal(rowValue(details, 'Route'), 'LHR → JFK');
+  assert.equal(rowValue(details, 'From'), undefined);
+  assert.equal(rowValue(details, 'To'), undefined);
+});
+
+test('flight details carry the lower-case hex for the photo lookup', () => {
+  assert.equal(buildSelectionDetails(flightRecord(), { now: NOW }).photoHex, 'abc123');
+  const upper = buildSelectionDetails(flightRecord({ icao24: 'ABC123' }), { now: NOW });
+  assert.equal(upper.photoHex, 'abc123');
+  const invalid = buildSelectionDetails(flightRecord({ icao24: 'nothex' }), { now: NOW });
+  assert.equal(invalid.photoHex, null);
+  const military = buildSelectionDetails(
+    flightRecord({ icao24: '43c123' }, { layerId: 'military-flights' }),
+    { now: NOW },
+  );
+  assert.equal(military.photoHex, '43c123');
+});
+
 test('flight details translate units, heading and status', () => {
   const details = buildSelectionDetails(flightRecord(), { now: NOW });
   assert.equal(details.kind, 'flight');

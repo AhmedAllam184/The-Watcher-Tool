@@ -5,6 +5,7 @@
  */
 import { getContextStore } from '../data/contextStore.js';
 import { buildSelectionDetails } from './selectionDetailsModel.js';
+import { createAircraftPhotoLoader } from './aircraftPhoto.js';
 
 const REFRESH_MS = 1000;
 const KIND_LABELS = {
@@ -37,6 +38,7 @@ function writeClipboard(text) {
  * @param {(text: string) => Promise<void>} [options.copyText] Clipboard writer.
  * @param {() => object|null} [options.getSelected] Returns the store's selected record.
  * @param {() => number} [options.now] Clock for relative times.
+ * @param {{load: (hex: string) => Promise<object|null>}} [options.photoLoader] Aircraft photo source.
  * @returns {{show: Function, hide: Function, refresh: Function, destroy: Function}}
  */
 export function createSelectionDetailsPanel({
@@ -45,6 +47,7 @@ export function createSelectionDetailsPanel({
   copyText = writeClipboard,
   getSelected = readSelectedRecord,
   now = () => Date.now(),
+  photoLoader = createAircraftPhotoLoader(),
 } = {}) {
   const doc = root.ownerDocument || document;
   const win = doc.defaultView || globalThis;
@@ -54,6 +57,9 @@ export function createSelectionDetailsPanel({
   let timer = null;
   let token = 0;
   let destroyed = false;
+  let photoHex = null;
+  let photoToken = 0;
+  let shownImage = null;
 
   const el = doc.createElement('aside');
   el.id = 'selection-details';
@@ -79,6 +85,12 @@ export function createSelectionDetailsPanel({
   closeButton.setAttribute('aria-label', 'Close details');
   closeButton.textContent = '×';
   header.append(heading, closeButton);
+
+  // Aircraft photo under the header. Set only when the selected hex changes:
+  // the panel re-renders every second and the photo must not flicker.
+  const photoBox = doc.createElement('figure');
+  photoBox.className = 'selection-details__photo';
+  photoBox.hidden = true;
 
   const alertLine = doc.createElement('p');
   alertLine.className = 'selection-details__alert';
@@ -110,13 +122,85 @@ export function createSelectionDetailsPanel({
   feedback.className = 'selection-details__feedback';
   feedback.setAttribute('role', 'status');
 
-  el.append(header, alertLine, noticeLine, list, actions, feedback);
+  el.append(header, photoBox, alertLine, noticeLine, list, actions, feedback);
   root.appendChild(el);
 
   function hasCoordinates() {
     return (
       Number.isFinite(details?.latitude) && Number.isFinite(details?.longitude)
     );
+  }
+
+  function clearPhoto() {
+    shownImage = null;
+    photoBox.textContent = '';
+    photoBox.hidden = true;
+  }
+
+  function showPhotoStatus(text) {
+    photoBox.textContent = '';
+    const status = doc.createElement('p');
+    status.className = 'selection-details__photo-status';
+    status.textContent = text;
+    photoBox.append(status);
+    photoBox.hidden = false;
+  }
+
+  function renderPhoto(photo, subjectTitle) {
+    photoBox.textContent = '';
+    const image = doc.createElement('img');
+    image.className = 'selection-details__photo-image';
+    image.setAttribute('src', photo.src);
+    image.setAttribute('alt', `Photo of ${subjectTitle || 'aircraft'}`);
+    image.setAttribute('loading', 'lazy');
+    image.setAttribute('referrerpolicy', 'no-referrer');
+    // A photo that fails to load is no photo: drop the block, keep the panel.
+    shownImage = image;
+    image.addEventListener('error', () => {
+      if (shownImage === image) clearPhoto();
+    });
+    let media = image;
+    if (photo.link) {
+      const anchor = doc.createElement('a');
+      anchor.className = 'selection-details__photo-link';
+      anchor.href = photo.link;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener noreferrer';
+      anchor.append(image);
+      media = anchor;
+    }
+    const credit = doc.createElement('figcaption');
+    credit.className = 'selection-details__photo-credit';
+    const parts = [
+      photo.photographer ? `© ${photo.photographer}` : '',
+      photo.source,
+    ].filter(Boolean);
+    credit.textContent = parts.join(' · ');
+    photoBox.append(media, credit);
+    photoBox.hidden = false;
+  }
+
+  /** Load the photo when the selected aircraft changes; no-op otherwise. */
+  function syncPhoto(hex, subjectTitle) {
+    if (hex === photoHex) return;
+    photoHex = hex;
+    photoToken += 1;
+    const token = photoToken;
+    clearPhoto();
+    if (!hex) return;
+    showPhotoStatus('Loading aircraft photo…');
+    Promise.resolve()
+      .then(() => photoLoader.load(hex))
+      .then(
+        (photo) => {
+          if (destroyed || token !== photoToken) return;
+          if (photo) renderPhoto(photo, subjectTitle);
+          else clearPhoto();
+        },
+        () => {
+          if (token === photoToken) clearPhoto();
+        },
+      );
   }
 
   function render() {
@@ -132,6 +216,7 @@ export function createSelectionDetailsPanel({
     title.textContent = details.title;
     subtitle.textContent = details.subtitle;
     subtitle.hidden = !details.subtitle;
+    syncPhoto(details.photoHex || null, details.title);
 
     // Set only on change: the panel re-renders every second and a repeated
     // role=alert text would be announced again.
@@ -195,6 +280,9 @@ export function createSelectionDetailsPanel({
     token += 1;
     current = null;
     details = null;
+    photoHex = null;
+    photoToken += 1;
+    clearPhoto();
     el.hidden = true;
     feedback.textContent = '';
     syncTimer();

@@ -139,6 +139,7 @@ function flightRecord(overrides = {}) {
     properties: {
       operator: 'British Airways',
       callsign: 'BAW117',
+      icao24: 'abc123',
       altitude: '35,000 ft',
       speed: '450 kt',
       heading: '270°',
@@ -345,4 +346,130 @@ test('destroy removes the element, listeners and timer', () => {
   assert.equal(env.windowStub.intervalCount(), 0);
   assert.equal(env.body.children.length, 0);
   env.panel.destroy();
+});
+
+/** Photo loader stub that records lookups and resolves to `photo`. */
+function photoStub(photo = null) {
+  const calls = [];
+  return {
+    calls,
+    load(hex) {
+      calls.push(hex);
+      return Promise.resolve(typeof photo === 'function' ? photo(hex) : photo);
+    },
+  };
+}
+
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+const PHOTO = {
+  src: 'https://t.plnspttrs.net/1/large.jpg',
+  link: 'https://www.planespotters.net/photo/1/example',
+  photographer: 'Jane Spotter',
+  source: 'Planespotters.net',
+};
+
+test('a flight shows its aircraft photo with credit and a source link', async () => {
+  const photoLoader = photoStub(PHOTO);
+  const env = setup({ photoLoader });
+  const record = flightRecord({ id: 'abc123' });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, false);
+  assert.equal(findByClass(figure, 'selection-details__photo-status').textContent, 'Loading aircraft photo…');
+  await flush();
+  assert.deepEqual(photoLoader.calls, ['abc123']);
+  assert.equal(figure.hidden, false);
+  const anchor = findAll(figure, (node) => node.tagName === 'A')[0];
+  assert.equal(anchor.href, PHOTO.link);
+  assert.equal(anchor.target, '_blank');
+  assert.equal(anchor.rel, 'noopener noreferrer');
+  const image = findAll(figure, (node) => node.tagName === 'IMG')[0];
+  assert.equal(image.attributes.src, PHOTO.src);
+  assert.equal(image.attributes.alt, 'Photo of BAW117');
+  assert.equal(image.attributes.loading, 'lazy');
+  assert.equal(image.attributes.referrerpolicy, 'no-referrer');
+  assert.equal(
+    findByClass(figure, 'selection-details__photo-credit').textContent,
+    '© Jane Spotter · Planespotters.net',
+  );
+  assert.equal(findAll(figure, (node) => node.className === 'selection-details__photo-status').length, 0);
+});
+
+test('the photo is not reloaded by the one-second refresh, only when the hex changes', async () => {
+  const photoLoader = photoStub(PHOTO);
+  const env = setup({ photoLoader });
+  const record = flightRecord({ id: 'abc123' });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  env.windowStub.tick();
+  env.windowStub.tick();
+  await flush();
+  assert.deepEqual(photoLoader.calls, ['abc123']);
+
+  const other = flightRecord({ id: 'def456', label: 'UAL1', properties: { icao24: 'def456', callsign: 'UAL1', operator: 'United' } });
+  env.setSelected(other);
+  env.windowStub.dispatch('gev:entity-selected', other);
+  await flush();
+  assert.deepEqual(photoLoader.calls, ['abc123', 'def456']);
+});
+
+test('no photo leaves the figure hidden and a non-flight never looks one up', async () => {
+  const photoLoader = photoStub(null);
+  const env = setup({ photoLoader });
+  const record = flightRecord({ id: 'abc123' });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, true);
+  assert.equal(figure.children.length, 0);
+
+  const fire = { id: 'firms-1', layerId: 'firms-fires', label: 'Fire', latitude: 1, longitude: 2, properties: {} };
+  env.setSelected(fire);
+  env.windowStub.dispatch('gev:entity-selected', fire);
+  await flush();
+  assert.deepEqual(photoLoader.calls, ['abc123']);
+});
+
+test('clearing the selection drops the photo and a late answer is ignored', async () => {
+  let resolveLate;
+  const photoLoader = {
+    calls: [],
+    load(hex) {
+      this.calls.push(hex);
+      return new Promise((resolve) => {
+        resolveLate = resolve;
+      });
+    },
+  };
+  const env = setup({ photoLoader });
+  const record = flightRecord({ id: 'abc123' });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, false);
+  env.windowStub.dispatch('gev:entity-selection-cleared', { layerId: 'flights', reason: 'deliberate' });
+  assert.equal(env.aside.hidden, true);
+  resolveLate(PHOTO);
+  await flush();
+  assert.equal(figure.hidden, true);
+  assert.equal(figure.children.length, 0);
+});
+
+test('a broken photo image removes the block without touching the rest of the panel', async () => {
+  const env = setup({ photoLoader: photoStub(PHOTO) });
+  const record = flightRecord({ id: 'abc123' });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const image = findAll(env.aside, (node) => node.tagName === 'IMG')[0];
+  image.listeners.error.forEach((handler) => handler({}));
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, true);
+  assert.equal(findByClass(env.aside, 'selection-details__title').textContent, 'BAW117');
 });

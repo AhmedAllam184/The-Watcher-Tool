@@ -91,10 +91,18 @@ export function createTracking({
     const described = parts.queries._describeFlight(icao24);
     if (!described) return null;
     const altFt = Math.round((described.altitudeM || 0) * 3.28084);
-    const route =
+    const routeShown =
       described.route && _routeIsPlausible(icao24, described.route)
-        ? `${described.route.origin.code} → ${described.route.destination.code}`
+        ? described.route
         : null;
+    const route = routeShown
+      ? `${routeShown.origin.code} → ${routeShown.destination.code}`
+      : null;
+    // "London (LHR)" style, same plausibility gate as the codes above.
+    const endpointName = (airport) =>
+      airport.name && airport.code
+        ? `${airport.name} (${airport.code})`
+        : airport.code || airport.name || '';
     return {
       id: icao24,
       layerId: 'flights',
@@ -127,6 +135,8 @@ export function createTracking({
           ? `${Math.round(described.track)}°`
           : '',
         route: route || '',
+        routeFrom: routeShown ? endpointName(routeShown.origin) : '',
+        routeTo: routeShown ? endpointName(routeShown.destination) : '',
         squawk: described.squawk || '',
         icao24,
         // Honesty cue: the contact is coasting on dead reckoning, so the

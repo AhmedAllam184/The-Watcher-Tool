@@ -173,6 +173,38 @@
 .selection-details__feedback:empty {
   display: none;
 }
+/* Aircraft photo: credited and linked to its source page. */
+.selection-details__photo {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.selection-details__photo[hidden] {
+  display: none;
+}
+.selection-details__photo-status {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.selection-details__photo-link {
+  display: block;
+}
+.selection-details__photo-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.selection-details__photo-credit {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
 
 /* Narrow screens: a bottom sheet instead of a floating column. */
 @media (max-width: 639px) {

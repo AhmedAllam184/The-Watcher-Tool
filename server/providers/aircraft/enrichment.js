@@ -64,6 +64,10 @@ export function adsbdbProxy() {
           ? `${a.manufacturer} ${a.type}`
           : a.type || null,
       registration: a.registration || null,
+      // adsbdb's airport-data.com photo of this airframe (aircraft/photos.js
+      // is the photo route; these are kept for callers that want them).
+      photoUrl: a.url_photo || null,
+      photoThumbUrl: a.url_photo_thumbnail || null,
     };
   }
 

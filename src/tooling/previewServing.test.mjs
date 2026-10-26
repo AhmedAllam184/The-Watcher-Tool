@@ -7,15 +7,17 @@ import { localProviderPlugins } from '../../server/providers/local.js';
 import { apiNotFoundPlugin } from '../../server/standalone/api-not-found.js';
 import { makeFixtureRoot } from './fixtureRoot.mjs';
 
-test('data providers have both hooks; credential editing stays development-only', () => {
+test('data providers have both hooks; credential writes stay development-only', () => {
   const plugins = localProviderPlugins();
   assert.ok(plugins.some(({ name }) => name === 'fire-perimeters'));
   for (const plugin of plugins) {
     if (plugin.name === 'gev-key-setup') {
-      assert.equal(plugin.configurePreviewServer, undefined);
+      // Preview gets the read-only status route through configurePreviewServer;
+      // the write route exists only on configureServer (see key-setup.js).
+      assert.equal(typeof plugin.configurePreviewServer, 'function');
       assert.equal(
         plugin.apply({}, { command: 'serve', isPreview: true }),
-        false,
+        true,
       );
       assert.equal(
         plugin.apply({}, { command: 'serve', isPreview: false }),
@@ -114,7 +116,7 @@ test('real dev and built-preview servers serve provider JSON and terminate unkno
         ['/api/mapillary/status', 200],
         ['/api/mapillary/tiles/coverage/14/1/2', 503],
         ['/api/radio/unknown', 404],
-        ['/api/setup/status', isPreview ? 404 : 200],
+        ['/api/setup/status', 200],
         ['/api/setup/update', 404],
         ['/api/does-not-exist', 404],
         ['/api', 404],
@@ -139,7 +141,7 @@ test('real dev and built-preview servers serve provider JSON and terminate unkno
           assert.deepEqual(body, { error: 'no_key', keyRequired: true }, route);
         if (
           route === '/api/does-not-exist' ||
-          (isPreview && route.startsWith('/api/setup'))
+          (isPreview && route === '/api/setup/update')
         ) {
           assert.deepEqual(body, { error: 'Unknown API route' });
           assert.equal(response.headers.get('cache-control'), 'no-store');

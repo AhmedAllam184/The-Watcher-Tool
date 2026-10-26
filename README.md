@@ -135,6 +135,12 @@ npm run dev
 Open **`http://localhost:4173`**. Choose **Live Contacts**, **Space Missions**,
 **Environmental**, or **Explore Manually** from the first-run panel.
 
+On Windows, double-click **`Start The Watcher.cmd`** (fast, production build;
+the first start builds for about 20 seconds, and the browser opens when the
+server is ready). To add API keys in the app, use **`Setup Keys (dev mode).cmd`**,
+which runs the slower dev server that includes the POWER UP panel. The terminal
+equivalents are `npm start` (production build) and `npm run dev` (dev server).
+
 <details>
 <summary>Startup performance</summary>
 

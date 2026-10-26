@@ -160,7 +160,11 @@ function keySetupEndpoint({ sourceRoot = defaultSourceRoot } = {}) {
       wasExternalAtBoot,
     });
   };
-  const providerStatus = () => {
+  // `editable` tells the client whether POST /api/setup/keys exists on this
+  // server. Preview serves the status (so the layer panel can show which keys
+  // are missing) but never the write, and the POWER UP dialog must not offer a
+  // Save that cannot succeed.
+  const providerStatus = ({ editable }) => {
     const inStore = storeValues();
     const status = keySetupStatus(process.env);
     for (const key of status.keys) {
@@ -173,8 +177,20 @@ function keySetupEndpoint({ sourceRoot = defaultSourceRoot } = {}) {
           : 'file'
         : null;
     }
-    return { ...status, store: storeName() };
+    return { ...status, store: storeName(), editable };
   };
+  // GET /api/setup/status, shared by dev and preview. Same loopback/Host/proxy
+  // gate, same response headers; only the `editable` flag differs.
+  const serveStatus =
+    ({ editable }) =>
+    (req, res) => {
+      if (req.method !== 'GET')
+        return respond(res, 405, { error: 'Method not allowed' });
+      const admission = admit(req);
+      if (!admission.ok)
+        return respond(res, admission.status, { error: admission.error });
+      respond(res, 200, providerStatus({ editable }));
+    };
   // Atomically replace the store's content: fresh same-dir temp created 0600
   // with the exclusive flag, fsync, rename over the target. Closes the window
   // where writeFileSync leaves a 0644 file holding a real key before any later
@@ -237,22 +253,16 @@ function keySetupEndpoint({ sourceRoot = defaultSourceRoot } = {}) {
   };
   return {
     name: 'gev-key-setup',
-    // serve AND not preview: `vite preview` resolves with command 'serve' too,
-    // so a bare apply:'serve' would still configure under preview. The endpoints
-    // only install via configureServer (never configurePreviewServer), so they
-    // are absent from preview today — but pinning apply here makes that a
-    // guarantee rather than an accident of which hook a future edit uses.
-    apply: (_config, { command, isPreview }) =>
-      command === 'serve' && !isPreview,
+    // Applies to `vite` (dev) and `vite preview`, which Vite reports as command
+    // 'serve' with isPreview set. A `vite build` never applies it. Only
+    // configureServer installs the write route, so it is absent from preview by
+    // construction: preview runs configurePreviewServer alone.
+    apply: (_config, { command }) => command === 'serve',
     configureServer(server) {
-      server.middlewares.use('/api/setup/status', (req, res) => {
-        if (req.method !== 'GET')
-          return respond(res, 405, { error: 'Method not allowed' });
-        const admission = admit(req);
-        if (!admission.ok)
-          return respond(res, admission.status, { error: admission.error });
-        respond(res, 200, providerStatus());
-      });
+      server.middlewares.use(
+        '/api/setup/status',
+        serveStatus({ editable: true }),
+      );
       server.middlewares.use('/api/setup/keys', (req, res) => {
         if (req.method !== 'POST')
           return respond(res, 405, { error: 'Method not allowed' });
@@ -322,7 +332,7 @@ function keySetupEndpoint({ sourceRoot = defaultSourceRoot } = {}) {
           respond(res, 200, {
             ok: true,
             saved: Object.keys(verdict.updates),
-            status: providerStatus(),
+            status: providerStatus({ editable: true }),
             restarting: true,
           });
           // One deliberate restart, after the response has flushed. Vite's own
@@ -337,6 +347,15 @@ function keySetupEndpoint({ sourceRoot = defaultSourceRoot } = {}) {
           }, 250);
         });
       });
+    },
+    // Preview: read-only status for the layer panel's key dots. The POST route
+    // is deliberately NOT installed here, so an upload under preview falls
+    // through to the unknown-API 404.
+    configurePreviewServer(server) {
+      server.middlewares.use(
+        '/api/setup/status',
+        serveStatus({ editable: false }),
+      );
     },
   };
 }

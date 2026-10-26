@@ -25,6 +25,10 @@ const AIS_DARK_MIN_SPEED_KT = 3;
 const AIS_DARK_MIN_REPORTS = 3;
 /** @type {Map<string,object>} mmsi -> last live fields, lastSeenMs and reportCount */
 const _aisDarkMemory = new Map();
+/** Full cache scans run at most this often (wall clock, Date.now()). */
+const AIS_PRUNE_INTERVAL_MS = 5_000;
+let _aisLastFullPruneAt = -Infinity;
+let _aisFullPruneCount = 0;
 
 /**
  * Store one parsed AIS envelope.
@@ -79,6 +83,9 @@ export function ingestAisStreamEnvelope(envelope) {
 
   const staticData = _aisStreamStatic.get(mmsi) || {};
   const previous = _aisStreamVessels.get(mmsi);
+  // Re-insert so the Map stays in last-update order (oldest first), which lets
+  // overflow eviction take rows from the front without scanning or sorting.
+  _aisStreamVessels.delete(mmsi);
   _aisStreamVessels.set(mmsi, {
     lat,
     lon,
@@ -260,8 +267,29 @@ function isAisDarkCandidate(row) {
   );
 }
 
+/**
+ * Keeps the cache bounded. Called after every accepted report, so it must be
+ * cheap: the full scan (stale rows, dark memory, pending fixes) runs at most
+ * once per AIS_PRUNE_INTERVAL_MS, and between scans only the excess over
+ * AISSTREAM_CACHE_MAX is evicted. Readers never depend on the scan's timing:
+ * aisStreamRows() and darkVessels() both filter rows by their own cutoff.
+ */
 function pruneAisStreamCache() {
   const now = Date.now();
+  // A backwards clock step must not freeze pruning, so it counts as due.
+  if (
+    now < _aisLastFullPruneAt ||
+    now - _aisLastFullPruneAt >= AIS_PRUNE_INTERVAL_MS
+  ) {
+    _aisLastFullPruneAt = now;
+    _aisFullPruneCount++;
+    scanAisStreamCache(now);
+  }
+  evictAisStreamOverflow();
+}
+
+/** Full pass: stale rows, dark memory TTL/cap and orphaned pending fixes. */
+function scanAisStreamCache(now) {
   const cutoff = now - AISSTREAM_STALE_MS;
   for (const [mmsi, row] of _aisStreamVessels) {
     if (row._updatedAt < cutoff) {
@@ -298,18 +326,26 @@ function pruneAisStreamCache() {
     if (pending.epochSec < pendingCutoffSec)
       _aisStreamTrackPending.delete(mmsi);
   }
-  if (_aisStreamVessels.size <= AISSTREAM_CACHE_MAX) return;
-  const ordered = [..._aisStreamVessels.entries()].sort(
-    (a, b) => a[1]._updatedAt - b[1]._updatedAt,
-  );
-  for (const [mmsi] of ordered.slice(
-    0,
-    _aisStreamVessels.size - AISSTREAM_CACHE_MAX,
-  )) {
-    _aisStreamVessels.delete(mmsi);
-    _aisStreamTracks.delete(mmsi);
-    _aisStreamTrackPending.delete(mmsi);
+}
+
+/**
+ * Enforces AISSTREAM_CACHE_MAX by evicting the least recently updated rows.
+ * The Map is kept in last-update order (see ingest), so the oldest rows are
+ * the first keys: eviction costs O(excess), never a scan or sort.
+ */
+function evictAisStreamOverflow() {
+  let excess = _aisStreamVessels.size - AISSTREAM_CACHE_MAX;
+  if (excess <= 0) return;
+  for (const mmsi of _aisStreamVessels.keys()) {
+    if (excess-- <= 0) break;
+    dropAisStreamVessel(mmsi);
   }
+}
+
+function dropAisStreamVessel(mmsi) {
+  _aisStreamVessels.delete(mmsi);
+  _aisStreamTracks.delete(mmsi);
+  _aisStreamTrackPending.delete(mmsi);
 }
 
 export function newestAisPositionAt(rows) {
@@ -467,11 +503,27 @@ export function __resetAisStoreForTests() {
   _aisStreamTracks.clear();
   _aisStreamTrackPending.clear();
   _aisDarkMemory.clear();
+  _aisLastFullPruneAt = -Infinity;
+  _aisFullPruneCount = 0;
 }
 
 /** Test-only: number of remembered dark vessels. */
 export function __aisDarkMemorySizeForTests() {
   return _aisDarkMemory.size;
+}
+
+/** Test-only: how many full cache scans have run since the last reset. */
+export function __aisFullPruneCountForTests() {
+  return _aisFullPruneCount;
+}
+
+/** Test-only: run a full scan now, regardless of the interval gate. */
+export function __pruneAisStreamCacheForTests() {
+  const now = Date.now();
+  _aisLastFullPruneAt = now;
+  _aisFullPruneCount++;
+  scanAisStreamCache(now);
+  evictAisStreamOverflow();
 }
 
 function stringValue(value) {

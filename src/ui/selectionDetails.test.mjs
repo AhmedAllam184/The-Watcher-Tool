@@ -65,7 +65,19 @@ function makeElement(tagName, ownerDocument) {
 }
 
 function makeEnvironment() {
-  const documentStub = {};
+  const documentStub = { hidden: false };
+  const documentListeners = new Set();
+  documentStub.addEventListener = (type, handler) => {
+    if (type === 'visibilitychange') documentListeners.add(handler);
+  };
+  documentStub.removeEventListener = (type, handler) => {
+    documentListeners.delete(handler);
+  };
+  documentStub.dispatchVisibility = (hidden) => {
+    documentStub.hidden = hidden;
+    for (const handler of [...documentListeners]) handler();
+  };
+  documentStub.documentListenerCount = () => documentListeners.size;
   documentStub.createElement = (tag) => makeElement(tag, documentStub);
   const body = makeElement('body', documentStub);
   const windowListeners = {};
@@ -472,4 +484,24 @@ test('a broken photo image removes the block without touching the rest of the pa
   const figure = findByClass(env.aside, 'selection-details__photo');
   assert.equal(figure.hidden, true);
   assert.equal(findByClass(env.aside, 'selection-details__title').textContent, 'BAW117');
+});
+
+test('a hidden tab stops the live refresh and returning to it refreshes at once', () => {
+  const env = setup();
+  const record = flightRecord();
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  assert.equal(env.windowStub.intervalCount(), 1);
+
+  env.documentStub.dispatchVisibility(true);
+  assert.equal(env.windowStub.intervalCount(), 0, 'background tab does not poll');
+
+  env.setSelected(flightRecord({ properties: { ...record.properties, speed: '600 kt' } }));
+  env.documentStub.dispatchVisibility(false);
+  assert.equal(env.windowStub.intervalCount(), 1, 'timer resumes on return');
+  const values = findAll(env.aside, (node) => node.tagName === 'DD').map((n) => n.textContent);
+  assert.ok(values.some((value) => value.startsWith('600 kt')), 'refreshed on return');
+
+  env.panel.destroy();
+  assert.equal(env.documentStub.documentListenerCount(), 0);
 });

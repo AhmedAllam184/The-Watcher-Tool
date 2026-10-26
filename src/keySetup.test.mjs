@@ -156,3 +156,16 @@ test('aborting pending setup removes its surface and ignores a late response', a
   resolveResponse({ ok: true, json: async () => ({ keys: [] }) });
   assert.equal(await pending, null);
 });
+
+test('a read-only status (preview) removes the POWER UP surface instead of offering a Save that cannot succeed', async () => {
+  const { initKeySetup } = await import('./keySetup.js');
+  const removed = [];
+  const chip = { remove: () => removed.push('chip') };
+  const root = { dataset: {}, remove: () => removed.push('root') };
+  const result = await initKeySetup({
+    documentRef: { getElementById: (id) => (id === 'key-setup-chip' ? chip : root) },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ keys: [], total: 1, setCount: 0, editable: false }) }),
+  });
+  assert.equal(result, null);
+  assert.deepEqual(removed, ['chip', 'root']);
+});

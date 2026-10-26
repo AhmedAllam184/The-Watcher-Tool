@@ -15,9 +15,9 @@ import {
  * repo-root .env and restarts the dev server — Vite's client then reloads the
  * page itself, and the pasted key is simply *on*. No hand-edited env files.
  *
- * The surface self-destructs where it cannot work: a prod build (no endpoint)
- * or a LAN visitor (loopback-only endpoint) fails the status fetch, and both
- * the chip and the dialog are removed outright.
+ * The surface self-destructs where it cannot work: a prod build (no endpoint),
+ * a LAN visitor (loopback-only endpoint) or a preview server (read-only status)
+ * fails the status fetch, and both the chip and the dialog are removed outright.
  */
 
 /** Chip label — pure, exported for tests. */
@@ -287,6 +287,9 @@ export async function initKeySetup({
     if (!response.ok) throw new Error(String(response.status));
     status = await response.json();
     if (disposed) return null;
+    // Preview serves the status for the layer panel's key dots but not the
+    // write, so a Save here could only fail. The surface does not exist there.
+    if (status?.editable === false) throw new Error('read-only');
   } catch {
     // Prod build or non-loopback visitor: the surface cannot function, so it
     // does not exist. (The README covers .env for headless/self-host setups.)

@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   __aisDarkMemorySizeForTests,
+  __aisFullPruneCountForTests,
   __resetAisStoreForTests,
+  AISSTREAM_CACHE_MAX,
+  aisStreamRows,
   darkVessels,
   ingestAisStreamEnvelope,
 } from '../../server/providers/vessels/ais-store.js';
@@ -177,4 +180,38 @@ test('dark memory expires after six hours', (t) => {
     feedLastMessageAt: later,
   });
   assert.equal(result.count, 0);
+});
+
+test('1,000 ingests run one full cache scan, and readers still hide stale rows', (t) => {
+  start(t);
+  for (let i = 0; i < 1000; i++) {
+    ingest(T0, String(200_000_000 + i), 51 + i / 1000, 1, 10);
+  }
+  // The gate lets the first ingest scan; the rest of the burst only evicts
+  // overflow, which this cache never reaches.
+  assert.equal(__aisFullPruneCountForTests(), 1);
+
+  // Once the interval has passed, the next ingest runs exactly one more scan.
+  ingest(T0 + 5_000, '300000000', 52, 2, 10);
+  assert.equal(__aisFullPruneCountForTests(), 2);
+
+  // With no scan in between, rows past the 30-min window are still held in
+  // the map, but no reader may return them.
+  now = T0 + 31 * MIN;
+  assert.deepEqual(aisStreamRows(2000), []);
+  assert.equal(darkVessels({ now, feedLastMessageAt: now }).count, 0);
+});
+
+test('overflow evicts the least recently updated vessel, not a refreshed one', (t) => {
+  start(t);
+  // Fill to the cap; the first vessel is the oldest until it reports again.
+  for (let i = 0; i < AISSTREAM_CACHE_MAX; i++)
+    ingest(T0 + i, String(300000000 + i), 10, 10, 1);
+  ingest(T0 + AISSTREAM_CACHE_MAX, '300000000', 10, 10, 1);
+  ingest(T0 + AISSTREAM_CACHE_MAX + 1, '399999999', 10, 10, 1);
+  const mmsis = new Set(aisStreamRows(AISSTREAM_CACHE_MAX).map((r) => r.mmsi));
+  assert.equal(mmsis.size, AISSTREAM_CACHE_MAX);
+  assert.ok(mmsis.has('300000000'), 'refreshed vessel kept');
+  assert.ok(!mmsis.has('300000001'), 'least recently updated vessel evicted');
+  assert.ok(mmsis.has('399999999'), 'newest vessel kept');
 });

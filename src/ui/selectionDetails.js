@@ -256,8 +256,11 @@ export function createSelectionDetailsPanel({
     }
   }
 
+  // A live refresh only runs while the panel is shown AND the tab is visible:
+  // a background tab has nothing to repaint and should not poll the store.
   function syncTimer() {
-    const wantsTimer = Boolean(current?.live) && !el.hidden && !destroyed;
+    const wantsTimer =
+      Boolean(current?.live) && !el.hidden && !destroyed && !doc.hidden;
     if (wantsTimer && timer === null) {
       timer = win.setInterval(refresh, REFRESH_MS);
     } else if (!wantsTimer && timer !== null) {
@@ -383,6 +386,13 @@ export function createSelectionDetailsPanel({
     ['gev:awareness-subject-cleared', onAwarenessCleared],
   ];
   for (const [type, handler] of listeners) win.addEventListener(type, handler);
+  // Returning to a visible tab restarts the timer and refreshes at once, so the
+  // panel is not stale for up to a second after the tab comes back.
+  const onVisibilityChange = () => {
+    syncTimer();
+    if (!doc.hidden) refresh();
+  };
+  doc.addEventListener?.('visibilitychange', onVisibilityChange);
 
   closeButton.addEventListener('click', hide);
   el.addEventListener('keydown', onKeyDown);
@@ -407,6 +417,7 @@ export function createSelectionDetailsPanel({
       destroyed = true;
       for (const [type, handler] of listeners)
         win.removeEventListener(type, handler);
+      doc.removeEventListener?.('visibilitychange', onVisibilityChange);
       if (timer !== null) win.clearInterval(timer);
       timer = null;
       current = null;

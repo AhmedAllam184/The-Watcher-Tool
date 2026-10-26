@@ -665,13 +665,11 @@ test('debug logging resolves each supplied application directory independently',
   }
 });
 
-test('key setup writes only the supplied application root, retains request guards and stays absent from preview', async (t) => {
+test('key setup writes only the supplied application root and retains request guards', async (t) => {
   const first = root(t),
     untouched = root(t);
   env(t, 'OPENAI_API_KEY', undefined);
   const plugin = keySetupEndpoint({ sourceRoot: first });
-  assert.equal(plugin.apply({}, { command: 'serve', isPreview: true }), false);
-  assert.equal(plugin.configurePreviewServer, undefined);
   const routes = install(plugin);
   const handler = routes.get('/api/setup/keys');
   const body = JSON.stringify({
@@ -698,6 +696,34 @@ test('key setup writes only the supplied application root, retains request guard
     assert.equal(statSync(path.join(first, '.env')).mode & 0o777, 0o600);
   assert.equal(saved.body.includes('sk-fixture-only-not-a-real-key'), false);
   assert.equal(existsSync(path.join(untouched, '.env')), false);
+});
+
+test('key setup preview serves read-only status behind the same gate and never the write', async (t) => {
+  const dir = root(t);
+  env(t, 'OPENAI_API_KEY', 'sk-preview-fixture-not-real');
+  const plugin = keySetupEndpoint({ sourceRoot: dir });
+  assert.equal(plugin.apply({}, { command: 'serve', isPreview: true }), true);
+  const routes = install(plugin, true);
+  assert.deepEqual([...routes.keys()], ['/api/setup/status']);
+  assert.equal(routes.has('/api/setup/keys'), false);
+
+  const status = await request(routes.get('/api/setup/status'));
+  assert.equal(status.status, 200);
+  assert.equal(status.json().editable, false);
+  assert.equal(status.headers['cache-control'], 'no-store');
+  assert.equal(status.body.includes('sk-preview-fixture-not-real'), false);
+
+  // The same loopback gate as development: a LAN caller is refused.
+  const lan = await request(routes.get('/api/setup/status'), {
+    remoteAddress: '192.168.1.20',
+  });
+  assert.equal(lan.status, 403);
+  assert.equal(lan.body.includes('OPENAI_API_KEY'), false);
+
+  // Development still reports itself writable.
+  const dev = await request(install(plugin).get('/api/setup/status'));
+  assert.equal(dev.json().editable, true);
+  assert.equal(existsSync(path.join(dir, '.env')), false);
 });
 
 test('Realtime service configuration selects compatible endpoint/model without forwarding request model IDs or keys', async () => {

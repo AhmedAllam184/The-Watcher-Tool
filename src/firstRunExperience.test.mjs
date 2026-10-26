@@ -675,10 +675,12 @@ test('the voice TOOL SCHEMA matches the pinned contract — the mission mapping 
   // list descriptions; the missions still ride existing tools.
   // Street Level adds toggle enum values and the generated alias hint.
   // The Watcher rename rewords three tool descriptions (no schema change).
-  assert.equal(block.length, 29795, 'serialized tool schema length drifted');
+  // Airports layer adds one layer enum value.
+  assert.equal(block.length, 29946, 'serialized tool schema length drifted');
   assert.equal(
     crypto.createHash('sha256').update(block).digest('hex'),
-    '33468aed991e157dafe65308f7e2055872c0a3e8f7e850ae8f7978cbb72239e1',
+    // Airports layer adds one layer enum value.
+    '675c502147c5c333ecfb9af974fb1adb50a81ececacf145846a5c0a0fa67360e',
     'the first-run missions must ride EXISTING tools: no schema edit, no cache bust',
   );
   const instructions = fs.readFileSync(new URL('../server/providers/openai/instructions.js', import.meta.url), 'utf8');

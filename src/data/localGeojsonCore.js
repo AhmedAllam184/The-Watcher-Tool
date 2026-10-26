@@ -5,6 +5,7 @@ import {
   parseGeojsonLines,
 } from '../sources/infrastructureData.js';
 import { createInfrastructureOverlayEntry } from './infrastructureOverlayEntry.js';
+import { formatAirportLabel } from './airportLabels.js';
 import { isPointerFree } from './inputOwnership.js';
 import {
   selectInfraLod,
@@ -86,6 +87,12 @@ export function localInfrastructureOverlayCopy(properties, layerId) {
     if (river && river.toLocaleLowerCase() !== title.toLocaleLowerCase()) {
       details.push(clampCardLine(river));
     }
+  } else if (layerId === 'local-airports') {
+    const place = [props.city, props.country]
+      .map(cleanLabel)
+      .filter(Boolean)
+      .join(', ');
+    if (place) details.push(clampCardLine(place));
   }
 
   return { title, details };
@@ -1217,6 +1224,10 @@ function updateLocalStemGeometry(viewer, record, now, knownDistance = null) {
 
 function featureLabelFromProperties(props, layerId) {
   const tags = props.tags || {};
+  if (layerId === 'local-airports') {
+    const airportLabel = formatAirportLabel(props);
+    if (airportLabel) return clampLabel(airportLabel);
+  }
 
   const candidates = [
     props.name,
@@ -1244,6 +1255,9 @@ function labelPriorityFromProperties(props, layerId) {
   if (props.output || tags['plant:output:electricity']) score += 120;
   if (layerId === 'local-dams') score += 80;
   if (layerId === 'local-datacenters') score += 60;
+  if (layerId === 'local-airports') {
+    score += props.kind === 'Large airport' ? 120 : 40;
+  }
   return score;
 }
 

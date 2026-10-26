@@ -38,7 +38,8 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     // requested radius and center authority in descriptions only.
     // Street Level adds its toggle enum values and generated alias hint.
     // The Watcher rename rewords three tool descriptions.
-    'c83396f3890a0155873f138ba9eb25f98e974a11af7b3d898b9e2660da98a654',
+    // Airports layer adds one layer enum value.
+    '8c70808198b802f81345caece9cd0dd02e59a173e11f6f170f706ceee7679c1e',
   );
 });
 

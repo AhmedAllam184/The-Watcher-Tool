@@ -1,6 +1,7 @@
 /**
- * Bundled OpenStreetMap infrastructure layers (datacenters and dams): their
- * data files, line-delimited GeoJSON parsing and analyst records.
+ * Bundled infrastructure layers (OpenStreetMap datacenters and dams, OurAirports
+ * airports): their data files, line-delimited GeoJSON parsing and analyst
+ * records.
  */
 
 // Resolved by Vite in builds and relative to this module in other consumers,
@@ -16,6 +17,12 @@ export const INFRASTRUCTURE_DATA_URLS = Object.freeze({
     return new URL('../data/local_data/dams/dams.geojsonl', import.meta.url)
       .href;
   },
+  get 'local-airports'() {
+    return new URL(
+      '../data/local_data/airports/airports.geojsonl',
+      import.meta.url,
+    ).href;
+  },
 });
 
 /** Parse GeoJSON Lines: one Feature per non-empty line. */
@@ -30,6 +37,7 @@ export function parseGeojsonLines(text) {
 export function layerTitle(layerId) {
   if (layerId === 'local-datacenters') return 'Datacenter';
   if (layerId === 'local-dams') return 'Dam';
+  if (layerId === 'local-airports') return 'Airport';
   return 'Feature';
 }
 

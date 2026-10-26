@@ -8,6 +8,7 @@
     "modules": [
       "src/data/infrastructure.js",
       "src/data/localGeojsonCore.js",
+      "src/data/airportLabels.js",
       "src/data/localGeojsonLod.js",
       "src/data/inputOwnership.js",
       "src/data/infrastructureOverlayEntry.js",
@@ -1575,6 +1576,7 @@
       "src/data/lifecycle.js",
       "src/data/localGeojson.js",
       "src/data/localGeojsonCore.js",
+      "src/data/airportLabels.js",
       "src/data/localGeojsonLod.js",
       "src/data/localLayers.js",
       "src/data/local_data/natural_earth/marine.json",
@@ -2333,6 +2335,7 @@
       "src/data/layerStateTokenReservations.json",
       "src/data/localGeojson.js",
       "src/data/localGeojsonCore.js",
+      "src/data/airportLabels.js",
       "src/data/localGeojsonLod.js",
       "src/data/local_data/natural_earth/marine.json",
       "src/data/local_data/natural_earth/regions.json",

@@ -38,6 +38,7 @@ export const PANEL_GROUPS = [
   {
     label: 'Infrastructure',
     ids: [
+      'local-airports',
       'alpr-cameras',
       'military-installations',
       'local-datacenters',

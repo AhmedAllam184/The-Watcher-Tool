@@ -336,6 +336,21 @@ const layers = [
     },
   },
   {
+    id: 'local-airports',
+    aliases: ['airports', 'airport'],
+    context: true,
+    query: {
+      fields: {
+        name: ['t'],
+        iata: ['t'],
+        icao: ['t'],
+        city: ['t'],
+        country: ['t'],
+        kind: ['t'],
+      },
+    },
+  },
+  {
     id: 'local-dams',
     aliases: ['dams'],
     context: true,

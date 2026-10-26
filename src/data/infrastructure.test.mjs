@@ -66,6 +66,7 @@ test('infrastructure factory preserves identity and creates independent state wi
     [
       { id: 'local-datacenters', name: 'Datacenters', source: 'Local' },
       { id: 'local-dams', name: 'Dams', source: 'USACE' },
+      { id: 'local-airports', name: 'Airports', source: 'OurAirports' },
     ],
   );
   first.forEach((layer, index) => {
@@ -189,6 +190,7 @@ test('consumer build includes only infrastructure code and resolves assets under
   const entry = output.find((item) => item.type === 'chunk' && item.isEntry);
   const sources = Object.keys(entry.modules).filter((id) => id.endsWith('.js'));
   assert.deepEqual(sources.map((id) => id.split('/').at(-1)).sort(), [
+    'airportLabels.js',
     'infrastructure.js',
     'infrastructureData.js',
     'infrastructureOverlayEntry.js',
@@ -200,7 +202,7 @@ test('consumer build includes only infrastructure code and resolves assets under
     ['cesium'],
     'the viewer supplies the same Cesium dependency',
   );
-  for (const name of ['datacenters', 'dams']) {
+  for (const name of ['datacenters', 'dams', 'airports']) {
     const asset = output.find(
       (item) => item.type === 'asset' && item.fileName.includes(name),
     );

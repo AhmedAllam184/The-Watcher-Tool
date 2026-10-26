@@ -2,13 +2,14 @@ import { createLocalGeoJsonLayer } from './localGeojsonCore.js';
 import { INFRASTRUCTURE_DATA_URLS } from '../sources/infrastructureData.js';
 
 /**
- * Create fresh datacenter and dam layers without starting or loading them.
+ * Create fresh datacenter, dam and airport layers without starting or loading them.
  * @param {object} services Caller-owned context, overlay and render operations.
- * @returns {object[]} Datacenters then dams, with stable standalone identities.
+ * @returns {object[]} Datacenters, dams, then airports, with stable standalone identities.
  */
 export function createInfrastructureLayers(services) {
   const datacentersUrl = INFRASTRUCTURE_DATA_URLS['local-datacenters'];
   const damsUrl = INFRASTRUCTURE_DATA_URLS['local-dams'];
+  const airportsUrl = INFRASTRUCTURE_DATA_URLS['local-airports'];
   const datacenters = createLocalGeoJsonLayer(
     {
       id: 'local-datacenters',
@@ -41,5 +42,21 @@ export function createInfrastructureLayers(services) {
     services,
   );
 
-  return [datacenters, dams];
+  const airports = createLocalGeoJsonLayer(
+    {
+      id: 'local-airports',
+      url: airportsUrl,
+      name: 'Airports',
+      color: '#7dd3fc', // Sky
+      icon: '✈',
+      source: 'OurAirports',
+      osmDerived: false,
+      labels: true,
+      labelMax: 600,
+      labelGridPx: 150,
+    },
+    services,
+  );
+
+  return [datacenters, dams, airports];
 }

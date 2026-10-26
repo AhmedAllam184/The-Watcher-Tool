@@ -1,8 +1,8 @@
 # Reusing infrastructure layers
 
 `the-watcher/infrastructure` exports `createInfrastructureLayers(services)`.
-It returns fresh datacenter and dam layers in that order, with the existing IDs,
-appearance, label budgets and bundled public datasets. Importing the module or
+It returns fresh datacenter, dam and airport layers in that order, with the
+existing IDs, appearance, label budgets and bundled public datasets. Importing the module or
 calling the factory does not load data, create a viewer, or start the application.
 The asset URLs resolve relative to the module; Vite rewrites them for production
 base paths. This browser source export expects a Vite-compatible asset build.

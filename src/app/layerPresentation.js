@@ -1,4 +1,4 @@
-import { LayerPanel } from '../ui/layers.js';
+import { LayerPanel, fetchKeySetupStatus } from '../ui/layers.js';
 import { governorRequestRender } from '../renderGovernor.js';
 import { markDetectionSourcesChanged } from '../data/detection.js';
 
@@ -38,6 +38,7 @@ export class LayerPresentation {
     if (!this._panel)
       this._panel = new LayerPanel({
         weatherClock: this.weatherClock,
+        loadKeyStatus: () => fetchKeySetupStatus(),
         getLayers: () => this.manager.getAll(),
         isEnabled: (id) => this.manager.isEnabled(id),
         setEnabled: (id, enabled, options) =>

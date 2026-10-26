@@ -3,7 +3,7 @@ import { syncRowList } from './rowList.js';
 import { layerFeedState } from '../data/feedState.js';
 export { layerFeedState } from '../data/feedState.js';
 import { GUIDANCE_STATUSES } from '../loadingFeedback.js';
-import { keySetupRequirement } from '../keySetupCore.mjs';
+import { KEY_SETUP_KEYS, keySetupRequirement } from '../keySetupCore.mjs';
 import { createWeatherPanel } from './weatherPanel.js';
 const FEED_STATE_LABELS = Object.freeze({
   nominal: 'ON',
@@ -103,6 +103,98 @@ export function layerKeyRequirementTooltip(layer = {}) {
   return requiresKeyId ? keySetupRequirement(requiresKeyId) : '';
 }
 
+const KEY_STATUS_REFRESH_MS = 30000;
+const KEY_TIER_ARTICLES = Object.freeze({ free: 'a free', metered: 'a paid' });
+
+/**
+ * The key-setup status from the dev server. Anything that stops the answer
+ * (prod build, LAN visitor, network failure) yields null, which the panel reads
+ * as UNKNOWN: a missing key is never inferred from a failed request.
+ * @param {typeof fetch} [fetchImpl] Injected for tests.
+ * @returns {Promise<object|null>} The /api/setup/status payload, or null.
+ */
+export async function fetchKeySetupStatus(
+  fetchImpl = globalThis.fetch?.bind(globalThis),
+) {
+  try {
+    const response = await fetchImpl('/api/setup/status', {
+      cache: 'no-store',
+    });
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A key is missing only when a layer or the key status says so. */
+function keyIsMissing(layer, keyStatus) {
+  if (layer?.stats?.keyRequired === true) return true;
+  const requiresKeyId = String(layer?.requiresKeyId || '').trim();
+  if (!requiresKeyId || !Array.isArray(keyStatus?.keys)) return false;
+  return keyStatus.keys.find((key) => key?.id === requiresKeyId)?.set === false;
+}
+
+/** The registry entry a layer's key hint names, or null when it names none. */
+function keyHintEntry(layer) {
+  const requiresKeyId = String(layer?.requiresKeyId || '').trim();
+  const entry = requiresKeyId
+    ? KEY_SETUP_KEYS.find((key) => key.id === requiresKeyId)
+    : null;
+  return entry && !entry.hidden ? entry : null;
+}
+
+/**
+ * Health of one layer row: the status dot's colour and the summary's counts.
+ * A missing key outranks feed state, and a disabled layer reads 'off' unless
+ * its source is unavailable.
+ * @param {object} layer Row from the layer manager's getAll().
+ * @param {object|null} [keyStatus] /api/setup/status payload, or null when unknown.
+ * @returns {'off'|'live'|'working'|'warn'|'error'|'key'}
+ */
+export function layerHealth(layer = {}, keyStatus = null) {
+  if (keyIsMissing(layer, keyStatus)) return 'key';
+  const stats = layer.stats || {};
+  if (
+    layer.lifecycleState === 'enabling' ||
+    layer.lifecycleState === 'disabling'
+  )
+    return 'working';
+  if (layer.lifecycleUncertain) return 'warn';
+  if (stats.sourceUnavailable === true) return 'error';
+  if (layer.enabled !== true) return 'off';
+  const presentedError =
+    stats.error || stats.lastError || stats.managerRefreshError;
+  const feedState = layerFeedState(stats);
+  if (feedState === 'unavailable') return 'error';
+  if (feedState === 'loading') return 'working';
+  if (presentedError && feedState !== 'stale') return 'error';
+  return feedState === 'nominal' ? 'live' : 'warn';
+}
+
+/**
+ * One line for the top of the DATA LAYERS panel: how many feeds are live,
+ * loading, degraded, need a key or are failing. Only non-zero parts appear.
+ * @param {Array<object>} layers Rows shown in the toggle panel.
+ * @param {object|null} [keyStatus] /api/setup/status payload, or null when unknown.
+ * @returns {string}
+ */
+export function layerHealthSummary(layers = [], keyStatus = null) {
+  const counts = { live: 0, working: 0, warn: 0, key: 0, error: 0 };
+  for (const layer of layers) {
+    const health = layerHealth(layer, keyStatus);
+    if (health in counts) counts[health] += 1;
+  }
+  const parts = [
+    counts.live && `${counts.live} live`,
+    counts.working && `${counts.working} loading`,
+    counts.warn && `${counts.warn} degraded`,
+    counts.key &&
+      (counts.key === 1 ? '1 needs a key' : `${counts.key} need keys`),
+    counts.error && `${counts.error} failing`,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'All feeds off';
+}
+
 /** Layer row presentation over supplied state and actions; no layer imports. */
 export class LayerPanel {
   constructor({
@@ -115,8 +207,21 @@ export class LayerPanel {
     subscribeRowControls,
     onHiddenRefresh = () => {},
     weatherClock,
+    loadKeyStatus = null,
   }) {
     this.weatherClock = weatherClock;
+    this._loadKeyStatus =
+      typeof loadKeyStatus === 'function' ? loadKeyStatus : null;
+    this._keyStatus = null;
+    this._keyStatusRequestedAt = 0;
+    this._onWindowFocus = null;
+    if (
+      this._loadKeyStatus &&
+      typeof globalThis.addEventListener === 'function'
+    ) {
+      this._onWindowFocus = () => this._requestKeyStatus();
+      globalThis.addEventListener('focus', this._onWindowFocus);
+    }
     this.getAll = getLayers;
     this.isEnabled = isEnabled;
     this.setEnabled = setEnabled;
@@ -145,6 +250,7 @@ export class LayerPanel {
     });
     this._mountRecentImagery();
     this._renderToggles();
+    this._requestKeyStatus();
   }
   /**
    * Host the Recent Imagery readout in its rail body, like the weather
@@ -186,11 +292,27 @@ export class LayerPanel {
     this._recentImageryPanel = null;
     this._recentImageryFactory = null;
     this._toggleContainer = null;
+    if (this._onWindowFocus)
+      globalThis.removeEventListener?.('focus', this._onWindowFocus);
+    this._onWindowFocus = null;
   }
   _renderToggles() {
     if (this._destroyed || !this._toggleContainer) return;
     this._releaseBindings();
     this._toggleContainer.innerHTML = '';
+    const summary = document.createElement('div');
+    summary.className = 'layer-health-summary';
+    summary.setAttribute('aria-live', 'polite');
+    this._toggleContainer.appendChild(summary);
+    // "Add key" hands off to the POWER UP chip, the one path that opens its dialog.
+    this._bind(this._toggleContainer, 'click', (event) => {
+      if (!event.target?.closest?.('.layer-key-add')) return;
+      const chip =
+        this._toggleContainer?.ownerDocument?.getElementById?.(
+          'key-setup-chip',
+        );
+      if (chip?.isConnected) chip.click();
+    });
 
     const generation = this._generation;
     const layers = this.getAll()
@@ -219,8 +341,13 @@ export class LayerPanel {
       const topRow = document.createElement('div');
       topRow.className = 'data-toggle-top';
 
+      const health = layerHealth(layer, this._keyStatus);
       const left = document.createElement('div');
       left.className = 'data-toggle-left';
+      const dot = document.createElement('span');
+      dot.className = 'feed-dot';
+      dot.setAttribute('aria-hidden', 'true');
+      dot.dataset.health = health;
       const icon = document.createElement('span');
       icon.className = 'data-icon';
       icon.setAttribute('aria-hidden', 'true');
@@ -228,6 +355,7 @@ export class LayerPanel {
       const name = document.createElement('span');
       name.className = 'data-name';
       name.textContent = panelLabel(layer);
+      left.appendChild(dot);
       left.appendChild(icon);
       left.appendChild(name);
 
@@ -275,7 +403,7 @@ export class LayerPanel {
 
       const bottomRow = document.createElement('div');
       bottomRow.className = 'data-toggle-meta';
-      bottomRow.textContent = this._buildMetaText(layer);
+      this._syncMeta(bottomRow, layer, health);
 
       row.appendChild(topRow);
       row.appendChild(bottomRow);
@@ -330,6 +458,7 @@ export class LayerPanel {
 
       this._toggleContainer.appendChild(row);
     }
+    this._syncHealthSummary(layers);
     this._refreshWeatherPanel();
   }
 
@@ -488,7 +617,8 @@ export class LayerPanel {
       this.onHiddenRefresh();
       return;
     }
-    for (const layer of this.getAll()) {
+    const layers = this.getAll();
+    for (const layer of layers) {
       const row = this._toggleContainer.querySelector(
         `[data-layer-id="${layer.id}"]`,
       );
@@ -504,10 +634,12 @@ export class LayerPanel {
         count.textContent = this._layerCountText(layer.stats);
       }
 
+      const health = layerHealth(layer, this._keyStatus);
+      const dot = row.querySelector('.feed-dot');
+      if (dot) dot.dataset.health = health;
+
       const meta = row.querySelector('.data-toggle-meta');
-      if (meta) {
-        meta.textContent = this._buildMetaText(layer);
-      }
+      if (meta) this._syncMeta(meta, layer, health);
 
       this._syncRowControls(
         row.querySelector('.data-toggle-controls'),
@@ -515,7 +647,90 @@ export class LayerPanel {
         row.querySelector('.data-row-list'),
       );
     }
+    this._syncHealthSummary(layers);
     this._refreshWeatherPanel();
+  }
+
+  _syncHealthSummary(layers) {
+    const summary = this._toggleContainer?.querySelector?.(
+      '.layer-health-summary',
+    );
+    if (!summary) return;
+    const text = layerHealthSummary(
+      layers.filter((layer) => layer.showInTogglePanel),
+      this._keyStatus,
+    );
+    if (summary.textContent !== text) summary.textContent = text;
+  }
+
+  /**
+   * Fetch the key-setup status at most once per KEY_STATUS_REFRESH_MS, then
+   * repaint so the key hints reflect it. Runs at mount and on window focus, so
+   * a key pasted elsewhere shows up when the operator comes back.
+   */
+  _requestKeyStatus() {
+    if (!this._loadKeyStatus || this._destroyed) return;
+    const now = Date.now();
+    if (now - this._keyStatusRequestedAt < KEY_STATUS_REFRESH_MS) return;
+    this._keyStatusRequestedAt = now;
+    Promise.resolve()
+      .then(() => this._loadKeyStatus())
+      .catch(() => null)
+      .then((status) => {
+        if (this._destroyed) return;
+        this._keyStatus = status && typeof status === 'object' ? status : null;
+        this._refreshTogglePanel();
+      });
+  }
+
+  /**
+   * Write a row's meta line. A layer whose key is missing says so here, before
+   * the layer is switched on, with a link to the key. The hint is rebuilt only
+   * when its content changes, so a focused link survives each refresh.
+   */
+  _syncMeta(meta, layer, health) {
+    const entry = health === 'key' ? keyHintEntry(layer) : null;
+    if (!entry) {
+      meta._keyHintSignature = null;
+      const text =
+        (health === 'key' && layerKeyRequirementTooltip(layer)) ||
+        this._buildMetaText(layer);
+      if (meta.textContent !== text) meta.textContent = text;
+      return;
+    }
+    const documentRef = meta.ownerDocument;
+    const chip = documentRef?.getElementById?.('key-setup-chip');
+    const canOpen = Boolean(
+      chip?.isConnected && documentRef.getElementById?.('key-setup'),
+    );
+    const signature = JSON.stringify([
+      entry.id,
+      entry.title,
+      entry.tier,
+      entry.getUrl,
+      canOpen,
+    ]);
+    if (meta._keyHintSignature === signature) return;
+    meta._keyHintSignature = signature;
+    meta.textContent = '';
+    const link = documentRef.createElement('a');
+    link.className = 'layer-key-link';
+    link.href = entry.getUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = 'Get key ↗';
+    meta.append(
+      `Needs ${KEY_TIER_ARTICLES[entry.tier] || 'a'} ${entry.title} key — `,
+      link,
+    );
+    if (canOpen) {
+      const add = documentRef.createElement('button');
+      add.type = 'button';
+      add.className = 'layer-key-add';
+      add.textContent = 'Add key';
+      add.title = 'Open Provider Settings to paste this key';
+      meta.append(' · ', add);
+    }
   }
 
   _buildMetaText(layer) {
@@ -530,6 +745,9 @@ export class LayerPanel {
     }
     if (layer.lifecycleUncertain) {
       return `UNCERTAIN · ${source} · lifecycle state requires reconciliation`;
+    }
+    if (layer.enabled === false && stats.sourceUnavailable !== true) {
+      return `${source} · off`;
     }
     const presentedError =
       stats.error || stats.lastError || stats.managerRefreshError;
@@ -583,6 +801,9 @@ export class LayerPanel {
     }
     if (typeof stats.loadingLabel === 'string' && stats.loadingLabel.trim()) {
       return `${source} · ${stats.loadingLabel.trim()}`;
+    }
+    if (feedState === 'nominal' && stats.lastUpdate) {
+      return `Live · ${source} · updated ${ago}`;
     }
     return `${source} · ${ago}`;
   }

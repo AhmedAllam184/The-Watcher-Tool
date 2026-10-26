@@ -405,3 +405,24 @@ test('empty coverage cannot hide stale, incomplete or rejected source data', asy
     assert.ok(layer.getStats().error, JSON.stringify(patch));
   }
 });
+
+test('a vessel feed without an AISStream key reports keyRequired and names the key', async () => {
+  const { layer } = setup({
+    async getSnapshot() {
+      return snapshot([], {
+        transportStatus: 'missing-key',
+        observedAtMs: null,
+        lastMessageAt: null,
+      });
+    },
+  });
+  assert.equal(layer.requiresKeyId, 'aisstream');
+  assert.equal(
+    layer.getStats().keyRequired,
+    false,
+    'no key is missing until the feed says so',
+  );
+  await layer.update();
+  assert.equal(layer.getStats().transportStatus, 'missing-key');
+  assert.equal(layer.getStats().keyRequired, true);
+});

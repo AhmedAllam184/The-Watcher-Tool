@@ -506,6 +506,11 @@ export function createQueries({
         }
       : {}),
 
+    // The AIS feed needs a provider key: without one the server reports
+    // 'missing-key' and delivers no positions. Declared as a key-registry id so
+    // the panel can name the key before the layer is switched on.
+    requiresKeyId: 'aisstream',
+
     getStats() {
       const waitingForFirstPosition =
         state.feed.firstConnectPhase === 'loading';
@@ -524,6 +529,7 @@ export function createQueries({
             ? 'unavailable'
             : undefined,
         transportStatus: state.feed.transportStatus,
+        keyRequired: state.feed.transportStatus === 'missing-key',
         lastMessageAt: state.feed.lastMessageAt,
         rawRowCount: state.feed.rawRowCount,
         acceptedRowCount: state.feed.acceptedRowCount,

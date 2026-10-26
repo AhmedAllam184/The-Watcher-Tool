@@ -1,2 +1,6 @@
-export { LayerPanel, layerFeedState } from './layerPanel.js';
+export {
+  LayerPanel,
+  fetchKeySetupStatus,
+  layerFeedState,
+} from './layerPanel.js';
 export { bindClearLayersControl } from './clearLayersControl.js';

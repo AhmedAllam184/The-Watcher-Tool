@@ -726,6 +726,103 @@
   margin-top: 2px;
 }
 
+.data-toggle-meta .layer-key-link {
+  color: rgba(54, 220, 255, 0.75);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.data-toggle-meta .layer-key-link:hover,
+.data-toggle-meta .layer-key-link:focus-visible {
+  color: rgba(54, 220, 255, 1);
+  text-decoration: underline;
+  outline: none;
+}
+
+.layer-key-add {
+  padding: 0 6px;
+  font: inherit;
+  letter-spacing: inherit;
+  color: rgba(54, 220, 255, 0.9);
+  background: transparent;
+  border: 1px solid rgba(54, 220, 255, 0.45);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.layer-key-add:hover {
+  border-color: rgba(54, 220, 255, 0.9);
+}
+
+.layer-key-add:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 1px;
+}
+
+/* Feed health dot: the row's at-a-glance state, paired with the meta line. */
+.feed-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.feed-dot[data-health='live'] {
+  background: #34d399;
+  border-color: #34d399;
+}
+
+.feed-dot[data-health='working'] {
+  background: #60a5fa;
+  border-color: #60a5fa;
+  animation: feed-dot-pulse 1.4s ease-in-out infinite;
+}
+
+.feed-dot[data-health='warn'] {
+  background: #fbbf24;
+  border-color: #fbbf24;
+}
+
+.feed-dot[data-health='error'] {
+  background: #f87171;
+  border-color: #f87171;
+}
+
+.feed-dot[data-health='key'] {
+  background: #a78bfa;
+  border-color: #a78bfa;
+}
+
+@keyframes feed-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-dot[data-health='working'] {
+    animation: none;
+  }
+}
+
+.layer-health-summary {
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
 /* Optional per-layer sub-controls: mode chips plus a color legend. Aligned
    under the layer name like .data-toggle-meta, and wrapping so a legend can
    grow without widening the rail. */

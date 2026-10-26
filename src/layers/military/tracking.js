@@ -122,6 +122,7 @@ export function createTracking({
         heading: Number.isFinite(described.track)
           ? `${Math.round(described.track)}°`
           : '',
+        squawk: described.squawk || '',
         icao24,
         // Honesty cue: the contact is coasting on dead reckoning, so the
         // narrated position/velocity are last-known rather than live.

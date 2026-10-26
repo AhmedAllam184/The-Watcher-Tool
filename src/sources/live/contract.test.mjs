@@ -101,6 +101,39 @@ test('readsb units and position/contact ages are normalized once against the sou
   );
 });
 
+test('transponder squawk comes from OpenSky index 14 and readsb squawk; malformed codes are dropped', () => {
+  const squawking = [...aircraft];
+  squawking[14] = '7700';
+  const snapshot = openSkySnapshot(
+    { time: now / 1000, states: [squawking] },
+    { now },
+  );
+  assert.equal(snapshot.records[0].squawk, '7700');
+  const quiet = openSkySnapshot(
+    { time: now / 1000, states: [aircraft] },
+    { now },
+  );
+  assert.equal(quiet.records[0].squawk, null);
+  const malformed = [...aircraft];
+  malformed[14] = '77A0';
+  const bad = openSkySnapshot(
+    { time: now / 1000, states: [malformed] },
+    { now },
+  );
+  assert.equal(bad.records[0].squawk, null);
+  assert.equal(
+    normalizeReadsbAircraft(
+      { hex: 'abc123', lat: 30, lon: -97, squawk: '7500' },
+      now,
+    ).squawk,
+    '7500',
+  );
+  assert.equal(
+    normalizeReadsbAircraft({ hex: 'abc123', lat: 30, lon: -97 }, now).squawk,
+    null,
+  );
+});
+
 test('vessel identity, opaque reference and heading/course remain distinct, unknowns stay null', () => {
   const row = normalizeVesselObservation(
     {

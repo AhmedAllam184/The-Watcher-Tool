@@ -127,6 +127,7 @@ export function createTracking({
           ? `${Math.round(described.track)}°`
           : '',
         route: route || '',
+        squawk: described.squawk || '',
         icao24,
         // Honesty cue: the contact is coasting on dead reckoning, so the
         // narrated position/velocity are last-known rather than live.

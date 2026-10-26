@@ -1,4 +1,5 @@
 import { ERROR_BACKOFF_INTERVAL } from './recordPolicy.js';
+import { diffEmergencies } from '../../data/squawk.js';
 
 /** Own military source acquisition, cancellation, freshness and error backoff. */
 export function createIngestion({
@@ -6,6 +7,7 @@ export function createIngestion({
   applySnapshot,
   setSourceLabel,
   applyPendingTrackingRestore,
+  onSquawkAlerts = null,
 }) {
   const methods = {
     async update(viewer, { signal = null } = {}) {
@@ -46,6 +48,17 @@ export function createIngestion({
             : null);
         const accepted = applySnapshot(snapshot, viewer);
         feed._count = accepted.count;
+        // Announce only contacts that newly start squawking an emergency code.
+        // A stale (cached) snapshot neither alerts nor updates the memory, so
+        // an old emergency is never announced as new.
+        if (!snapshot.stale) {
+          const squawks = diffEmergencies(
+            feed._squawkEmergencies,
+            snapshot.records,
+          );
+          feed._squawkEmergencies = squawks.next;
+          if (squawks.alerts.length) onSquawkAlerts?.(squawks.alerts);
+        }
         feed._lastUpdate = snapshot.observedAtMs;
         feed._lastTrackingRefreshOutcome = {
           epoch: trackingRefreshEpoch,
@@ -92,6 +105,7 @@ export function createMilitaryFeed(source) {
   feed._lastStatus = null;
   feed._lastSource = source?.label || 'Aircraft';
   feed._trackingRefreshEpoch = 0;
+  feed._squawkEmergencies = new Map();
   feed._lastTrackingRefreshOutcome = {
     epoch: 0,
     status: 'unavailable',

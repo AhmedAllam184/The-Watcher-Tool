@@ -66,3 +66,41 @@ test('military acquisition keeps the degraded source reason and respects retry a
     'source-unavailable',
   );
 });
+
+test('military acquisition announces a new emergency squawk once per contact and code', async () => {
+  const announced = [];
+  const records = [
+    {
+      id: 'aaa001',
+      callsign: 'RCH401',
+      squawk: '7500',
+      latitude: 1,
+      longitude: 2,
+    },
+  ];
+  const feed = createMilitaryFeed({
+    label: 'Fixture',
+    getSnapshot: async () => ({
+      records,
+      source: 'Fixture',
+      observedAtMs: Date.now(),
+      ageMs: 0,
+      stale: false,
+      freshness: 'current',
+      complete: true,
+    }),
+  });
+  const { methods } = createIngestion({
+    feed,
+    applySnapshot: () => ({ count: 1, ids: new Set(['aaa001']) }),
+    setSourceLabel: () => {},
+    applyPendingTrackingRestore: () => {},
+    onSquawkAlerts: (alerts) => announced.push(...alerts),
+  });
+  await methods.update(null);
+  await methods.update(null);
+  assert.deepEqual(
+    announced.map((alert) => alert.code),
+    ['7500'],
+  );
+});

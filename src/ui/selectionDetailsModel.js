@@ -4,6 +4,7 @@
  * rows for the selection details panel. No DOM, no Cesium, no store access.
  */
 import { normalizeVesselType } from '../data/vesselLabels.js';
+import { describeSquawk } from '../data/squawk.js';
 
 const FEET_PER_METRE = 3.28084;
 const KMH_PER_KNOT = 1.852;
@@ -214,6 +215,12 @@ function buildFlight(record, properties) {
     pushRow(rows, 'Status', 'Last known — missed updates');
   else if (/^live$/i.test(status)) pushRow(rows, 'Status', 'Live');
   else pushRow(rows, 'Status', status);
+  const squawk = describeSquawk(properties.squawk);
+  let alert = null;
+  if (squawk?.emergency) {
+    alert = `Emergency squawk ${squawk.code} — ${squawk.meaning}`;
+    pushRow(rows, 'Squawk', `${squawk.code} — ${squawk.meaning}`);
+  } else if (squawk) pushRow(rows, 'Squawk', squawk.code);
   pushRow(rows, 'Data source', record.source);
   if (callsign)
     links.push({
@@ -231,6 +238,7 @@ function buildFlight(record, properties) {
     subtitle: String(properties.operator || ''),
     rows,
     links,
+    alert,
   };
 }
 
@@ -332,7 +340,8 @@ function buildOther(record, properties) {
  * Turn a context record into the plain-language panel model.
  * @param {object|null} record Shared context record (see src/data/contextStore.js).
  * @param {{now?: number}} [options] Clock used for relative times.
- * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, latitude: number|null, longitude: number|null}|null}
+ * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, latitude: number|null, longitude: number|null}|null}
+ *   `alert` is set only for an emergency transponder squawk.
  */
 export function buildSelectionDetails(record, { now = Date.now() } = {}) {
   if (!record || typeof record !== 'object') return null;
@@ -355,5 +364,5 @@ export function buildSelectionDetails(record, { now = Date.now() } = {}) {
       label: 'Coordinates',
       value: coordinateText(latitude, longitude),
     });
-  return { ...details, latitude, longitude };
+  return { alert: null, ...details, latitude, longitude };
 }

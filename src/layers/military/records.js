@@ -1,6 +1,7 @@
 import { pickRenderAltitudeM } from '../../data/renderAltitude.js';
 import { stickyText, stickyNumber } from '../../data/aircraftMeta.js';
 import { classifyAircraft } from '../../data/aircraftClass.js';
+import { normalizeSquawk } from '../../data/squawk.js';
 import {
   GROUND_FLOOR_WARM_MAX_ALT_M,
   LANDED_MISSING_POLL_LIMIT,
@@ -140,6 +141,8 @@ export class MilitaryFlightRecords {
       }),
       registration: stickyText(registration, prevMeta?.registration),
       operator: stickyText(operator, prevMeta?.operator),
+      // Current transponder code, not sticky (see the civil flight records).
+      squawk: normalizeSquawk(aircraft.squawk),
       altitudeFt: stickyNumber(altitudeFt, prevMeta?.altitudeFt, null),
       // geoAltitudeM/renderAltitudeM are ADDITIVE fields alongside the
       // untouched aviation `altitudeFt` — never rename/replace it (labels,

@@ -5,6 +5,7 @@ import {
   epoch,
   finite,
 } from './contract.js';
+import { normalizeSquawk } from '../../data/squawk.js';
 
 /** Normalize the OpenSky state-vector route, including its regional fallback. */
 export function normalizeOpenSkyAircraft(row) {
@@ -27,6 +28,7 @@ export function normalizeOpenSkyAircraft(row) {
     courseDeg: finite(row[10]),
     verticalRateMps: finite(row[11]),
     category: finite(row[17]),
+    squawk: normalizeSquawk(row[14]),
     typeCode: null,
     registration: null,
     operator: null,
@@ -65,6 +67,7 @@ export function normalizeReadsbAircraft(row, snapshotTimeMs) {
     courseDeg: finite(row.track),
     verticalRateMps: rateFtMin == null ? null : rateFtMin * 0.00508,
     category: row.category ?? null,
+    squawk: normalizeSquawk(row.squawk),
     typeCode: cleanText(row.t),
     registration: cleanText(row.r),
     operator: cleanText(row.ownOp),

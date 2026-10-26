@@ -168,6 +168,41 @@ test('flight details handle ground contacts, stale status and military layers', 
   assert.deepEqual(military.links.map((link) => link.label), ['ADS-B Exchange']);
 });
 
+test('flight squawk shows the code, names emergencies and raises an alert', () => {
+  const routine = buildSelectionDetails(flightRecord({ squawk: '1200' }), {
+    now: NOW,
+  });
+  assert.equal(rowValue(routine, 'Squawk'), '1200');
+  assert.equal(routine.alert, null);
+
+  const emergency = buildSelectionDetails(
+    flightRecord({ squawk: '7700' }),
+    { now: NOW },
+  );
+  assert.equal(rowValue(emergency, 'Squawk'), '7700 — General emergency');
+  assert.equal(
+    emergency.alert,
+    'Emergency squawk 7700 — General emergency',
+  );
+
+  const military = buildSelectionDetails(
+    flightRecord({ squawk: '7600' }, { layerId: 'military-flights' }),
+    { now: NOW },
+  );
+  assert.equal(military.alert, 'Emergency squawk 7600 — Radio failure');
+
+  const unknown = buildSelectionDetails(flightRecord({ squawk: null }), {
+    now: NOW,
+  });
+  assert.equal(rowValue(unknown, 'Squawk'), undefined);
+  assert.equal(unknown.alert, null);
+});
+
+test('only flight details carry a squawk alert', () => {
+  const vessel = buildSelectionDetails(vesselRecord(), { now: NOW });
+  assert.equal(vessel.alert, null);
+});
+
 test('vessel details give plain type, flag, relative time and speed in km/h', () => {
   const details = buildSelectionDetails(vesselRecord(), { now: NOW });
   assert.equal(details.kind, 'vessel');

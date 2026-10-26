@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createIngestion } from './ingestion.js';
+import { createFlightFeed, createIngestion } from './ingestion.js';
 
 function setup(source) {
   const feed = {
@@ -82,4 +82,50 @@ test('civil acquisition publishes source time and uses a replaced source on the 
   assert.equal(probe.feed._lastError, 'Source snapshot time unavailable');
   assert.deepEqual(probe.labels, ['First', 'Second']);
   assert.equal(probe.restores.length, 2);
+});
+
+test('civil acquisition announces a new emergency squawk once per contact and code', async () => {
+  const announced = [];
+  let records = [
+    {
+      id: 'abc123',
+      callsign: 'UAL123',
+      squawk: '7700',
+      latitude: 1,
+      longitude: 2,
+    },
+  ];
+  const feed = createFlightFeed({
+    label: 'Fixture',
+    getSnapshot: async () => ({
+      records,
+      source: 'Fixture',
+      coverage: 'local',
+      observedAtMs: Date.now(),
+      ageMs: 0,
+      stale: false,
+      freshness: 'current',
+      complete: true,
+    }),
+  });
+  const { methods } = createIngestion({
+    feed,
+    getQuery: () => ({}),
+    applySnapshot: () => ({ count: 1, ids: new Set(['abc123']) }),
+    setSourceLabel: () => {},
+    applyPendingTrackingRestore: () => {},
+    onSquawkAlerts: (alerts) => announced.push(...alerts),
+  });
+  await methods.update(null);
+  await methods.update(null);
+  assert.deepEqual(
+    announced.map((alert) => alert.code),
+    ['7700'],
+  );
+  records = [{ id: 'abc123', callsign: 'UAL123', squawk: '7600' }];
+  await methods.update(null);
+  assert.deepEqual(
+    announced.map((alert) => alert.code),
+    ['7700', '7600'],
+  );
 });

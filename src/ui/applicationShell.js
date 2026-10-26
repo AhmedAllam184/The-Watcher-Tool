@@ -28,6 +28,7 @@ import { focusLiveObject } from './liveObjectFocus.js';
 import { bindClearLayersControl } from './layers.js';
 import { bindCameraOrientationControls } from './cameraOrientationControls.js';
 import { createSelectionDetailsPanel } from './selectionDetails.js';
+import { createSquawkAlerts } from './squawkAlerts.js';
 import { createHelpPanel } from './helpPanel.js';
 import { applyStoredTextSize } from './textSize.js';
 import { createMapSourceControls } from './mapSource.js';
@@ -599,6 +600,7 @@ export class StyleManager extends ShellFacade {
     this._initShareButton();
     this._initCameraOrientationControls();
     this._initSelectionDetails();
+    this._initSquawkAlerts();
     this._initHelpPanel();
     this._initClearSelectedLayersButton();
     this._initHUDToggle();
@@ -1506,6 +1508,14 @@ export class StyleManager extends ShellFacade {
     });
   }
 
+  /** Toasts for emergency transponder squawks reported by the flight layers. */
+  _initSquawkAlerts() {
+    this._squawkAlerts?.destroy();
+    this._squawkAlerts = createSquawkAlerts({
+      showToast: (message) => this._showToast(message),
+    });
+  }
+
   /**
    * "?" help and map legend, opened by the toolbar button or the ? key. The
    * saved larger-text preference is applied first, so the page starts at it.
@@ -1643,6 +1653,7 @@ export class StyleManager extends ShellFacade {
     this._mapSourceControls?.destroy();
     this._cameraOrientationControls?.destroy();
     this._selectionDetails?.destroy();
+    this._squawkAlerts?.destroy();
     this._helpPanel?.destroy();
     this._helpPanel = null;
     this._clearLayersControl?.destroy();

@@ -80,6 +80,11 @@ export function createSelectionDetailsPanel({
   closeButton.textContent = '×';
   header.append(heading, closeButton);
 
+  const alertLine = doc.createElement('p');
+  alertLine.className = 'selection-details__alert';
+  alertLine.setAttribute('role', 'alert');
+  alertLine.hidden = true;
+
   const noticeLine = doc.createElement('p');
   noticeLine.className = 'selection-details__notice';
   noticeLine.hidden = true;
@@ -105,7 +110,7 @@ export function createSelectionDetailsPanel({
   feedback.className = 'selection-details__feedback';
   feedback.setAttribute('role', 'status');
 
-  el.append(header, noticeLine, list, actions, feedback);
+  el.append(header, alertLine, noticeLine, list, actions, feedback);
   root.appendChild(el);
 
   function hasCoordinates() {
@@ -127,6 +132,12 @@ export function createSelectionDetailsPanel({
     title.textContent = details.title;
     subtitle.textContent = details.subtitle;
     subtitle.hidden = !details.subtitle;
+
+    // Set only on change: the panel re-renders every second and a repeated
+    // role=alert text would be announced again.
+    const alertText = details.alert || '';
+    if (alertLine.textContent !== alertText) alertLine.textContent = alertText;
+    alertLine.hidden = !alertText;
 
     noticeLine.textContent = notice;
     noticeLine.hidden = !notice;

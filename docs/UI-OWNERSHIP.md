@@ -19,6 +19,7 @@ scene playback and voice. It delegates; new behavior belongs with its owner.
 | `shareRestoration.js` | Initial share/layer restoration and cancellation |
 | `shellFeedback.js` | Loading feedback, notices and toast lifetime |
 | `selectionDetails.js` | Plain-language details panel for the selected object |
+| `squawkAlerts.js` | Toasts and recent list for emergency transponder squawks announced by the flight layers |
 | `helpPanel.js` | "?" help and map legend dialog, its focus and its larger-text setting |
 | `textSize.js` | Larger-text preference: the document class and its saved flag |
 

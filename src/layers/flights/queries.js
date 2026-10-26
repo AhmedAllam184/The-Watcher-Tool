@@ -168,6 +168,7 @@ export function createQueries({
         flightState.feed._backoff,
       ),
       airline: info?.airline ?? null,
+      squawk: info?.squawk ?? null,
       // CLASS label follows the TR-3B conversion so every downstream card
       // (cockpit, Contacts, analyst) agrees with the triangle on screen.
       typeName: tr3bTypeLabel(icao24, info?.typeName ?? null),

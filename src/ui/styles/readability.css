@@ -1,0 +1,89 @@
+/* Readability: default legibility fixes, the optional larger-text scale, and the
+   first-run quick tips. Loaded after the component sheets and before cyber.css,
+   so these rules win over the base sizes they adjust. */
+
+/* Default: Data Layers meta line and key links are no smaller than 11px, with
+   higher-contrast text. The sci-fi look is otherwise unchanged. */
+.data-toggle-meta {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.72);
+}
+.data-toggle-meta .layer-key-link,
+.layer-key-add {
+  font-size: 11px;
+}
+
+/* Larger text (html.watcher-large-text, set by src/ui/textSize.js): about 1.2x
+   on the small labels, with fixed sizes so the scale does not compound. */
+.watcher-large-text .panel-title {
+  font-size: 11px;
+}
+.watcher-large-text .data-name {
+  font-size: 15px;
+}
+.watcher-large-text .data-count {
+  font-size: 13px;
+}
+.watcher-large-text .data-toggle-btn {
+  font-size: 11px;
+}
+.watcher-large-text .data-toggle-meta,
+.watcher-large-text .data-toggle-meta .layer-key-link,
+.watcher-large-text .layer-key-add {
+  font-size: 13px;
+}
+.watcher-large-text .selection-details {
+  font-size: 16px;
+}
+.watcher-large-text #location-search {
+  font-size: 16px;
+}
+.watcher-large-text #intel-hud .hud-summary-label {
+  font-size: 11px;
+}
+.watcher-large-text #intel-hud .hud-summary {
+  font-size: 13px;
+}
+.watcher-large-text .help-panel {
+  font-size: 16px;
+}
+.watcher-large-text .help-panel__heading {
+  font-size: 13px;
+}
+.watcher-large-text .help-panel__subheading {
+  font-size: 12px;
+}
+.watcher-large-text .help-panel kbd {
+  font-size: 14px;
+}
+
+/* First-run quick tips: three short, muted lines under the mission list. */
+#first-run-launcher .first-run-tips {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: rgba(199, 225, 231, 0.7);
+}
+#first-run-launcher .first-run-tips li {
+  padding-left: 0.9rem;
+  position: relative;
+}
+#first-run-launcher .first-run-tips li::before {
+  content: '›';
+  position: absolute;
+  left: 0;
+  color: rgba(54, 220, 255, 0.7);
+}
+#first-run-launcher .first-run-tips kbd {
+  padding: 0 4px;
+  border: 1px solid rgba(199, 225, 231, 0.3);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(225, 244, 248, 0.9);
+}

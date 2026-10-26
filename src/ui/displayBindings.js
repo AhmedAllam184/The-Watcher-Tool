@@ -92,6 +92,7 @@ export class DisplayBindings {
         },
         toggleOrbit: () => this._toggleOrbit(),
         toggleCleanView: () => this.toggleCleanView(),
+        toggleHelp: () => this._toggleHelpPanel(),
         toggleLayers: () =>
           document.getElementById('data-panel').classList.toggle('active'),
         cycleDetection: () => {

@@ -14,6 +14,14 @@ const isEditableTarget = (target) =>
 const hasOpenDialog = (documentRef) =>
   !!documentRef.querySelector?.('dialog[open], [role="dialog"]:not([hidden])');
 
+/** Any open dialog except the help panel, so "?" can also close the help. */
+const hasOtherOpenDialog = (documentRef) =>
+  [
+    ...(documentRef.querySelectorAll?.(
+      'dialog[open], [role="dialog"]:not([hidden])',
+    ) ?? []),
+  ].some((node) => node.id !== 'help-panel');
+
 /**
  * Bind the application's existing bubbling keyboard shortcuts.
  * Capture-phase surfaces keep first refusal. The caller owns each action and
@@ -44,6 +52,19 @@ export function bindApplicationShortcuts({
       if (isEditableTarget(event.target) || hasOpenDialog(documentRef)) return;
       event.preventDefault();
       actions.openSearch();
+      return;
+    }
+
+    if (
+      event.key === '?' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      if (isEditableTarget(event.target) || hasOtherOpenDialog(documentRef))
+        return;
+      event.preventDefault();
+      actions.toggleHelp();
       return;
     }
 

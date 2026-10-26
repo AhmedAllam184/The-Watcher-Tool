@@ -553,6 +553,8 @@
       "src/data/detectionPolicy.js",
       "src/data/contextStore.js",
       "src/data/vesselLabels.js",
+      "src/data/firmsLabels.js",
+      "src/data/satelliteClass.js",
       "src/data/installationFeedback.js",
       "src/data/idSwitches.js",
       "src/data/layerState.js",
@@ -582,6 +584,8 @@
       "src/ui/cameraOrientationControls.js",
       "src/ui/selectionDetails.js",
       "src/ui/selectionDetailsModel.js",
+      "src/ui/helpPanel.js",
+      "src/ui/textSize.js",
       "src/ui/applicationShortcuts.js",
       "src/ui/cctv.js",
       "src/ui/cctvBindings.js",
@@ -706,7 +710,9 @@
       "src/ui/styles/provider-settings.css",
       "src/ui/styles/weather.css",
       "src/ui/styles/recent-imagery.css",
-      "src/ui/styles/selectionDetails.css"
+      "src/ui/styles/selectionDetails.css",
+      "src/ui/styles/helpPanel.css",
+      "src/ui/styles/readability.css"
     ],
     "external": []
   },
@@ -1899,6 +1905,8 @@
       "src/ui/cameraOrientationControls.js",
       "src/ui/selectionDetails.js",
       "src/ui/selectionDetailsModel.js",
+      "src/ui/helpPanel.js",
+      "src/ui/textSize.js",
       "src/ui/applicationShortcuts.js",
       "src/ui/cctv.js",
       "src/ui/cctvBindings.js",

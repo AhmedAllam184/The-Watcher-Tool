@@ -129,7 +129,11 @@ export function mountSceneSharing(
     removers.push(() => b.removeEventListener('click', fn));
     bar.append(b);
   }
-  (panel.querySelector?.('.scene-panel-inner') || panel).appendChild(bar);
+  (
+    panel.querySelector?.('.scenes-advanced') ||
+    panel.querySelector?.('.scene-panel-inner') ||
+    panel
+  ).appendChild(bar);
   return () => {
     for (const remove of removers) remove();
     bar.remove();

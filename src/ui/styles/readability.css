@@ -2,6 +2,17 @@
    first-run quick tips. Loaded after the component sheets and before cyber.css,
    so these rules win over the base sizes they adjust. */
 
+/* Decorative HUD clutter is hidden in every layout variant. The elements stay
+   in the DOM because #hud-mode and #hud-summary are written by hud.js and the
+   summary service. Cockpit mode still positions and shows these blocks, so
+   the hide does not apply there. */
+body:not(.cockpit-mode) #intel-hud .hud-top-left,
+body:not(.cockpit-mode) #intel-hud .hud-top-bar,
+body:not(.cockpit-mode) #intel-hud .hud-left-edge,
+body:not(.cockpit-mode) #intel-hud .hud-right-edge {
+  display: none;
+}
+
 /* Default: Data Layers meta line and key links are no smaller than 11px, with
    higher-contrast text. The sci-fi look is otherwise unchanged. */
 .data-toggle-meta {
@@ -11,6 +22,15 @@
 .data-toggle-meta .layer-key-link,
 .layer-key-add {
   font-size: 11px;
+}
+
+/* Data Layers: one plain-language line under each layer name. */
+.data-toggle-desc {
+  margin: 2px 0;
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.62);
 }
 
 /* Larger text (html.watcher-large-text, set by src/ui/textSize.js): about 1.2x
@@ -26,6 +46,9 @@
 }
 .watcher-large-text .data-toggle-btn {
   font-size: 11px;
+}
+.watcher-large-text .data-toggle-desc {
+  font-size: 13px;
 }
 .watcher-large-text .data-toggle-meta,
 .watcher-large-text .data-toggle-meta .layer-key-link,
@@ -86,4 +109,18 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: rgba(225, 244, 248, 0.9);
+}
+
+/* Author credit under the title. */
+#title-bar .title-credit {
+  margin-top: 6px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+@media (max-width: 520px) {
+  #title-bar .title-credit {
+    display: none;
+  }
 }

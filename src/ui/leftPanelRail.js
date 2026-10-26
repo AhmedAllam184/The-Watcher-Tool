@@ -72,6 +72,10 @@ export function layoutLeftPanelRail({
   let safeTop = baseTop;
   let safeBottom = viewportHeight - baseBottomInset;
   const bottomObstacles = [];
+  // The baseTop floor exists to clear the HUD mission card (top-left). When
+  // that card is not rendered, the lane may start directly under the other
+  // top obstacles such as the app title.
+  let hudTopLeftRendered = false;
 
   for (const obstacle of obstacles) {
     if (stack.contains(obstacle)) continue;
@@ -90,6 +94,9 @@ export function layoutLeftPanelRail({
     if (hiddenByAncestor) continue;
     const rect = obstacle.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) continue;
+    if (obstacle.matches?.('#intel-hud .hud-top-left')) {
+      hudTopLeftRendered = true;
+    }
     const overlapsHorizontally =
       rect.right > stackRect.left && rect.left < stackRect.right;
     if (!overlapsHorizontally) continue;
@@ -102,6 +109,7 @@ export function layoutLeftPanelRail({
       bottomObstacles.push({ top: rect.top });
     }
   }
+  if (!hudTopLeftRendered) safeTop = obstacleSafeTop;
   safeBottom = resolveLeftStackBottomBoundary({
     baseBottom: safeBottom,
     obstacles: bottomObstacles,

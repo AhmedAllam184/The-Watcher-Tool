@@ -207,6 +207,24 @@ test('left layout records collapsed heights and aligns the right rail without ch
   assert.equal(f.stack.dataset.layoutMode, 'normal');
 });
 
+test('left lane starts under the app title when the HUD mission card is not rendered', () => {
+  const f = fixture('left');
+  const title = element('title', { top: 0, height: 40 });
+  f.options.obstacles = [title];
+  f.run();
+  assert.ok(Number(f.stack.dataset.safeTopPct) < 10);
+});
+
+test('left lane keeps its 26% floor while the HUD mission card is rendered', () => {
+  const f = fixture('left');
+  const title = element('title', { top: 0, height: 40 });
+  const card = element('card', { top: 120, height: 80 });
+  card.matches = (selector) => selector === '#intel-hud .hud-top-left';
+  f.options.obstacles = [title, card];
+  f.run();
+  assert.equal(f.stack.dataset.safeTopPct, '26.00');
+});
+
 test('left corridor respects a lower obstacle but ignores an obstacle hidden by its parent', () => {
   const f = fixture('left');
   const blocker = element('blocker', { top: 600, height: 80 });

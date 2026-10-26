@@ -145,35 +145,41 @@
     <div class="panel-glow"></div>
     <div class="scene-panel-inner">
       <div class="panel-header">
-        <span class="panel-title">SCENES</span>
+        <span class="panel-title">GUIDED TOURS</span>
         <span class="panel-divider"></span>
         <button class="panel-collapse-btn" data-collapse-target="scene-panel" title="Collapse panel">+</button>
       </div>
+      <p class="scenes-intro">Pick a tour and press Play. The camera flies through saved views of an event.</p>
       <div class="scene-controls">
         <select id="scene-select" aria-label="Scene recipe"></select>
-        <button id="scene-new-btn" class="scene-btn">NEW</button>
-        <button id="scene-delete-btn" class="scene-btn scene-btn-danger">DEL</button>
       </div>
       <div class="scene-controls">
-        <button id="scene-capture-btn" class="scene-btn">CAPTURE SHOT</button>
-        <button id="scene-update-shot-btn" class="scene-btn">UPDATE SHOT</button>
-      </div>
-      <div id="scene-shot-list" class="scene-shot-list"></div>
-      <div class="scene-controls">
-        <button id="scene-start-btn" class="scene-btn">START</button>
+        <button id="scene-start-btn" class="scene-btn">▶ PLAY</button>
         <button id="scene-stop-btn" class="scene-btn scene-btn-danger">STOP</button>
-        <button id="scene-next-btn" class="scene-btn">NEXT</button>
-      </div>
-      <div class="scene-controls">
-        <button id="scene-export-btn" class="scene-btn">EXPORT PRESETS</button>
-        <button id="scene-import-btn" class="scene-btn">IMPORT</button>
-        <button id="scene-download-btn" class="scene-btn">RUN LOG</button>
-        <input type="file" id="scene-import-file" accept="application/json,.json" hidden />
+        <button id="scene-next-btn" class="scene-btn">NEXT VIEW</button>
       </div>
       <div class="scene-progress">
         <div id="scene-progress-fill">0%</div>
       </div>
       <div id="scene-status">Ready</div>
+      <details class="scenes-advanced">
+        <summary>Edit tours (advanced)</summary>
+        <div class="scene-controls">
+          <button id="scene-new-btn" class="scene-btn">NEW</button>
+          <button id="scene-delete-btn" class="scene-btn scene-btn-danger">DEL</button>
+        </div>
+        <div class="scene-controls">
+          <button id="scene-capture-btn" class="scene-btn">CAPTURE SHOT</button>
+          <button id="scene-update-shot-btn" class="scene-btn">UPDATE SHOT</button>
+        </div>
+        <div id="scene-shot-list" class="scene-shot-list"></div>
+        <div class="scene-controls">
+          <button id="scene-export-btn" class="scene-btn">EXPORT PRESETS</button>
+          <button id="scene-import-btn" class="scene-btn">IMPORT</button>
+          <button id="scene-download-btn" class="scene-btn">RUN LOG</button>
+          <input type="file" id="scene-import-file" accept="application/json,.json" hidden />
+        </div>
+      </details>
     </div>
   </div>
 

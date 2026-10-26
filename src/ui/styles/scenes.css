@@ -348,6 +348,29 @@
   text-shadow: 0 0 6px rgba(0, 212, 255, 0.6);
 }
 
+.scenes-intro {
+  margin: 0 0 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.scenes-advanced {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.scenes-advanced > summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
 #scene-status {
   margin-top: 8px;
   font-family: var(--font-mono);

@@ -140,8 +140,9 @@ test('readout rows contain only toggles and metadata; ordinary rows retain contr
     panel.mount(f.container);
     for (const id of ids.slice(0, -1)) {
       const row = f.find((n) => n.dataset.layerId === id);
-      assert.equal(row.children.length, 2);
+      assert.equal(row.children.length, 3);
       assert.ok(row.querySelector('.data-name'));
+      assert.ok(row.querySelector('.data-toggle-desc'));
       assert.ok(row.querySelector('.data-toggle-meta'));
       for (const cls of [
         'data-toggle-chip',

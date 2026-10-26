@@ -5,6 +5,7 @@ export { layerFeedState } from '../data/feedState.js';
 import { GUIDANCE_STATUSES } from '../loadingFeedback.js';
 import { KEY_SETUP_KEYS, keySetupRequirement } from '../keySetupCore.mjs';
 import { createWeatherPanel } from './weatherPanel.js';
+import { describeLayer } from './layerDescriptions.js';
 const FEED_STATE_LABELS = Object.freeze({
   nominal: 'ON',
   loading: 'LOADING',
@@ -16,7 +17,7 @@ const FEED_STATE_LABELS = Object.freeze({
 });
 
 // Presentation order is independent of catalog registration and startup order.
-const PANEL_GROUPS = [
+export const PANEL_GROUPS = [
   {
     label: 'Movement',
     ids: [
@@ -406,6 +407,13 @@ export class LayerPanel {
       this._syncMeta(bottomRow, layer, health);
 
       row.appendChild(topRow);
+      const description = describeLayer(layer.id);
+      if (description) {
+        const desc = document.createElement('div');
+        desc.className = 'data-toggle-desc';
+        desc.textContent = description;
+        row.appendChild(desc);
+      }
       row.appendChild(bottomRow);
 
       // Optional per-layer sub-controls (chips + color legend). The click

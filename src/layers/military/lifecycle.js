@@ -184,6 +184,7 @@ export function createLifecycle({
       if (flightState._modelCollection)
         flightState._modelCollection.show = false;
       parts.tracking._clearTracking();
+      parts.tripLine.destroy();
       parts.tracking._destroyTrail();
       // Remove click handler + keydown listener while disabled to avoid
       // intercepting input when the layer is off
@@ -223,6 +224,7 @@ export function createLifecycle({
       parts.controller._abortActiveUpdates();
       releaseContinuousRender('military'); // direct-destroy path (perf wave 2 fix)
       parts.tracking._clearTracking();
+      parts.tripLine.destroy();
       parts.tracking._destroyTrail();
       parts.tracking._cancelPendingTrackingRestore();
       if (flightState._clickHandler) {

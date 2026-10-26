@@ -98,6 +98,14 @@ export function createTracking({
     const route = routeShown
       ? `${routeShown.origin.code} → ${routeShown.destination.code}`
       : null;
+    // 'known' | 'pending' | 'unknown' ('' when no lookup was made for this contact).
+    const record = flightState.records.data.get(icao24);
+    const routeStatus = routeShown
+      ? 'known'
+      : record?.route
+        ? 'unknown' // a route exists but is implausible for where the plane is
+        : record?.routeStatus || '';
+    const trip = parts.tripLine?.summary(icao24) || {};
     // "London (LHR)" style, same plausibility gate as the codes above.
     const endpointName = (airport) =>
       airport.name && airport.code
@@ -137,6 +145,9 @@ export function createTracking({
         route: route || '',
         routeFrom: routeShown ? endpointName(routeShown.origin) : '',
         routeTo: routeShown ? endpointName(routeShown.destination) : '',
+        routeStatus,
+        airborneSince: trip.airborneSince || '',
+        holding: trip.holding || '',
         squawk: described.squawk || '',
         icao24,
         // Honesty cue: the contact is coasting on dead reckoning, so the
@@ -206,8 +217,7 @@ export function createTracking({
     // Never destroy on entry: tearing down hundreds of live glTF instances
     // synchronously blocked Chrome's renderer into Page Unresponsive.
     if (flightState._modelCollection) flightState._modelCollection.show = true;
-    flightState._trail?.setVisible(!next);
-    if (flightState._trailHeadEntity) flightState._trailHeadEntity.show = !next;
+    _refreshTrailVisibility();
     for (const [icao24, bb] of flightState._billboards)
       parts.rendering._applyFleetBillboardPresentation(icao24, bb);
     flightState._lastCamPoseSig = '';
@@ -381,6 +391,23 @@ export function createTracking({
    * @param {string} icao24 - ICAO 24-bit transponder address being tracked.
    */
 
+  /** The poll trail hides in cockpit mode and while a drawn trip line covers it. */
+  function _refreshTrailVisibility() {
+    const visible =
+      !flightState._cockpitContactMode && !flightState._tripLineShown;
+    flightState._trail?.setVisible(visible);
+    if (flightState._trailHeadEntity)
+      flightState._trailHeadEntity.show = visible;
+  }
+
+  /** The trip line drew, redrew or changed its facts: sync visibility and the context slot. */
+  function _onTripLineChange(icao24) {
+    if (icao24 !== flightState._trackedIcao) return;
+    flightState._tripLineShown = parts.tripLine.isShown();
+    _refreshTrailVisibility();
+    refreshTrackedSubjectContext(_contextSubjectMetadata(icao24));
+  }
+
   function _startTrail(icao24) {
     flightState._trailBackfillToken += 1;
     flightState._trailPositions = [];
@@ -405,7 +432,7 @@ export function createTracking({
         width: 2.5,
       });
     }
-    flightState._trail?.setVisible(!flightState._cockpitContactMode);
+    _refreshTrailVisibility();
     // Live head segment: last fix → current dead-reckoned icon, updated every frame via
     // a CallbackProperty (Cesium updates entity-polyline positions cheaply, unlike the
     // trail primitive which fully rebuilds on setPositions). Keeps the head glued to the
@@ -691,6 +718,8 @@ export function createTracking({
     // Invalidate the per-frame DR cache + reconciliation state so a same-frame re-track
     // cannot read the previous aircraft's cached/smoothed position.
     parts.motion._resetTrackedDisplay();
+    parts.tripLine.stop();
+    flightState._tripLineShown = false;
     _clearTrail();
   }
 
@@ -1063,6 +1092,7 @@ export function createTracking({
     // aircraft's history is retrievable on select. Grounded flights positions
     // are already surface-clamped (the surfaceM chain), so seeds/appends drape.
     _startTrail(icao24);
+    parts.tripLine.start(icao24); // current-flight trace, drawn once it loads
 
     _publishTrackedSelection(icao24, origin);
 
@@ -1255,6 +1285,8 @@ export function createTracking({
     _appendTrailFix,
     _refreshTrailDisplay,
     _startTrail,
+    _refreshTrailVisibility,
+    _onTripLineChange,
     _backfillTrail,
     _clearTrail,
     _destroyTrail,

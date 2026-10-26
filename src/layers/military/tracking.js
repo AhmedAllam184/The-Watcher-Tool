@@ -92,6 +92,7 @@ export function createTracking({
     if (!described) return null;
     const info = flightState.records.data.get(icao24);
     const label = described.callsign || described.registration || icao24;
+    const trip = parts.tripLine?.summary(icao24) || {};
     return {
       id: icao24,
       layerId: 'military',
@@ -123,6 +124,8 @@ export function createTracking({
           ? `${Math.round(described.track)}°`
           : '',
         squawk: described.squawk || '',
+        airborneSince: trip.airborneSince || '',
+        holding: trip.holding || '',
         icao24,
         // Honesty cue: the contact is coasting on dead reckoning, so the
         // narrated position/velocity are last-known rather than live.
@@ -186,8 +189,7 @@ export function createTracking({
     // aircraft silhouette until a ready model takes over; far contacts are pips.
     // Never bulk-destroy here: that stalls the renderer exactly as cockpit begins.
     if (flightState._modelCollection) flightState._modelCollection.show = true;
-    flightState._trail?.setVisible(!next);
-    if (flightState._trailHeadEntity) flightState._trailHeadEntity.show = !next;
+    _refreshTrailVisibility();
     for (const [icao24, bb] of flightState._billboards)
       parts.rendering._applyFleetBillboardPresentation(icao24, bb);
     flightState._lastCamPoseSig = '';
@@ -491,6 +493,23 @@ export function createTracking({
    * @param {string} icao24 - ICAO hex identifier being tracked.
    */
 
+  /** The poll trail hides in cockpit mode and while a drawn trip line covers it. */
+  function _refreshTrailVisibility() {
+    const visible =
+      !flightState._cockpitContactMode && !flightState._tripLineShown;
+    flightState._trail?.setVisible(visible);
+    if (flightState._trailHeadEntity)
+      flightState._trailHeadEntity.show = visible;
+  }
+
+  /** The trip line drew, redrew or changed its facts: sync visibility and the context slot. */
+  function _onTripLineChange(icao24) {
+    if (icao24 !== flightState._trackedIcao) return;
+    flightState._tripLineShown = parts.tripLine.isShown();
+    _refreshTrailVisibility();
+    refreshTrackedSubjectContext(_contextSubjectMetadata(icao24));
+  }
+
   function _startTrail(icao24) {
     flightState._trailBackfillToken += 1;
     flightState._trailPositions = [];
@@ -519,7 +538,7 @@ export function createTracking({
         width: 2.5,
       });
     }
-    flightState._trail?.setVisible(!flightState._cockpitContactMode);
+    _refreshTrailVisibility();
     // Live head segment: last DISPLAYED body point → current dead-reckoned icon, updated
     // every frame via a CallbackProperty (Cesium updates entity-polyline positions cheaply,
     // unlike the trail primitive which fully rebuilds on setPositions). Keeps the head glued
@@ -819,6 +838,8 @@ export function createTracking({
     // Invalidate the per-frame DR cache so a same-frame re-track cannot read
     // the previous aircraft's cached position.
     parts.motion._resetTrackedDisplay();
+    parts.tripLine.stop();
+    flightState._tripLineShown = false;
     _clearTrail();
   }
 
@@ -1010,6 +1031,7 @@ export function createTracking({
     // aircraft's history is retrievable on select. Trail positions are floored
     // at the surface (_trailFloorPosition), so ground legs drape, never dive.
     _startTrail(icao24);
+    parts.tripLine.start(icao24); // current-flight trace, drawn once it loads
 
     const callsign =
       parts.queries._toCleanText(info.callsign) ||
@@ -1162,6 +1184,8 @@ export function createTracking({
     _appendTrailFix,
     _refreshTrailDisplay,
     _startTrail,
+    _refreshTrailVisibility,
+    _onTripLineChange,
     _backfillTrail,
     _clearTrail,
     _destroyTrail,

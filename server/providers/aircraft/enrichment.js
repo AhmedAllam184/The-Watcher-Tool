@@ -6,11 +6,73 @@ import { promises as fsp } from 'node:fs';
  * aggressively: ONE upstream request per new key ever (404s negative-cached),
  * persisted to disk so restarts don't re-hammer it. Adapted from skylight
  * (MIT) server/src/enrich/routes.ts.
+ *
+ * Route fallback: when adsbdb has no route for a callsign, adsb.lol's routeset
+ * API is asked with the plane's current position (see parseRouteset). Its
+ * answers are cached per callsign — 24 h for a route, 6 h for a miss.
  */
+const CACHE_PATH = path.join(process.cwd(), '.gev-cache', 'adsbdb.json');
+
+/** Only an answer adsb.lol marks plausible is used (0/1, true/false or numeric strings). */
+function plausibleFlag(value) {
+  if (value === true) return true;
+  if (typeof value === 'number') return value > 0;
+  if (typeof value === 'string')
+    return value.trim() !== '' && Number(value) > 0;
+  return false;
+}
+
+/** One adsb.lol `_airports` entry in the route shape the client reads. */
+function routesetAirport(a) {
+  return {
+    code: String(a?.iata || a?.icao || '')
+      .trim()
+      .toUpperCase(),
+    name: String(a?.location || a?.name || '').trim(),
+    lat: Number.isFinite(a?.lat) ? a.lat : null,
+    lon: Number.isFinite(a?.lon) ? a.lon : null,
+  };
+}
+
+/**
+ * adsb.lol routeset answer → route, or null. The first and last airports of
+ * the path are origin and destination; every airport is kept as `legs`.
+ * Only answers adsb.lol marks plausible are accepted.
+ */
+export function parseRouteset(json, callsign = '') {
+  const list = Array.isArray(json) ? json : [];
+  const wanted = String(callsign).trim().toUpperCase();
+  const entry =
+    list.find(
+      (e) =>
+        String(e?.callsign || '')
+          .trim()
+          .toUpperCase() === wanted,
+    ) ?? list[0];
+  if (!entry || !plausibleFlag(entry.plausible)) return null;
+  const airports = Array.isArray(entry._airports)
+    ? entry._airports.map(routesetAirport)
+    : [];
+  if (airports.length < 2) return null;
+  const origin = airports[0];
+  const destination = airports[airports.length - 1];
+  if (!origin.code || !destination.code) return null;
+  return {
+    airline: null,
+    origin,
+    destination,
+    legs: airports.filter((a) => a.code),
+    source: 'adsb.lol',
+  };
+}
+
 export function adsbdbProxy() {
   const TTL_MS = 24 * 3600_000;
-  const CACHE_PATH = path.join(process.cwd(), '.gev-cache', 'adsbdb.json');
-  let cache = { routes: {}, aircraft: {} };
+  const ROUTE_MISS_TTL_MS = 6 * 3600_000;
+  const ROUTESET_URL = 'https://api.adsb.lol/api/0/routeset';
+  const USER_AGENT =
+    'TheWatcher/1.0 (+https://github.com/AhmedAllam184/The-Watcher-Tool)';
+  let cache = { routes: {}, aircraft: {}, routesLol: {} };
   let dirty = false;
   let loaded = false;
   const inflight = new Map();
@@ -20,7 +82,11 @@ export function adsbdbProxy() {
     loaded = true;
     try {
       const parsed = JSON.parse(await fsp.readFile(CACHE_PATH, 'utf8'));
-      cache = { routes: parsed.routes ?? {}, aircraft: parsed.aircraft ?? {} };
+      cache = {
+        routes: parsed.routes ?? {},
+        aircraft: parsed.aircraft ?? {},
+        routesLol: parsed.routesLol ?? {},
+      };
     } catch {
       /* first run */
     }
@@ -37,6 +103,8 @@ export function adsbdbProxy() {
   }
 
   const fresh = (e) => e && Date.now() - e.at < TTL_MS;
+  const freshRouteset = (e) =>
+    e && Date.now() - e.at < (e.data ? TTL_MS : ROUTE_MISS_TTL_MS);
 
   function parseRoute(json) {
     const fr = json?.response?.flightroute;
@@ -51,6 +119,7 @@ export function adsbdbProxy() {
       airline: fr.airline?.name || null,
       origin: airport(fr.origin),
       destination: airport(fr.destination),
+      source: 'adsbdb',
     };
   }
 
@@ -111,6 +180,43 @@ export function adsbdbProxy() {
     return inflight.get(ik);
   }
 
+  /** adsb.lol routeset for one callsign at the plane's position (single-flight). */
+  function lookupRouteset(callsign, lat, lon) {
+    const hit = cache.routesLol[callsign];
+    if (freshRouteset(hit)) return Promise.resolve(hit.data);
+    const ik = `routeset:${callsign}`;
+    if (!inflight.has(ik)) {
+      inflight.set(
+        ik,
+        (async () => {
+          try {
+            const res = await fetch(ROUTESET_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'User-Agent': USER_AGENT,
+              },
+              body: JSON.stringify({ planes: [{ callsign, lat, lng: lon }] }),
+              signal: AbortSignal.timeout(8000),
+            });
+            // Upstream trouble is not cached: serve a stale answer if there is one.
+            if (!res.ok) return hit?.data ?? null;
+            const data = parseRouteset(await res.json(), callsign);
+            cache.routesLol[callsign] = { at: Date.now(), data }; // data may be null — negative cache
+            dirty = true;
+            return data;
+          } catch {
+            return hit?.data ?? null;
+          } finally {
+            inflight.delete(ik);
+          }
+        })(),
+      );
+    }
+    return inflight.get(ik);
+  }
+
   const installMiddleware = (server) => {
     server.middlewares.use('/api/adsbdb', async (req, res) => {
       await loadOnce();
@@ -124,10 +230,35 @@ export function adsbdbProxy() {
           .split('/');
         if (kind === 'route') {
           const cs = String(rawKey || '').toUpperCase();
-          if (!/^[A-Z0-9]{2,8}$/.test(cs))
+          // Any callsign of 3–8 characters that starts with a letter.
+          if (!/^[A-Z][A-Z0-9]{2,7}$/.test(cs))
             return send(400, { error: 'invalid callsign' });
           const data = await lookup('route', cs);
-          return send(200, data ? { found: true, ...data } : { found: false });
+          if (data)
+            return send(200, {
+              found: true,
+              ...data,
+              source: data.source || 'adsbdb',
+            });
+          // adsbdb has no route: ask adsb.lol, which needs the plane's position.
+          const params = new URLSearchParams(
+            String(req.url || '').split('?')[1] || '',
+          );
+          const coordinate = (name, limit) => {
+            const raw = params.get(name);
+            if (raw === null || raw.trim() === '') return null;
+            const value = Number(raw);
+            return Number.isFinite(value) && Math.abs(value) <= limit
+              ? value
+              : null;
+          };
+          const lat = coordinate('lat', 90);
+          const lon = coordinate('lon', 180);
+          if (lat !== null && lon !== null) {
+            const fallback = await lookupRouteset(cs, lat, lon);
+            if (fallback) return send(200, { found: true, ...fallback });
+          }
+          return send(200, { found: false });
         }
         if (kind === 'type') {
           const hex = String(rawKey || '').toLowerCase();

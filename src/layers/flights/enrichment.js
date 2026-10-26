@@ -17,11 +17,11 @@ export function createEnrichment({
   layer,
   resolveAsset,
 }) {
-  function _enqueueEnrich(key, query, onData, priority = false) {
+  function _enqueueEnrich(key, query, onData, priority = false, onMiss = null) {
     if (flightState.lifetime.signal.aborted) return;
     if (flightState._enrichSeen.has(key)) return;
     flightState._enrichSeen.add(key);
-    const job = { query, onData };
+    const job = { query, onData, onMiss };
     // Priority (tracked / model-eligible) goes to the FRONT so a deep ambient
     // backlog can never delay the plane the user just clicked or zoomed into.
     if (priority) flightState._enrichQueue.unshift(job);
@@ -62,10 +62,13 @@ export function createEnrichment({
           });
         })
         .then((data) => {
-          if (!lifetime.signal.aborted && data && data.found) job.onData(data);
+          if (lifetime.signal.aborted) return;
+          if (data && data.found) job.onData(data);
+          else job.onMiss?.({ transient: false });
         })
         .catch(() => {
-          /* enrichment never surfaces errors */
+          /* enrichment never surfaces errors; a failed lookup reports a transient miss */
+          if (!lifetime.signal.aborted) job.onMiss?.({ transient: true });
         })
         .finally(() => {
           if (lifetime.signal.aborted) return;
@@ -109,24 +112,62 @@ export function createEnrichment({
   }
 
   function _requestRouteEnrichment(icao24) {
-    const cs = String(flightState.records.data.get(icao24)?.callsign || '')
+    const meta = flightState.records.data.get(icao24);
+    const cs = String(meta?.callsign || '')
       .trim()
       .toUpperCase();
-    if (!/^[A-Z]{3}\d/.test(cs)) return; // airline-style callsigns only (LLL + digit); GA tails won't resolve
+    // Any callsign of 3+ characters starting with a letter: adsbdb answers the
+    // airline-style ones, adsb.lol the rest. GA tails come back as a plain miss.
+    if (!meta || !/^[A-Z][A-Z0-9]{2,7}$/.test(cs)) return;
+    // Settled answers are remembered per callsign: no repeat request this session.
+    if (flightState._routeOutcomes.has(cs)) {
+      _settleRoute(icao24, flightState._routeOutcomes.get(cs));
+      return;
+    }
+    if (!meta.route) meta.routeStatus = 'pending';
+    const lookupKey = `r:${cs}`;
     _enqueueEnrich(
-      `r:${cs}`,
-      { kind: 'route', id: cs },
+      lookupKey,
+      { kind: 'route', id: cs, lat: meta.rawLat, lon: meta.rawLon },
       (data) => {
-        const meta = flightState.records.data.get(icao24);
-        if (!meta) return;
-        meta.airline = data.airline || meta.airline;
-        if (data.origin && data.destination)
-          meta.route = { origin: data.origin, destination: data.destination };
-        if (icao24 === flightState._trackedIcao && flightState._trackedEntity)
-          parts.tracking._updateTrackedLabelModel(icao24);
+        const route =
+          data.origin && data.destination
+            ? {
+                origin: data.origin,
+                destination: data.destination,
+                legs: Array.isArray(data.legs) ? data.legs : null,
+                source: data.source || null,
+              }
+            : null;
+        flightState._routeOutcomes.set(cs, route);
+        _settleRoute(icao24, route, data.airline);
       },
       true,
+      ({ transient }) => {
+        // A failed lookup is not remembered: a later selection asks again.
+        if (transient) flightState._enrichSeen.delete(lookupKey);
+        else flightState._routeOutcomes.set(cs, null);
+        _settleRoute(icao24, null);
+      },
     ); // route lookups only fire for the TRACKED plane — front of the queue
+  }
+
+  /** Apply a route answer (or a miss) to the record and the tracked readout. */
+  function _settleRoute(icao24, route, airline = null) {
+    const meta = flightState.records.data.get(icao24);
+    if (!meta) return;
+    meta.airline = airline || meta.airline;
+    if (route) {
+      meta.route = route;
+      meta.routeStatus = 'known';
+    } else {
+      meta.route = null;
+      meta.routeStatus = 'unknown';
+    }
+    if (icao24 === flightState._trackedIcao && flightState._trackedEntity)
+      parts.tracking._updateTrackedLabelModel(icao24);
+    if (icao24 === flightState._trackedIcao && route)
+      parts.tripLine?.overlayChanged(icao24);
   }
 
   /** QA seam: headless harnesses (scripts/qa-enrich-ambient.mjs) shrink the

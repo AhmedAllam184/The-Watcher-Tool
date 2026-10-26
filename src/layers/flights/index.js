@@ -3,6 +3,7 @@ import { createFlightState } from './state.js';
 import { createRendering } from './rendering.js';
 import { createMotion } from './motion.js';
 import { createTracking } from './tracking.js';
+import { createTripLine } from './tripLine.js';
 import { createController } from './controller.js';
 import { createEnrichment } from './enrichment.js';
 import { createIngestion } from './ingestion.js';
@@ -24,6 +25,24 @@ export function createCivilFlightLayer({
   parts.rendering = createRendering(context);
   parts.motion = createMotion(context);
   parts.tracking = createTracking(context);
+  // Current-flight trace for the tracked plane. The source fetches; this draws.
+  parts.tripLine = createTripLine({
+    getViewer: () => flightState._viewer,
+    fetchTrace: (icao24, options) =>
+      flightState.feed?._source?.getTrace?.(icao24, options),
+    getSubject: (icao24) => {
+      const info = flightState.records.data.get(icao24);
+      const route =
+        info?.route && parts.tracking._routeIsPlausible(icao24, info.route)
+          ? info.route
+          : null;
+      return {
+        position: flightState._billboards.get(icao24)?.position ?? null,
+        route,
+      };
+    },
+    onChange: (icao24) => parts.tracking._onTripLineChange(icao24),
+  });
   parts.controller = createController(context);
   parts.enrichment = createEnrichment(context);
   parts.lifecycle = createLifecycle(context);

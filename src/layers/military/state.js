@@ -171,6 +171,9 @@ export function createFlightState({ source, services }) {
 
   flightState._trailHeadEntity = null;
 
+  /** @type {boolean} The trip line (current-flight trace) is drawn, so the poll trail hides */
+  flightState._tripLineShown = false;
+
   /** @type {number} Uniquifier for head-segment entity ids (Cesium requires unique ids). */
 
   flightState._trailHeadSeq = 0;

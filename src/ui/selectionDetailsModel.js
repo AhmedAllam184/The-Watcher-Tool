@@ -199,12 +199,21 @@ function buildFlight(record, properties) {
   // City names when the flight's route is known, else the codes-only Route row.
   const routeFrom = String(properties.routeFrom || '').trim();
   const routeTo = String(properties.routeTo || '').trim();
+  const routeStatus = String(properties.routeStatus || '').trim();
   if (routeFrom || routeTo) {
     pushRow(rows, 'From', routeFrom);
     pushRow(rows, 'To', routeTo);
-  } else pushRow(rows, 'Route', properties.route);
+  } else if (routeStatus === 'pending') pushRow(rows, 'Route', 'Looking up…');
+  else if (routeStatus === 'unknown')
+    pushRow(
+      rows,
+      'Route',
+      `Not published for ${callsign || icao24.toUpperCase()}`,
+    );
+  else pushRow(rows, 'Route', properties.route);
   pushRow(rows, 'Aircraft', properties.type);
   pushRow(rows, 'Registration', properties.registration);
+  pushRow(rows, 'Airborne since', properties.airborneSince);
   if (/on ground/i.test(altitude)) pushRow(rows, 'Altitude', 'On the ground');
   else if (altitudeFeet !== null)
     pushRow(
@@ -215,6 +224,7 @@ function buildFlight(record, properties) {
   else pushRow(rows, 'Altitude', altitude);
   if (speedKt !== null) pushRow(rows, 'Speed', speedValue(speedKt));
   if (headingDeg !== null) pushRow(rows, 'Heading', degreeValue(headingDeg));
+  pushRow(rows, 'Holding', properties.holding);
   pushRow(rows, 'ICAO hex', icao24.toUpperCase());
   const status = String(properties.status || '').trim();
   if (/^stale/i.test(status))

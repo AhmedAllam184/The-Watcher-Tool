@@ -114,13 +114,34 @@ export function createFlightSource({
     async getEnrichment(query, { signal } = {}) {
       if (!['type', 'route'].includes(query.kind))
         throw new LiveSourceError('unsupported', 'Enrichment unavailable');
+      // A route lookup carries the plane's position: adsb.lol's routeset needs it.
+      const at =
+        query.kind === 'route' &&
+        Number.isFinite(query.lat) &&
+        Number.isFinite(query.lon)
+          ? `?lat=${query.lat.toFixed(4)}&lon=${query.lon.toFixed(4)}`
+          : '';
       const { response, payload } = await readResponse(
         fetchImpl,
-        `/api/adsbdb/${query.kind}/${encodeURIComponent(query.id)}`,
+        `/api/adsbdb/${query.kind}/${encodeURIComponent(query.id)}${at}`,
         { signal },
         'adsbdb',
       );
       if (!response.ok) throw httpError(response, 'adsbdb');
+      return payload;
+    },
+    /** Current-flight fixes for one hex: { points, startedAt, source }. */
+    async getTrace(hex, { signal } = {}) {
+      const id = String(hex || '').toLowerCase();
+      if (!/^[0-9a-f]{6}$/.test(id))
+        throw new LiveSourceError('unsupported', 'Trace unavailable');
+      const { response, payload } = await readResponse(
+        fetchImpl,
+        `/api/aircraft/trace?hex=${id}`,
+        { signal },
+        'Flight trace',
+      );
+      if (!response.ok) throw httpError(response, 'Flight trace');
       return payload;
     },
   };
@@ -132,6 +153,20 @@ export function createMilitarySource({
 } = {}) {
   return {
     label: 'Military aircraft',
+    /** Current-flight fixes for one hex: { points, startedAt, source }. */
+    async getTrace(hex, { signal } = {}) {
+      const id = String(hex || '').toLowerCase();
+      if (!/^[0-9a-f]{6}$/.test(id))
+        throw new LiveSourceError('unsupported', 'Trace unavailable');
+      const { response, payload } = await readResponse(
+        fetchImpl,
+        `/api/aircraft/trace?hex=${id}`,
+        { signal },
+        'Flight trace',
+      );
+      if (!response.ok) throw httpError(response, 'Flight trace');
+      return payload;
+    },
     async getIdentities(_query = {}, { signal } = {}) {
       const { response, payload } = await readResponse(
         fetchImpl,

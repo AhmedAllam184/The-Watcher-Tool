@@ -3,6 +3,7 @@ import { createFlightState } from './state.js';
 import { createRendering } from './rendering.js';
 import { createMotion } from './motion.js';
 import { createTracking } from './tracking.js';
+import { createTripLine } from '../flights/tripLine.js';
 import { createController } from './controller.js';
 import { createIngestion } from './ingestion.js';
 import { createLifecycle } from './lifecycle.js';
@@ -22,6 +23,17 @@ export function createMilitaryFlightLayer({
   parts.rendering = createRendering(context);
   parts.motion = createMotion(context);
   parts.tracking = createTracking(context);
+  // Current-flight trace for the tracked military plane (no route lookup here).
+  parts.tripLine = createTripLine({
+    getViewer: () => flightState._viewer,
+    fetchTrace: (icao24, options) =>
+      flightState.feed?._source?.getTrace?.(icao24, options),
+    getSubject: (icao24) => ({
+      position: flightState._billboards.get(icao24)?.position ?? null,
+      route: null,
+    }),
+    onChange: (icao24) => parts.tracking._onTripLineChange(icao24),
+  });
   parts.controller = createController(context);
   parts.lifecycle = createLifecycle(context);
   parts.testing = createTesting(context);

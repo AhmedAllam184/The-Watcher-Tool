@@ -200,6 +200,13 @@ export function createFlightState({ source, services }) {
 
   flightState._trailBackfillToken = 0;
 
+  /** @type {boolean} The trip line (current-flight trace) is drawn, so the poll trail hides */
+  flightState._tripLineShown = false;
+
+  /** @type {Map<string, {origin: object, destination: object, legs: object[]}|null>}
+   *  Session memory of settled route lookups by callsign (null = adsbdb and adsb.lol had none). */
+  flightState._routeOutcomes = new Map();
+
   /** @type {number} Epoch ms of the last fleet dead-reckoning pass */
 
   flightState._lastFleetTickMs = 0;

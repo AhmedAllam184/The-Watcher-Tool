@@ -12,6 +12,18 @@ import { displayPanelScroller } from './displayPanelScroll.js';
 const pendingCollapseRetries = new WeakSet();
 
 /**
+ * Space the rail's header row takes above the panels: its height and the flex
+ * gap that separates it from them. Zero when the rail has no header.
+ */
+function railHeaderReserve(stack, gap) {
+  const header = [...(stack.children || [])].find((child) =>
+    child.matches?.('[data-rail-header]'),
+  );
+  const height = header ? header.getBoundingClientRect().height : 0;
+  return Number.isFinite(height) && height > 0 ? Math.ceil(height) + gap : 0;
+}
+
+/**
  * Where the left rail's top will settle, not where it is mid-transition:
  * nothing re-runs this pass when the `top` animation ends (ResizeObserver
  * ignores moves). Returns NaN when there is no left rail.
@@ -50,6 +62,8 @@ function settledLeftRailTop(leftStack, viewportHeight, getComputedStyle) {
  * @param {HTMLElement} options.displayPanel Panel whose allocation owns its scroll.
  * @param {Function} options.readDisplayScrollTop Read the caller's scroll restoration value.
  * @param {Document} [options.documentRef] Document supplying current keyboard focus.
+ * @param {boolean} [options.collapsedRail=false] Whether the whole pane is collapsed
+ *   to its tab. Its panels are then absent from layout and keep no allocation.
  */
 export function layoutRightPanelRail({
   stack,
@@ -64,6 +78,7 @@ export function layoutRightPanelRail({
   readDisplayScrollTop,
   documentRef = stack?.ownerDocument,
   getComputedStyle = (element) => windowRef.getComputedStyle(element),
+  collapsedRail = false,
 }) {
   if (!stack) return;
   // A collapse may schedule one follow-up, which only measures and allocates.
@@ -74,6 +89,18 @@ export function layoutRightPanelRail({
     (panel) =>
       panel.matches('[data-panel-id]:not(.panel-floating)') && !panel.hidden,
   );
+  // A collapsed pane is only its tab. Its panels are treated as absent: no
+  // automatic collapse, accordion, measurement or allocation runs for them.
+  if (collapsedRail) {
+    stack.dataset.layoutMode = 'collapsed';
+    for (const panel of panels)
+      panel.style.removeProperty('--right-panel-allocated-height');
+    if (stack.classList.contains('layout-focus'))
+      stack.classList.remove('layout-focus');
+    if (stack.classList.contains('layout-exclusive'))
+      stack.classList.remove('layout-exclusive');
+    return;
+  }
   if (!hud.visible || hud.variant !== 'tactical') {
     for (const panel of panels.filter((item) =>
       item.classList.contains('layout-auto-collapsed'),
@@ -210,12 +237,14 @@ export function layoutRightPanelRail({
       if (node.scrollTop !== top) node.scrollTop = top;
   }
   const gap = parseFloat(getComputedStyle(stack).rowGap) || 0;
+  const headerReserve = railHeaderReserve(stack, gap);
   const naturalHeight =
     measuredPanels.reduce(
       (total, panel) => total + naturalHeights.get(panel),
       0,
     ) +
-    gap * Math.max(0, measuredPanels.length - 1);
+    gap * Math.max(0, measuredPanels.length - 1) +
+    headerReserve;
   const layout = resolveHudRailLayout({
     viewportHeight,
     panelHeight: naturalHeight,
@@ -267,7 +296,8 @@ export function layoutRightPanelRail({
     safeBottom -
       layoutTop -
       collapsedHeight -
-      gap * Math.max(0, visiblePanels.length - 1),
+      gap * Math.max(0, visiblePanels.length - 1) -
+      headerReserve,
   );
   const expandedHeights = allocatePanelStackHeights({
     naturalHeights: expandedPanels.map((panel) => naturalHeights.get(panel)),

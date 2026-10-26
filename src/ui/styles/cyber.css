@@ -2840,3 +2840,9 @@
     padding: 10px 12px 18px 18px;
   }
 }
+
+/* The collapsed tools pane is a slim tab in Cyber too, overriding its wider
+   rail width. */
+:root[data-ui-theme='cyber'] #right-context-rail.right-rail-collapsed {
+  width: 40px;
+}

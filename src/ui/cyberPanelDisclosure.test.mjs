@@ -71,17 +71,19 @@ test('opening already-expanded Radio reveals Context and closes Display', () => 
   } finally { globalThis.document = prior; }
 });
 
-test('non-Cyber explicit panels and restored preferences retain their existing policy', () => {
+test('restored preferences keep every rail panel open in every theme', () => {
+  // The accordion is user-initiated only: a restore never closes a peer, so
+  // a saved multi-open layout comes back exactly as it was saved.
   for (const theme of ['tactical', 'operator', 'minimal', 'cyber']) {
     const f = fixture(theme), prior = globalThis.document;
     globalThis.document = f.doc;
     try {
-      const options = theme === 'cyber' ? { restore: true, persist: false } : { explicit: true };
+      const options = { restore: true, persist: false };
       f.owner.setPanelCollapsed('pp-toggles', false, options);
       f.owner.setPanelCollapsed('cctv-panel', false, options);
-      assert.equal(f.display.classList.contains('collapsed'), false);
-      assert.equal(f.cctv.classList.contains('collapsed'), false);
-      if (theme === 'cyber') assert.deepEqual(f.saved, []);
+      assert.equal(f.display.classList.contains('collapsed'), false, theme);
+      assert.equal(f.cctv.classList.contains('collapsed'), false, theme);
+      assert.deepEqual(f.saved, [], theme);
     } finally { globalThis.document = prior; }
   }
 });

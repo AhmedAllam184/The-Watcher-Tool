@@ -477,3 +477,9 @@
 .director-sharing-dialog::backdrop {
   background: rgba(0, 8, 14, 0.65);
 }
+
+/* A collapsed Guided Tours panel shows only its header. */
+#scene-panel.collapsed .scenes-intro,
+#scene-panel.collapsed .scenes-advanced {
+  display: none;
+}

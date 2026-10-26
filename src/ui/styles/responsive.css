@@ -197,6 +197,13 @@
     overflow-y: auto;
   }
 
+  /* The collapsed tab keeps its place at the right edge. Its bottom stays on
+     the credit anchor, so the tab never covers the required credit line. */
+  #right-context-rail.right-rail-collapsed {
+    left: auto;
+    width: 40px;
+  }
+
   /* Both stacks are scroll containers at this width (overflow-y above), which
      also makes their overflow-x compute to auto. Each panel's decorative
      .panel-glow is absolutely positioned with a negative inset (-18px/-20px),

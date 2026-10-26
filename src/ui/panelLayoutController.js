@@ -1,6 +1,7 @@
 /** Own rail measurement, layout scheduling and dock tray observation. */
 import { layoutLeftPanelRail, layoutRightPanelRail } from './panelRails.js';
 import { syncRadioPanelPlacement } from './radioPanelPlacement.js';
+import { RIGHT_RAIL_COLLAPSED_CLASS } from './rightRailCollapse.js';
 const COCKPIT_LAYOUT_SETTLE_MS = 240;
 /**
  * Fixed UI regions that can occupy the left accordion's vertical lane.
@@ -321,6 +322,10 @@ export class PanelLayoutController {
       leftStack: this._leftPanelStack,
       displayPanel: this._ppToggles,
       readDisplayScrollTop: this.readDisplayScrollTop,
+      collapsedRail:
+        this._rightPanelStack?.classList.contains(
+          RIGHT_RAIL_COLLAPSED_CLASS,
+        ) === true,
     });
   }
 

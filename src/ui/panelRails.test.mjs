@@ -765,3 +765,53 @@ test('right layout ignores a hidden panel: no lane, no gap, no auto-collapse', (
     ) <= alone,
   );
 });
+
+test('a collapsed tools pane takes its panels out of layout without touching them', () => {
+  const f = fixture('right');
+  f.expand(f.first, 900);
+  f.run();
+  assert.equal(f.stack.dataset.layoutMode, 'focus');
+  const retries = f.retries();
+  const collapsedBefore = [...f.collapsed];
+  f.options.collapsedRail = true;
+  f.expand(f.second, 300);
+  f.run();
+  assert.equal(f.stack.dataset.layoutMode, 'collapsed');
+  assert.equal(f.stack.classList.contains('layout-focus'), false);
+  assert.equal(
+    f.first.style.getPropertyValue('--right-panel-allocated-height'),
+    '',
+  );
+  assert.equal(
+    f.second.style.getPropertyValue('--right-panel-allocated-height'),
+    '',
+  );
+  assert.deepEqual(f.collapsed, collapsedBefore, 'no automatic collapse runs');
+  assert.equal(f.retries(), retries, 'no retry is requested');
+  assert.equal(f.first.classList.contains('layout-auto-collapsed'), false);
+  // Expanding the pane again runs the normal pass over the same panels; focus
+  // collapses the later panel, so one settling pass follows.
+  f.options.collapsedRail = false;
+  f.run();
+  f.run();
+  assert.equal(f.stack.dataset.layoutMode, 'focus');
+  assert.ok(f.first.style.getPropertyValue('--right-panel-allocated-height'));
+});
+
+test('the tools header row takes its height and gap from the panel allocation', () => {
+  const measureWith = (withHeader) => {
+    const f = fixture('right');
+    f.expand(f.second, 120);
+    if (withHeader) {
+      const header = element('right-rail-header', { height: 40 });
+      header.matches = (selector) => selector === '[data-rail-header]';
+      f.stack.children.unshift(header);
+      header.parentElement = f.stack;
+    }
+    f.run();
+    return Number(f.stack.dataset.requiredHeight);
+  };
+  const bare = measureWith(false);
+  const withHeader = measureWith(true);
+  assert.equal(withHeader - bare, 40 + 12, 'header height plus one row gap');
+});

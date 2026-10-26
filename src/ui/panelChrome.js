@@ -7,6 +7,11 @@ import {
   collapsePanelOnEscape,
   createHoverDisclosure,
 } from './panelDisclosure.js';
+import {
+  applyRightRailCollapsed,
+  readRightRailCollapsed,
+  writeRightRailCollapsed,
+} from './rightRailCollapse.js';
 const SHARE_PANEL_STATE_SPECS = Object.freeze([
   { id: 'control-panel', pinnable: true },
   { id: 'location-bar', pinnable: true },
@@ -146,8 +151,35 @@ export class PanelChrome {
     });
     this._initCommandDockPins();
     this._initCommandDockTrayMetrics();
+    this._initRightRailToggle();
     this._maybeNotifyLayoutReset();
     this._panelPosition._initPanelDrag();
+  }
+
+  /** Bind the TOOLS pane toggle and restore the viewer's last choice. */
+  _initRightRailToggle() {
+    const button = document.getElementById('right-rail-toggle');
+    if (!button || !this._rightPanelStack) return;
+    this._lifetime.listen(button, 'click', () =>
+      this._setRightRailCollapsed(
+        !this._rightPanelStack.classList.contains('right-rail-collapsed'),
+      ),
+    );
+    this._setRightRailCollapsed(readRightRailCollapsed(), { persist: false });
+  }
+
+  /**
+   * Collapse the whole tools pane to its tab, or expand it. The rail layout
+   * takes its panels out of layout while collapsed; their own state is kept.
+   */
+  _setRightRailCollapsed(collapsed, { persist = true } = {}) {
+    const next = applyRightRailCollapsed({
+      rail: this._rightPanelStack,
+      button: document.getElementById('right-rail-toggle'),
+      collapsed,
+    });
+    if (persist) writeRightRailCollapsed(next);
+    this._scheduleRightPanelLayout();
   }
 
   _collapsePanelOnEscape(event, panelId) {
@@ -413,14 +445,16 @@ export class PanelChrome {
     const wasAutoCollapsed =
       panelEl.classList.contains('layout-auto-collapsed') ||
       panelEl.classList.contains('cyber-accordion-collapsed');
-    // A user opening a Cyber rail panel owns the whole accordion, including
-    // peers that were only presentation-collapsed during a saved-state restore.
-    // A floating window is outside the accordion both ways.
+    // A user opening a right-rail panel owns the whole accordion in every
+    // theme: each expanded peer is closed as the user's own preference, so it
+    // stays closed. Peers that were only presentation-collapsed (automatic
+    // layout, Cyber's pass) are included. A floating window is outside the
+    // accordion both ways, and restores or automatic changes never reach here.
     if (
       explicit &&
       !restore &&
       !nextCollapsed &&
-      document.documentElement?.dataset.uiTheme === 'cyber' &&
+      this._rightPanelStack &&
       panelEl.parentElement === this._rightPanelStack &&
       !panelEl.classList.contains('panel-floating')
     ) {
@@ -531,6 +565,7 @@ export class PanelChrome {
         ?.classList.contains('collapsed')
     ) {
       this.setPanelCollapsed('global-context-panel', false, {
+        explicit,
         restore,
         persist,
         syncShare,

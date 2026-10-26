@@ -386,7 +386,7 @@ export function buildSelectionDetails(record, { now = Date.now() } = {}) {
   const longitude = finiteCoordinate(record.longitude);
 
   let details;
-  if (layerId === 'flights' || layerId.includes('military'))
+  if (layerId === 'flights' || layerId === 'military')
     details = buildFlight(record, properties);
   else if (layerId === 'ais-live-vessels')
     details = buildVessel(record, properties, now);

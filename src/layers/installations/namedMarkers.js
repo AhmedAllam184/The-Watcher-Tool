@@ -171,7 +171,9 @@ export function createNamedMarkers({ state, services, parts, overlayHost }) {
       } else {
         marker.point.position = position;
       }
-      marker.named = record.namedArea;
+      // Unnamed tile polygons carry no `namedArea` key at all. Keep this a real
+      // boolean: `undefined && …` reaches `point.show`, which Cesium rejects.
+      marker.named = record.namedArea === true;
       marker.entry.variant =
         record.id === state.selectedId ? 'selected' : 'card';
       marker.entry.selected = record.id === state.selectedId;

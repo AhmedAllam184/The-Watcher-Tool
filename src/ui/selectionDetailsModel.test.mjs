@@ -152,7 +152,7 @@ test('flight details carry the lower-case hex for the photo lookup', () => {
   const invalid = buildSelectionDetails(flightRecord({ icao24: 'nothex' }), { now: NOW });
   assert.equal(invalid.photoHex, null);
   const military = buildSelectionDetails(
-    flightRecord({ icao24: '43c123' }, { layerId: 'military-flights' }),
+    flightRecord({ icao24: '43c123' }, { layerId: 'military' }),
     { now: NOW },
   );
   assert.equal(military.photoHex, '43c123');
@@ -196,7 +196,7 @@ test('flight details handle ground contacts, stale status and military layers', 
   );
 
   const military = buildSelectionDetails(
-    flightRecord({ callsign: '', name: 'RCH401' }, { layerId: 'military-flights' }),
+    flightRecord({ callsign: '', name: 'RCH401' }, { layerId: 'military' }),
     { now: NOW },
   );
   assert.equal(military.kind, 'flight');
@@ -248,7 +248,7 @@ test('flight squawk shows the code, names emergencies and raises an alert', () =
   );
 
   const military = buildSelectionDetails(
-    flightRecord({ squawk: '7600' }, { layerId: 'military-flights' }),
+    flightRecord({ squawk: '7600' }, { layerId: 'military' }),
     { now: NOW },
   );
   assert.equal(military.alert, 'Emergency squawk 7600 — Radio failure');
@@ -429,4 +429,26 @@ test('heading 0 and southern-western coordinates are kept', () => {
 test('buildSelectionDetails returns null without a record', () => {
   assert.equal(buildSelectionDetails(null), null);
   assert.equal(buildSelectionDetails(undefined), null);
+});
+
+test('an unnamed mapped installation reads as other, never as a flight', () => {
+  const details = buildSelectionDetails(
+    {
+      id: 'ofm:installation:1',
+      layerId: 'military-installations',
+      layerName: 'Mapped Military Installations',
+      source: 'OpenStreetMap',
+      label: 'Military area',
+      latitude: 30.3523,
+      longitude: 33.0885,
+      properties: { class: 'military_land', validation: 'unreviewed' },
+    },
+    { now: NOW },
+  );
+  assert.equal(details.kind, 'other');
+  assert.equal(details.title, 'Military area');
+  assert.equal(rowValue(details, 'Altitude'), undefined);
+  assert.equal(rowValue(details, 'Callsign'), undefined);
+  assert.equal(details.rows.some((row) => /flight/i.test(row.label)), false);
+  assert.equal(details.links.some((link) => /adsb|flightradar/i.test(link.href)), false);
 });

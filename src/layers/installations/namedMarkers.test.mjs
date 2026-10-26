@@ -183,3 +183,32 @@ test('Contacts can select a point outside the normal title cap or an unnamed pol
   }
   h.lifecycle.destroy(h.state.viewer);
 });
+
+test('selecting an unnamed tile polygon does not hand undefined to point.show', (t) => {
+  // Owner report: clicking "Military area" (unnamed OSM polygon from tiles) threw
+  // Cesium "value is required" from PointPrimitive.show, because the record has
+  // no namedArea key and `undefined && …` became the show value.
+  const h = setup(t);
+  const unnamed = {
+    id: 'ofm:installation:1',
+    name: 'Military area',
+    kind: 'installation',
+    class: 'military_land',
+    latitude: 0,
+    longitude: 0,
+    areaM2: 0,
+    pointOnly: false,
+    footprint: [[-0.01, -0.01], [0.01, -0.01], [0.01, 0.01], [-0.01, -0.01]],
+  };
+  assert.equal('namedArea' in unnamed, false);
+  h.state.selectedId = unnamed.id;
+  assert.doesNotThrow(() => h.markers.sync([unnamed]));
+  assert.doesNotThrow(() => { h.setX(600); h.camera.changed.raiseEvent(); h.camera.moveEnd.raiseEvent(); });
+  assert.doesNotThrow(() => h.state.viewer.scene.preRender.raiseEvent());
+  let shown = null;
+  h.markers.visit((id, point) => { if (id === unnamed.id) shown = point.show; });
+  assert.equal(shown, false, 'an unnamed polygon keeps its title off the point layer');
+  assert.equal(h.labels.length, 1);
+  assert.equal(h.labels[0].selected, true);
+  h.lifecycle.destroy(h.state.viewer);
+});

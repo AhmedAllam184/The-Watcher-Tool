@@ -21,6 +21,7 @@ import { LocalSdrControls } from './localSdrControls.js';
 import { LocationNavigation } from './locationNavigation.js';
 import { bindClearLayersControl } from './layers.js';
 import { bindCameraOrientationControls } from './cameraOrientationControls.js';
+import { createSelectionDetailsPanel } from './selectionDetails.js';
 import { createMapSourceControls } from './mapSource.js';
 import { STYLES } from './effects.js';
 import { isHudLayout } from '../hudLayouts.js';
@@ -576,6 +577,7 @@ export class StyleManager extends ShellFacade {
     this._initLocationBar();
     this._initShareButton();
     this._initCameraOrientationControls();
+    this._initSelectionDetails();
     this._initClearSelectedLayersButton();
     this._initHUDToggle();
     this._initModels3dToggle();
@@ -1469,6 +1471,19 @@ export class StyleManager extends ShellFacade {
     });
   }
 
+  /** Plain-language details panel for whatever object is selected. */
+  _initSelectionDetails() {
+    this._selectionDetails?.destroy();
+    this._selectionDetails = createSelectionDetailsPanel({
+      flyTo: (lat, lon) =>
+        this._navigation.runOrientation('selection', () =>
+          this.viewer.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 25000),
+          }),
+        ),
+    });
+  }
+
   // ── Share Button ─────────────────────────────
 
   /**
@@ -1584,6 +1599,7 @@ export class StyleManager extends ShellFacade {
     this._displayBindings.destroy();
     this._mapSourceControls?.destroy();
     this._cameraOrientationControls?.destroy();
+    this._selectionDetails?.destroy();
     this._clearLayersControl?.destroy();
     this._cctvControls?.destroy();
     this.services?.streetLevelLayer?.attachNavigation?.(null);

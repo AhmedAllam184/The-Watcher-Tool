@@ -16,6 +16,7 @@ scene playback and voice. It delegates; new behavior belongs with its owner.
 | `displayBindings.js` | Keyboard/display subscriptions and frame-rate monitor lifetime |
 | `shareRestoration.js` | Initial share/layer restoration and cancellation |
 | `shellFeedback.js` | Loading feedback, notices and toast lifetime |
+| `selectionDetails.js` | Plain-language details panel for the selected object |
 
 Owners receive named services, elements, operations and readers. They do not
 receive the application shell itself. Readers resolve a replaceable collaborator

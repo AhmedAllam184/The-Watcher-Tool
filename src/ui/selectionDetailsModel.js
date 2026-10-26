@@ -1,0 +1,359 @@
+/**
+ * @module selectionDetailsModel
+ * @description Pure translation of a shared context record into plain-language
+ * rows for the selection details panel. No DOM, no Cesium, no store access.
+ */
+import { normalizeVesselType } from '../data/vesselLabels.js';
+
+const FEET_PER_METRE = 3.28084;
+const KMH_PER_KNOT = 1.852;
+const COMPASS_POINTS = [
+  'N',
+  'NNE',
+  'NE',
+  'ENE',
+  'E',
+  'ESE',
+  'SE',
+  'SSE',
+  'S',
+  'SSW',
+  'SW',
+  'WSW',
+  'W',
+  'WNW',
+  'NW',
+  'NNW',
+];
+
+/** Inclusive run of MMSI Maritime Identification Digits. */
+function span(low, high) {
+  return Array.from({ length: high - low + 1 }, (_, index) => low + index);
+}
+
+/** The most common MIDs (first three digits of an MMSI) and their flag states. */
+const MID_COUNTRIES = new Map(
+  [
+    ['Albania', [201]],
+    ['Germany', [211, 218]],
+    ['Denmark', [219, 220]],
+    ['Spain', [224, 225]],
+    ['France', span(226, 228)],
+    ['United Kingdom', span(232, 235)],
+    ['Gibraltar', [236]],
+    ['Greece', [237, ...span(239, 241)]],
+    ['Netherlands', span(244, 246)],
+    ['Italy', [247]],
+    ['Malta', [248, 249, 256]],
+    ['Portugal', [255]],
+    ['Norway', span(257, 259)],
+    ['Sweden', [265, 266]],
+    ['Russia', [273]],
+    ['Antigua and Barbuda', [304, 305]],
+    ['Bahamas', [308, 309, 311]],
+    ['United States', [338, ...span(366, 369)]],
+    ['Panama', [...span(351, 357), ...span(370, 373)]],
+    ['China', span(412, 414)],
+    ['India', [419]],
+    ['Japan', [431, 432]],
+    ['South Korea', [440, 441]],
+    ['United Arab Emirates', [470, 471]],
+    ['Saudi Arabia', [403]],
+    ['Iran', [422]],
+    ['Hong Kong', [477]],
+    ['Indonesia', [525]],
+    ['Malaysia', [533]],
+    ['Marshall Islands', [538]],
+    ['Singapore', span(563, 566)],
+    ['Tuvalu', [572]],
+    ['Vanuatu', [577]],
+    ['Egypt', [622]],
+    ['Liberia', [636, 637]],
+  ].flatMap(([country, mids]) => mids.map((mid) => [mid, country])),
+);
+
+/**
+ * Map an AIS record's 16-point compass bearing.
+ * @param {number} deg Bearing in degrees; any finite value is wrapped to 0-360.
+ * @returns {string} Compass word such as "NNE", or '' for a non-finite input.
+ */
+export function compassPoint(deg) {
+  if (!Number.isFinite(deg)) return '';
+  const wrapped = ((deg % 360) + 360) % 360;
+  return COMPASS_POINTS[Math.round(wrapped / 22.5) % COMPASS_POINTS.length];
+}
+
+/**
+ * Describe the age of a timestamp in plain words.
+ * @param {number} ms Epoch milliseconds of the event.
+ * @param {number} [now=Date.now()] Current epoch milliseconds.
+ * @returns {string} "just now", "2 min ago", "5 h ago", "3 d ago", or '' when ms is invalid.
+ */
+export function formatRelativeTime(ms, now = Date.now()) {
+  if (!Number.isFinite(ms)) return '';
+  const seconds = Math.floor((now - ms) / 1000);
+  if (seconds < 45) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
+}
+
+/**
+ * Name the flag state that issued an MMSI.
+ * @param {string|number} mmsi Nine-digit MMSI; only the first three digits are used.
+ * @returns {string|null} Country name, or null when the MID is not in the table.
+ */
+export function flagFromMmsi(mmsi) {
+  const text = String(mmsi ?? '').trim();
+  if (!/^\d{3}/.test(text)) return null;
+  return MID_COUNTRIES.get(Number(text.slice(0, 3))) || null;
+}
+
+/** AIS epoch values arrive in seconds or milliseconds; return milliseconds. */
+function epochToMs(value) {
+  const number = leadingNumber(value);
+  if (number === null || number <= 0) return null;
+  return number < 1e11 ? number * 1000 : number;
+}
+
+/** First number in a value such as "35,000 ft"; null when there is none. */
+function leadingNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const match = String(value ?? '')
+    .replace(/,/g, '')
+    .match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : null;
+}
+
+/** Group thousands with commas and round to `digits` places. */
+function formatNumber(value, digits = 0) {
+  const [whole, fraction] = Number(value).toFixed(digits).split('.');
+  const sign = whole.startsWith('-') ? '-' : '';
+  const grouped = whole.replace('-', '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${sign}${grouped}${fraction ? `.${fraction}` : ''}`;
+}
+
+/** Knots shown as knots and km/h. */
+function speedValue(knots, digits = 0) {
+  return `${formatNumber(knots, digits)} kt (${formatNumber(knots * KMH_PER_KNOT)} km/h)`;
+}
+
+/** Degrees shown with their compass word, e.g. "270° (W)". */
+function degreeValue(degrees) {
+  const shown = ((Math.round(degrees) % 360) + 360) % 360;
+  return `${shown}° (${compassPoint(degrees)})`;
+}
+
+/** Upper-case the first letter of a plain word; leave the rest alone. */
+function capitalize(text) {
+  const trimmed = String(text ?? '').trim();
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+}
+
+/** "lastPositionUtc" / "last_position" → "Last Position Utc". */
+function humanLabel(key) {
+  return String(key)
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/** Lower-case AIS type text in sentence case: "HIGH-SPEED" → "High-speed". */
+function plainType(type) {
+  return capitalize(normalizeVesselType(type));
+}
+
+/** Append a row only when it has a value to show. */
+function pushRow(rows, label, value) {
+  if (value === null || value === undefined) return;
+  const text = String(value).trim();
+  if (text) rows.push({ label, value: text });
+}
+
+function finiteCoordinate(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** "51.5074° N, 0.1278° W" with four decimals. */
+function coordinateText(latitude, longitude) {
+  const lat = `${Math.abs(latitude).toFixed(4)}° ${latitude < 0 ? 'S' : 'N'}`;
+  const lon = `${Math.abs(longitude).toFixed(4)}° ${longitude < 0 ? 'W' : 'E'}`;
+  return `${lat}, ${lon}`;
+}
+
+function buildFlight(record, properties) {
+  const callsign = String(properties.callsign || '').trim();
+  const icao24 = String(properties.icao24 || '').trim();
+  const rows = [];
+  const links = [];
+  const altitude = String(properties.altitude ?? '').trim();
+  const altitudeFeet = leadingNumber(altitude);
+  const speedKt = leadingNumber(properties.speed);
+  const headingDeg = leadingNumber(properties.heading);
+  pushRow(rows, 'Route', properties.route);
+  pushRow(rows, 'Aircraft', properties.type);
+  pushRow(rows, 'Registration', properties.registration);
+  if (/on ground/i.test(altitude)) pushRow(rows, 'Altitude', 'On the ground');
+  else if (altitudeFeet !== null)
+    pushRow(
+      rows,
+      'Altitude',
+      `${formatNumber(altitudeFeet)} ft (${formatNumber(altitudeFeet / FEET_PER_METRE)} m)`,
+    );
+  else pushRow(rows, 'Altitude', altitude);
+  if (speedKt !== null) pushRow(rows, 'Speed', speedValue(speedKt));
+  if (headingDeg !== null) pushRow(rows, 'Heading', degreeValue(headingDeg));
+  pushRow(rows, 'ICAO hex', icao24.toUpperCase());
+  const status = String(properties.status || '').trim();
+  if (/^stale/i.test(status))
+    pushRow(rows, 'Status', 'Last known — missed updates');
+  else if (/^live$/i.test(status)) pushRow(rows, 'Status', 'Live');
+  else pushRow(rows, 'Status', status);
+  pushRow(rows, 'Data source', record.source);
+  if (callsign)
+    links.push({
+      label: 'FlightRadar24',
+      href: `https://www.flightradar24.com/${encodeURIComponent(callsign)}`,
+    });
+  if (icao24)
+    links.push({
+      label: 'ADS-B Exchange',
+      href: `https://globe.adsbexchange.com/?icao=${encodeURIComponent(icao24)}`,
+    });
+  return {
+    kind: 'flight',
+    title: callsign || String(properties.name || record.label || ''),
+    subtitle: String(properties.operator || ''),
+    rows,
+    links,
+  };
+}
+
+function buildVessel(record, properties, now) {
+  const entity = record.entity || {};
+  const mmsi = String(properties.mmsi || entity.mmsi || '').trim();
+  const imo = String(entity.imo || '').trim();
+  const rows = [];
+  const links = [];
+  const speedKt = leadingNumber(entity.speed ?? properties.speedKt);
+  const course = leadingNumber(entity.course ?? properties.course);
+  const heading = leadingNumber(entity.heading);
+  const type = plainType(entity.type || properties.type);
+  pushRow(rows, 'Type', type);
+  pushRow(rows, 'Destination', entity.destination || properties.destination);
+  if (speedKt !== null) pushRow(rows, 'Speed', speedValue(speedKt, 1));
+  if (course !== null) pushRow(rows, 'Course', degreeValue(course));
+  // AIS sends 511 for "heading not available".
+  if (heading !== null && heading >= 0 && heading < 360)
+    pushRow(rows, 'Heading', degreeValue(heading));
+  pushRow(rows, 'MMSI', mmsi);
+  pushRow(rows, 'IMO', imo);
+  pushRow(rows, 'Flag', flagFromMmsi(mmsi));
+  pushRow(
+    rows,
+    'Last position',
+    formatRelativeTime(epochToMs(entity.lastPositionEpoch), now),
+  );
+  const stale = (entity.missedRefreshes || 0) > 0;
+  pushRow(rows, 'Status', stale ? 'Stale — missed updates' : 'Live');
+  if (mmsi) {
+    links.push({
+      label: 'MarineTraffic',
+      href: `https://www.marinetraffic.com/en/ais/details/ships/mmsi:${encodeURIComponent(mmsi)}`,
+    });
+    links.push({
+      label: 'VesselFinder',
+      href: `https://www.vesselfinder.com/vessels/details/${encodeURIComponent(mmsi)}`,
+    });
+  }
+  return {
+    kind: 'vessel',
+    title: String(entity.name || record.label || ''),
+    subtitle: type,
+    rows,
+    links,
+  };
+}
+
+function buildFire(properties, latitude, longitude) {
+  const rows = [];
+  const links = [];
+  const age = String(properties.age ?? '').trim();
+  let detected = '';
+  if (/unknown/i.test(age)) detected = 'Unknown';
+  else if (age) detected = /ago/i.test(age) ? age : `${age} ago`;
+  pushRow(rows, 'Detected', detected);
+  const sensor = String(properties.sensor ?? '').trim();
+  if (sensor && !/^unknown$/i.test(sensor))
+    pushRow(rows, 'Satellite/sensor', sensor);
+  const confidence = String(properties.confidence ?? '').trim();
+  if (confidence) pushRow(rows, 'Confidence', capitalize(confidence));
+  const frp = leadingNumber(properties.frp);
+  if (frp !== null)
+    pushRow(rows, 'Fire radiative power', `${formatNumber(frp, 1)} MW`);
+  if (latitude !== null && longitude !== null)
+    links.push({
+      label: 'NASA FIRMS map',
+      href: `https://firms.modaps.eosdis.nasa.gov/map/#d:24hrs;@${longitude},${latitude},10z`,
+    });
+  return {
+    kind: 'fire',
+    title: 'Active fire',
+    subtitle: 'Satellite detection (NASA FIRMS)',
+    rows,
+    links,
+  };
+}
+
+function buildOther(record, properties) {
+  const rows = [];
+  for (const [key, value] of Object.entries(properties)) {
+    if (
+      typeof value === 'string' ||
+      (typeof value === 'number' && Number.isFinite(value))
+    )
+      pushRow(rows, humanLabel(key), value);
+  }
+  return {
+    kind: 'other',
+    title: String(record.label || ''),
+    subtitle: String(record.layerName || ''),
+    rows,
+    links: [],
+  };
+}
+
+/**
+ * Turn a context record into the plain-language panel model.
+ * @param {object|null} record Shared context record (see src/data/contextStore.js).
+ * @param {{now?: number}} [options] Clock used for relative times.
+ * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, latitude: number|null, longitude: number|null}|null}
+ */
+export function buildSelectionDetails(record, { now = Date.now() } = {}) {
+  if (!record || typeof record !== 'object') return null;
+  const layerId = String(record.layerId || '');
+  const properties = record.properties || {};
+  const latitude = finiteCoordinate(record.latitude);
+  const longitude = finiteCoordinate(record.longitude);
+
+  let details;
+  if (layerId === 'flights' || layerId.includes('military'))
+    details = buildFlight(record, properties);
+  else if (layerId === 'ais-live-vessels')
+    details = buildVessel(record, properties, now);
+  else if (record.source === 'NASA FIRMS' || layerId.includes('firms'))
+    details = buildFire(properties, latitude, longitude);
+  else details = buildOther(record, properties);
+
+  if (latitude !== null && longitude !== null)
+    details.rows.push({
+      label: 'Coordinates',
+      value: coordinateText(latitude, longitude),
+    });
+  return { ...details, latitude, longitude };
+}

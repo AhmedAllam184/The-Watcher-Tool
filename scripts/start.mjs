@@ -11,7 +11,14 @@
 // Environment: HOST (default 127.0.0.1), PORT (default 4173).
 
 import { spawn } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import {
+  existsSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -19,8 +26,29 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js');
 const host = process.env.HOST || '127.0.0.1';
 const port = String(process.env.PORT || '4173');
-const url = `http://127.0.0.1:${port}`;
 const forceRebuild = process.argv.slice(2).includes('--rebuild');
+
+/**
+ * Dotenv files that Vite's loadEnv reads for a production build, lowest
+ * precedence first, then Pinokio's environment file.
+ */
+const BUILD_ENV_FILES = [
+  '.env',
+  '.env.local',
+  '.env.production',
+  '.env.production.local',
+];
+const PINOKIO_ENV_FILE = 'pinokio/ENVIRONMENT';
+/**
+ * Keys compiled into the bundle: the `define` block in build/vite.js and
+ * anything under VITE_. Changing one of them means dist/ must be rebuilt.
+ */
+export const BUILD_ENV_KEYS = Object.freeze([
+  'GOOGLE_MAPS_API_KEY',
+  'CESIUM_ION_TOKEN',
+  'MAPILLARY_CLIENT_TOKEN',
+]);
+const BUILD_STAMP = '.watcher-build.json';
 
 /** Inputs whose change means the existing dist/ no longer matches the code. */
 const INPUT_DIRECTORIES = ['src', 'server', 'build', 'public'];
@@ -30,6 +58,8 @@ const INPUT_FILES = [
   'package.json',
   'package-lock.json',
   'vite.config.js',
+  ...BUILD_ENV_FILES,
+  PINOKIO_ENV_FILE,
 ];
 
 /** Newest mtime (ms) among the build inputs, or 0 when none exist. */
@@ -59,13 +89,116 @@ export function newestInputMtime(projectRoot = root) {
   return newest;
 }
 
-/** Whether dist/ is missing or older than the newest build input. */
-export function buildIsStale(projectRoot = root, { rebuild = false } = {}) {
+/** Parse dotenv text: KEY=VALUE lines, optional `export`, quotes and comments. */
+export function parseDotenv(text) {
+  const values = {};
+  for (const rawLine of String(text).split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const match = /^(?:export\s+)?([A-Za-z_][\w.-]*)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    let value = match[2].trim();
+    const quote = value[0];
+    if (
+      value.length >= 2 &&
+      (quote === '"' || quote === "'" || quote === '`') &&
+      value.endsWith(quote)
+    ) {
+      value = value.slice(1, -1);
+    } else {
+      value = value.replace(/\s+#.*$/, '');
+    }
+    values[match[1]] = value;
+  }
+  return values;
+}
+
+function readEnvFile(file) {
+  try {
+    return parseDotenv(readFileSync(file, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+const isBuildEnvKey = (key) =>
+  BUILD_ENV_KEYS.includes(key) || key.startsWith('VITE_');
+
+/**
+ * SHA-256 over the build-relevant env values, as the build will see them: the
+ * process environment wins over the dotenv files, as in server/standalone's
+ * vite config. Only the digest leaves this function, never a value.
+ */
+export function buildEnvDigest(projectRoot = root, env = process.env) {
+  const fromFiles = {};
+  for (const file of [...BUILD_ENV_FILES, PINOKIO_ENV_FILE]) {
+    Object.assign(fromFiles, readEnvFile(path.join(projectRoot, file)));
+  }
+  const resolved = {};
+  for (const [key, value] of Object.entries(fromFiles)) {
+    if (isBuildEnvKey(key)) resolved[key] = value;
+  }
+  for (const [key, value] of Object.entries(env)) {
+    if (isBuildEnvKey(key) && value !== undefined) resolved[key] = value;
+  }
+  const entries = Object.keys(resolved)
+    .sort()
+    .map((key) => [key, resolved[key]]);
+  return createHash('sha256').update(JSON.stringify(entries)).digest('hex');
+}
+
+const stampPath = (projectRoot) => path.join(projectRoot, 'dist', BUILD_STAMP);
+
+/** Record which build-relevant env the current dist/ was built with. */
+export function writeBuildStamp(projectRoot = root, env = process.env) {
+  writeFileSync(
+    stampPath(projectRoot),
+    `${JSON.stringify({ envSha256: buildEnvDigest(projectRoot, env) })}\n`,
+    'utf8',
+  );
+}
+
+/** The env digest recorded by the last build, or null when there is no stamp. */
+function readBuildStamp(projectRoot) {
+  try {
+    const stamp = JSON.parse(readFileSync(stampPath(projectRoot), 'utf8'));
+    return typeof stamp?.envSha256 === 'string' ? stamp.envSha256 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether dist/ is missing, older than the newest build input, or was built
+ * with different build-relevant env values (or before the stamp existed).
+ */
+export function buildIsStale(
+  projectRoot = root,
+  { rebuild = false, env = process.env } = {},
+) {
   if (rebuild) return true;
   const marker = path.join(projectRoot, 'dist', 'index.html');
   if (!existsSync(marker)) return true;
+  if (readBuildStamp(projectRoot) !== buildEnvDigest(projectRoot, env))
+    return true;
   return newestInputMtime(projectRoot) > statSync(marker).mtimeMs;
 }
+
+/**
+ * The URL to probe and open for a server bound to `bindHost`. A wildcard bind
+ * is reached through loopback; an IPv6 literal is wrapped in brackets.
+ */
+export function serveUrl(bindHost, servePort) {
+  const bare = String(bindHost)
+    .trim()
+    .replace(/^\[(.*)\]$/, '$1');
+  const reachable =
+    bare === '' || bare === '0.0.0.0' || bare === '::' ? '127.0.0.1' : bare;
+  const shown = reachable.includes(':') ? `[${reachable}]` : reachable;
+  return `http://${shown}:${servePort}`;
+}
+
+const url = serveUrl(host, port);
 
 function run(args) {
   return new Promise((resolve) => {
@@ -78,12 +211,16 @@ function run(args) {
   });
 }
 
-async function waitUntilServing(child, timeoutMs = 120_000) {
+export async function waitUntilServing(
+  child,
+  target = url,
+  timeoutMs = 120_000,
+) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (child.exitCode !== null || child.signalCode !== null) return false;
     try {
-      const response = await fetch(url, {
+      const response = await fetch(target, {
         signal: AbortSignal.timeout(1_000),
       });
       if (response.ok) return true;
@@ -136,6 +273,7 @@ async function main() {
       console.error('The build failed. Fix the error above and start again.');
       return code;
     }
+    writeBuildStamp(root);
   } else {
     console.log('Production build is up to date; starting the server.');
   }

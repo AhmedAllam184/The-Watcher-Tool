@@ -544,6 +544,39 @@ export function createQueries({
     },
 
     /**
+     * Exact identity only: hex, callsign or registration equal to the query
+     * (case-insensitive). Ranking is the same as findByQuery, but a partial
+     * match is never returned, so a longer callsign cannot answer a plain
+     * search for a shorter one.
+     * @param {string} query - ICAO hex, callsign or registration.
+     * @returns {object|null} Same descriptor as findByQuery, or null.
+     */
+    findExact(query) {
+      if (!flightState.records.data || flightState.records.data.size === 0)
+        return null;
+      const q = String(query || '')
+        .trim()
+        .toLowerCase();
+      if (!q) return null;
+
+      let best = null;
+      for (const [icao24, info] of flightState.records.data) {
+        const tier = rankContactMatch({
+          query: q,
+          hex: icao24,
+          callsign: info?.callsign,
+          registration: info?.registration,
+        });
+        if (tier > CONTACT_MATCH_TIER.REGISTRATION_EXACT) continue;
+        const candidate = { tier, id: icao24 };
+        if (!contactMatchWins(candidate, best)) continue;
+        best = candidate;
+        if (tier === CONTACT_MATCH_TIER.HEX_EXACT) break;
+      }
+      return best ? _describeFlight(best.id) : null;
+    },
+
+    /**
      * Return id/label/position for up to maxCount currently rendered aircraft.
      * Cheap snapshot for voice-tool framing — billboard positions only, no
      * dead reckoning and no cloning.

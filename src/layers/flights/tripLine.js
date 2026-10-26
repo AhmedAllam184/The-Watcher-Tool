@@ -9,7 +9,10 @@
  */
 import * as Cesium from 'cesium';
 import { tripSegments, TRIP_BAND_COLORS } from '../../data/tripLineGeometry.js';
-import { tripSummary } from '../../data/tripSummary.js';
+import {
+  formatAirborneSince,
+  tripSummary as summarizeTrip,
+} from '../../data/tripSummary.js';
 import { registerPickOwner } from '../../data/pickRegistry.js';
 
 // Entities are claimed so a click on the trip line reads as a no-op, not as
@@ -34,6 +37,7 @@ let entitySeq = 0;
  * @param {(hex: string) => void} [host.onChange] Called when the drawn line or its facts change.
  * @param {() => number} [host.now]
  * @param {number} [host.refreshMs]
+ * @param {typeof summarizeTrip} [host.summarize] Trip facts function (injected by tests).
  */
 export function createTripLine({
   getViewer,
@@ -42,6 +46,7 @@ export function createTripLine({
   onChange = null,
   now = () => Date.now(),
   refreshMs = REFRESH_MS,
+  summarize = summarizeTrip,
 }) {
   let hex = null;
   let token = 0;
@@ -50,6 +55,8 @@ export function createTripLine({
   let points = [];
   let startedAt = null;
   let entities = [];
+  /** Holding text for one set of fixes and airports; detection runs only on change. */
+  let holdingCache = null;
 
   function liveViewer() {
     const viewer = getViewer?.();
@@ -182,6 +189,7 @@ export function createTripLine({
     timer = null;
     points = [];
     startedAt = null;
+    holdingCache = null;
     clearEntities();
   }
 
@@ -197,7 +205,13 @@ export function createTripLine({
     return hex !== null && points.length > 1;
   }
 
-  /** Airborne-since and holding text for the tracked hex, or blank strings. */
+  /**
+   * Airborne-since and holding text for the tracked hex, or blank strings.
+   * Holding detection walks every fix, so its text is cached until the fixes
+   * or the route airports change (the stored fixes are replaced on each
+   * refresh, and stop() clears the cache). The elapsed time is cheap and is
+   * always current.
+   */
   function summary(icao24) {
     if (icao24 !== hex || !points.length) {
       return { airborneSince: '', holding: '' };
@@ -206,7 +220,25 @@ export function createTripLine({
     const airports = [route?.origin, route?.destination]
       .filter(Boolean)
       .map((a) => ({ code: a.code, name: a.name, lat: a.lat, lon: a.lon }));
-    return tripSummary({ points, startedAt, airports, nowMs: now() });
+    const airportsKey = airports
+      .map((a) => `${a.code}|${a.lat}|${a.lon}`)
+      .join(';');
+    const nowMs = now();
+    if (
+      !holdingCache ||
+      holdingCache.points !== points ||
+      holdingCache.airportsKey !== airportsKey
+    ) {
+      holdingCache = {
+        points,
+        airportsKey,
+        holding: summarize({ points, startedAt, airports, nowMs }).holding,
+      };
+    }
+    return {
+      airborneSince: formatAirborneSince(startedAt, nowMs),
+      holding: holdingCache.holding,
+    };
   }
 
   return {

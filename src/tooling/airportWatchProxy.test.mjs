@@ -8,6 +8,7 @@ import {
   AIRPORT_WATCHLIST,
   airportWatchProxy,
 } from '../../server/providers/aircraft/airport-watch.js';
+import { WATCHER_USER_AGENT } from '../../server/providers/common/userAgent.js';
 
 const MIN = 60_000;
 const UNASSESSED = 'holding not assessed (sampled every ~16 min)';
@@ -603,4 +604,123 @@ test('persisted samples reload in a new instance and keep their holding', async 
   assert.equal(body.airports[0].holdingReliable, true);
   assert.equal(body.airports[0].holding, 1);
   assert.equal(body.airports[0].level, 'watch');
+});
+
+/** Eight viewed airports, none on the watchlist. */
+const VIEWED = Array.from({ length: 8 }, (_, i) => ({
+  icao: `V${i + 1}AA`,
+  iata: '',
+  name: `Viewed airport ${i + 1}`,
+  city: '',
+  lat: 10 + i,
+  lon: 20,
+}));
+const VIEWED_CODES = `?codes=${VIEWED.map((a) => a.icao).join(',')}`;
+
+test('eight viewed airports are all polled within one base cycle', async (t) => {
+  const start = 1_000_000_000_000;
+  const clock = clockFrom(start);
+  const polls = [];
+  const { get } = await setup(t, {
+    clock,
+    watchlist: [RUH],
+    catalogue: VIEWED,
+    reply: (href) => {
+      polls.push({ href, t: clock.t });
+      return json({ ac: [] });
+    },
+  });
+  await get(VIEWED_CODES);
+  await settle();
+  await advance(t, clock, 5 * MIN);
+  for (const airport of VIEWED) {
+    const first = polls.find((p) => p.href === url(airport));
+    assert.ok(first, `${airport.icao} was never polled`);
+    assert.ok(
+      first.t - start <= 3 * MIN,
+      `${airport.icao} first polled after ${(first.t - start) / 1000} s`,
+    );
+  }
+});
+
+test('a disrupted watchlist airport keeps its priority cadence when eight airports are viewed', async (t) => {
+  const start = 1_000_000_000_000;
+  const clock = clockFrom(start);
+  const degraded = Array.from({ length: 6 }, (_, i) => ({
+    hex: `d${i}`,
+    lat: RUH.lat + 0.01 * i,
+    lon: RUH.lon,
+    alt_baro: 36000,
+    nic: 3,
+    seen_pos: 1,
+  }));
+  const polls = [];
+  const { get } = await setup(t, {
+    clock,
+    watchlist: [RUH, JED, DXB],
+    catalogue: VIEWED,
+    reply: (href) => {
+      polls.push({ href, t: clock.t });
+      return json({ ac: href === url(RUH) ? degraded : [] });
+    },
+  });
+  await get(VIEWED_CODES);
+  await settle();
+  await advance(t, clock, 2 * MIN);
+  const { body } = await get();
+  assert.equal(body.airports.find((a) => a.icao === 'OERK').level, 'disrupted');
+
+  const from = clock.t;
+  await advance(t, clock, 5 * MIN);
+  const riyadh = polls
+    .filter((p) => p.href === url(RUH) && p.t >= from)
+    .map((p) => p.t);
+  assert.ok(riyadh.length >= 4, `Riyadh polled ${riyadh.length} times`);
+  assert.ok(
+    Math.max(...gaps(riyadh)) <= 75_000,
+    'priority cadence of about 60 s',
+  );
+});
+
+test('a viewed airport outside the priority tier is never holding-reliable', async (t) => {
+  const { clock, get } = await setup(t, {
+    watchlist: [RUH],
+    catalogue: VIEWED,
+  });
+  await get(VIEWED_CODES);
+  await settle();
+  await advance(t, clock, 6 * MIN);
+  const { body } = await get();
+  const byIcao = new Map(body.airports.map((a) => [a.icao, a]));
+  // The first four viewed airports fill the priority tier, polled about every 60 s.
+  for (const airport of VIEWED.slice(0, 4)) {
+    assert.equal(byIcao.get(airport.icao).holdingReliable, true, airport.icao);
+  }
+  // The rest are only sampled on the base rotation.
+  for (const airport of VIEWED.slice(4)) {
+    const status = byIcao.get(airport.icao);
+    assert.equal(status.holdingReliable, false, airport.icao);
+    assert.equal(status.holding, null, airport.icao);
+    assert.ok(status.reasons.includes(UNASSESSED), airport.icao);
+    assert.ok(status.lastPolledAt !== null, `${airport.icao} is still sampled`);
+  }
+});
+
+test('airport-watch identifies itself with the shared Watcher User-Agent', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const headers = [];
+  const plugin = airportWatchProxy({
+    fetchImpl: async (href, init) => {
+      headers.push(init.headers);
+      return json({ ac: [] });
+    },
+    cachePath: await tempDir(t),
+    now: () => 1_000_000_000_000,
+    watchlist: [RUH],
+  });
+  const get = harness(plugin);
+  await get();
+  await settle();
+  assert.equal(headers.length, 1);
+  assert.equal(headers[0]['User-Agent'], WATCHER_USER_AGENT);
 });

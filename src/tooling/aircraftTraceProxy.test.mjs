@@ -1,9 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { WATCHER_USER_AGENT } from '../../server/providers/common/userAgent.js';
 import {
   aircraftTraceProxy,
   decimatePoints,
+  mergeTraceFixes,
   parseTraceFlight,
+  parseTraceFixes,
   traceUrls,
   TRACE_MAX_POINTS,
 } from '../../server/providers/aircraft/trace.js';
@@ -151,9 +154,11 @@ test('the full trace is used when it exists, with the required headers', async (
   assert.equal(res.body.hex, 'abc123');
   assert.equal(res.body.source, 'adsb.lol');
   assert.equal(res.body.points.length, 2);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].headers['User-Agent'], 'TheWatcher/1.0 (+https://github.com/AhmedAllam184/The-Watcher-Tool)');
-  assert.equal(calls[0].headers.Accept, 'application/json');
+  assert.deepEqual(calls.map((c) => c.url), [FULL, RECENT], 'both traces are requested in parallel');
+  for (const call of calls) {
+    assert.equal(call.headers['User-Agent'], WATCHER_USER_AGENT);
+    assert.equal(call.headers.Accept, 'application/json');
+  }
 });
 
 test('the recent trace is tried when the full one is missing or fails', async () => {
@@ -192,13 +197,13 @@ test('answers are cached for 60 s and concurrent requests share one upstream cal
   const [first, second] = await Promise.all([get('/?hex=abc123'), get('/?hex=abc123')]);
   assert.equal(first.body.points.length, 1);
   assert.equal(second.body.points.length, 1);
-  assert.equal(calls.length, 1, 'single-flight');
+  assert.equal(calls.length, 2, 'single-flight: one full and one recent request');
   clock += 59_000;
   await get('/?hex=abc123');
-  assert.equal(calls.length, 1, 'fresh cache hit');
+  assert.equal(calls.length, 2, 'fresh cache hit');
   clock += 2_000;
   await get('/?hex=abc123');
-  assert.equal(calls.length, 2, 'refetched after 60 s');
+  assert.equal(calls.length, 4, 'refetched after 60 s');
 });
 
 test('a stale answer is served when upstream fails later', async () => {
@@ -216,3 +221,74 @@ test('a stale answer is served when upstream fails later', async () => {
   assert.equal(res.status, 200);
   assert.equal(res.body.points[0].altFt, 2100);
 });
+
+test('recent fixes newer than the full trace are appended, the shared time kept once', async () => {
+  const { fetchImpl } = stubUpstream({
+    [FULL]: jsonBody(trace([[0, 800], [60, 3000]])),
+    [RECENT]: jsonBody(trace([[0, 800], [60, 3000], [120, 3500], [180, 3600]])),
+  });
+  const res = await harness(aircraftTraceProxy({ fetchImpl }))('/?hex=abc123');
+  assert.deepEqual(res.body.points.map((p) => p.altFt), [800, 3000, 3500, 3600]);
+  assert.deepEqual(
+    res.body.points.map((p) => p.t),
+    [0, 60, 120, 180].map((dt) => (BASE + dt) * 1000),
+  );
+});
+
+test('recent-only: a missing full trace answers from the recent one', async () => {
+  const { fetchImpl } = stubUpstream({ [RECENT]: jsonBody(trace([[0, 1200], [60, 1300]])) });
+  const res = await harness(aircraftTraceProxy({ fetchImpl }))('/?hex=abc123');
+  assert.deepEqual(res.body.points.map((p) => p.altFt), [1200, 1300]);
+});
+
+test('full-only: a missing recent trace answers from the full one', async () => {
+  const { fetchImpl } = stubUpstream({ [FULL]: jsonBody(trace([[0, 900], [60, 1900]])) });
+  const res = await harness(aircraftTraceProxy({ fetchImpl }))('/?hex=abc123');
+  assert.deepEqual(res.body.points.map((p) => p.altFt), [900, 1900]);
+});
+
+test('a failing recent trace does not hide a full trace that answered', async () => {
+  const { fetchImpl } = stubUpstream({
+    [FULL]: jsonBody(trace([[0, 700]])),
+    [RECENT]: new Error('socket hang up'),
+  });
+  const res = await harness(aircraftTraceProxy({ fetchImpl }))('/?hex=abc123');
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.points.map((p) => p.altFt), [700]);
+});
+
+test('both traces failing is a 502 with nothing cached', async () => {
+  const { fetchImpl, calls } = stubUpstream({
+    [FULL]: jsonBody({}, 500),
+    [RECENT]: new Error('socket hang up'),
+  });
+  const get = harness(aircraftTraceProxy({ fetchImpl }));
+  assert.equal((await get('/?hex=abc123')).status, 502);
+  assert.equal((await get('/?hex=abc123')).status, 502);
+  assert.equal(calls.length, 4, 'the failure is not cached');
+});
+
+test('one trace failing and the other missing is a 502, not an empty flight', async () => {
+  const { fetchImpl } = stubUpstream({ [FULL]: jsonBody({}, 503) });
+  const res = await harness(aircraftTraceProxy({ fetchImpl }))('/?hex=abc123');
+  assert.equal(res.status, 502);
+});
+
+test('mergeTraceFixes keeps the full trace whole and dedupes equal times', () => {
+  const fix = (t, altFt) => ({ t, lat: 1, lon: 2, altFt, onGround: false });
+  const merged = mergeTraceFixes(
+    [fix(1000, 1), fix(2000, 2)],
+    [fix(1000, 9), fix(2000, 9), fix(3000, 3)],
+  );
+  assert.deepEqual(merged.map((f) => [f.t, f.altFt]), [[1000, 1], [2000, 2], [3000, 3]]);
+  assert.deepEqual(mergeTraceFixes([], [fix(5, 5)]).map((f) => f.t), [5]);
+  assert.deepEqual(mergeTraceFixes([fix(5, 5)]), [fix(5, 5)]);
+});
+
+test('parseTraceFixes lists every fix oldest first, without the flight cut', () => {
+  const fixes = parseTraceFixes(trace([[60, 'ground'], [0, 800]]));
+  assert.deepEqual(fixes.map((f) => f.altFt), [800, null]);
+  assert.equal(fixes[1].onGround, true);
+  assert.equal(parseTraceFixes({}), null);
+});
+

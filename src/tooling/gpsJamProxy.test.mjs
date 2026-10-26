@@ -8,6 +8,7 @@ import {
   gpsJamProxy,
   GPS_JAM_REGIONS,
 } from '../../server/providers/aircraft/gps-jam.js';
+import { WATCHER_USER_AGENT } from '../../server/providers/common/userAgent.js';
 
 const MIN = 60_000;
 const url = (lat, lon) =>
@@ -325,4 +326,28 @@ test('persisted grid reloads in a new instance and serves cells before polling',
   );
   const saved = JSON.parse(await fsp.readFile(file, 'utf8'));
   assert.equal(saved.cellDeg, 1);
+});
+
+test('gps-jam identifies itself with the shared Watcher User-Agent', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const file = path.join(
+    os.tmpdir(),
+    `gps-jam-ua-${process.pid}-${Math.random()}.json`,
+  );
+  t.after(() => fsp.rm(file, { force: true }));
+  const headers = [];
+  const get = harness(
+    gpsJamProxy({
+      fetchImpl: async (href, init) => {
+        headers.push(init.headers);
+        return json({ ac: [] });
+      },
+      cachePath: file,
+      now: () => 1_000_000_000_000,
+    }),
+  );
+  await get();
+  await settle();
+  assert.equal(headers.length, 1);
+  assert.equal(headers[0]['User-Agent'], WATCHER_USER_AGENT);
 });

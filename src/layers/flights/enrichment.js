@@ -10,6 +10,28 @@ import {
   ENRICH_AMBIENT_PER_SWEEP,
 } from './policy.js';
 
+/** Settled route answers kept per session; the oldest is dropped beyond this. */
+export const ROUTE_OUTCOME_CAP = 2000;
+/** A transient route failure is asked again this long after it, while still tracked. */
+export const ROUTE_RETRY_MS = 60_000;
+
+/**
+ * Remember a settled route answer (or a definitive miss, as null) for a
+ * callsign. Re-settling moves the entry to the newest end; beyond `cap` the
+ * oldest entries are dropped so a long session cannot grow without bound.
+ */
+export function rememberRouteOutcome(
+  outcomes,
+  callsign,
+  route,
+  cap = ROUTE_OUTCOME_CAP,
+) {
+  outcomes.delete(callsign);
+  outcomes.set(callsign, route);
+  while (outcomes.size > cap) outcomes.delete(outcomes.keys().next().value);
+  return outcomes;
+}
+
 export function createEnrichment({
   flightState,
   services,
@@ -64,7 +86,16 @@ export function createEnrichment({
         .then((data) => {
           if (lifetime.signal.aborted) return;
           if (data && data.found) job.onData(data);
-          else job.onMiss?.({ transient: false });
+          // Only a definitive {found:false} is a permanent miss. A payload that
+          // is missing, or flags itself transient, is an upstream failure.
+          else
+            job.onMiss?.({
+              transient: !(
+                data &&
+                data.found === false &&
+                data.transient !== true
+              ),
+            });
         })
         .catch(() => {
           /* enrichment never surfaces errors; a failed lookup reports a transient miss */
@@ -139,17 +170,37 @@ export function createEnrichment({
                 source: data.source || null,
               }
             : null;
-        flightState._routeOutcomes.set(cs, route);
+        rememberRouteOutcome(flightState._routeOutcomes, cs, route);
         _settleRoute(icao24, route, data.airline);
       },
       true,
       ({ transient }) => {
-        // A failed lookup is not remembered: a later selection asks again.
-        if (transient) flightState._enrichSeen.delete(lookupKey);
-        else flightState._routeOutcomes.set(cs, null);
+        if (!transient) {
+          // Definitive miss from the server: remembered for the session.
+          rememberRouteOutcome(flightState._routeOutcomes, cs, null);
+          _settleRoute(icao24, null);
+          return;
+        }
+        // Upstream failure (HTTP 503, transient:true, or a network error) is
+        // not an answer: forget the attempt so the next selection asks again,
+        // and retry once while the plane is still the tracked one.
+        flightState._enrichSeen.delete(lookupKey);
         _settleRoute(icao24, null);
+        _scheduleRouteRetry(icao24);
       },
     ); // route lookups only fire for the TRACKED plane — front of the queue
+  }
+
+  /** One pending retry at a time; it re-asks only if the plane is still tracked. */
+  function _scheduleRouteRetry(icao24) {
+    const lifetime = flightState.lifetime;
+    clearTimeout(flightState._routeRetryTimer);
+    flightState._routeRetryTimer = setTimeout(() => {
+      flightState._routeRetryTimer = null;
+      if (lifetime.signal.aborted || flightState._trackedIcao !== icao24)
+        return;
+      _requestRouteEnrichment(icao24);
+    }, ROUTE_RETRY_MS);
   }
 
   /** Apply a route answer (or a miss) to the record and the tracked readout. */

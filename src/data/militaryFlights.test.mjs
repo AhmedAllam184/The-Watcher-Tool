@@ -828,3 +828,55 @@ test('two contacts matching at the same strength resolve deterministically', () 
     'and the same query resolves the same way every time',
   );
 });
+
+test('military findExact takes an exact identity and refuses a partial one', () => {
+  const billboardAt = (lon, lat) => ({
+    position: Cesium.Cartesian3.fromDegrees(lon, lat, 3000),
+    color: Cesium.Color.WHITE,
+    show: true,
+  });
+  const base = {
+    type: 'C130',
+    operator: 'USAF',
+    altitudeFt: 21000,
+    speedMps: 150,
+    track: 45,
+    klass: 'turboprop',
+    onGround: false,
+  };
+  _addMilitaryTrackingCandidateForTest({
+    icao24: 'af1001',
+    meta: {
+      ...base,
+      callsign: 'RCH12',
+      registration: null,
+      rawLat: 31,
+      rawLon: -97,
+    },
+    billboard: billboardAt(-97, 31),
+  });
+  _addMilitaryTrackingCandidateForTest({
+    icao24: 'af1002',
+    meta: {
+      ...base,
+      callsign: 'RCH1',
+      registration: '98-0001',
+      rawLat: 31.2,
+      rawLon: -97.2,
+    },
+    billboard: billboardAt(-97.2, 31.2),
+  });
+  assert.equal(
+    militaryFlightsLayer.findExact('RCH'),
+    null,
+    'a prefix is not exact',
+  );
+  assert.equal(militaryFlightsLayer.findExact('rch1')?.icao24, 'af1002');
+  assert.equal(militaryFlightsLayer.findExact('RCH12')?.icao24, 'af1001');
+  assert.equal(
+    militaryFlightsLayer.findExact('980001')?.icao24,
+    'af1002',
+    'separator-free registration',
+  );
+  assert.equal(militaryFlightsLayer.findExact('af1001')?.icao24, 'af1001');
+});

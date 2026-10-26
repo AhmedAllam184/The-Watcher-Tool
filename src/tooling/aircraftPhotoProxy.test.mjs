@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { aircraftPhotoProxy } from '../../server/providers/aircraft/photos.js';
+import { WATCHER_USER_AGENT } from '../../server/providers/common/userAgent.js';
 
 const PLANESPOTTERS_PHOTO = {
   photos: [
@@ -108,7 +110,7 @@ test('Planespotters photo is returned with photographer, link and source', async
   });
   assert.equal(calls.length, 1, 'adsbdb is not asked when Planespotters has a photo');
   assert.equal(calls[0].url, 'https://api.planespotters.net/pub/photos/hex/ABC123');
-  assert.match(calls[0].headers['User-Agent'], /^TheWatcher\/1\.0 \(\+https:\/\/github\.com\//);
+  assert.equal(calls[0].headers['User-Agent'], WATCHER_USER_AGENT);
 });
 
 test('falls back to the adsbdb airport-data photo when Planespotters has none', async () => {
@@ -198,3 +200,127 @@ test('error responses stay generic', async () => {
   assert.equal(res.status, 200);
   assert.doesNotMatch(JSON.stringify(res.body), /fixture-secret-token/);
 });
+
+/** A fresh temp directory for one proxy's disk cache file. */
+async function cacheFile(t) {
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'aircraft-photo-test-'));
+  t.after(() => fsp.rm(dir, { recursive: true, force: true }));
+  return path.join(dir, 'aircraft-photos.json');
+}
+
+/** The parsed disk cache, or null while it is absent or half written. */
+async function readSaved(file) {
+  try {
+    return JSON.parse(await fsp.readFile(file, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** Poll the disk cache (real time) until `ready(saved)` holds. */
+async function waitForSaved(file, ready) {
+  for (let i = 0; i < 300; i++) {
+    const saved = await readSaved(file);
+    if (saved && ready(saved)) return saved;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('the disk cache was not written');
+}
+
+const CACHED_PHOTO = {
+  src: 'https://t.example.net/cached.jpg',
+  link: null,
+  photographer: null,
+  source: 'disk cache',
+};
+
+test('concurrent first requests share one disk read, so a cached hex never reaches upstream', async (t) => {
+  const file = await cacheFile(t);
+  await fsp.writeFile(
+    file,
+    JSON.stringify({ photos: { abc123: { at: Date.now(), data: CACHED_PHOTO } } }),
+  );
+  const { fetchImpl, calls } = stubUpstreams({
+    'api.planespotters.net': json(PLANESPOTTERS_PHOTO),
+  });
+  const get = harness(aircraftPhotoProxy({ fetchImpl, cachePath: file }));
+  const results = await Promise.all([
+    get('/?hex=abc123'),
+    get('/?hex=abc123'),
+    get('/?hex=abc123'),
+  ]);
+  assert.ok(results.every((r) => r.body.photo.source === 'disk cache'));
+  assert.equal(calls.length, 0, 'the disk cache answered every caller');
+});
+
+test('expired entries are dropped when the disk cache loads and are not written back', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const file = await cacheFile(t);
+  const EIGHT_DAYS = 8 * 24 * 3600_000;
+  await fsp.writeFile(
+    file,
+    JSON.stringify({
+      photos: {
+        old111: { at: Date.now() - EIGHT_DAYS, data: CACHED_PHOTO },
+        new111: { at: Date.now(), data: null },
+      },
+    }),
+  );
+  const { fetchImpl } = stubUpstreams({
+    'api.planespotters.net': json(PLANESPOTTERS_PHOTO),
+  });
+  const get = harness(aircraftPhotoProxy({ fetchImpl, cachePath: file }));
+  await get('/?hex=abc123');
+  t.mock.timers.tick(15_000);
+  const saved = await waitForSaved(file, (s) => s.photos.abc123);
+  assert.equal(saved.photos.old111, undefined);
+  assert.ok(saved.photos.new111, 'a fresh miss is kept');
+});
+
+test('the cache holds at most 5,000 hexes and the oldest go first', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const file = await cacheFile(t);
+  const now = Date.now();
+  const photos = {};
+  for (let i = 0; i < 5005; i++) {
+    const hex = i.toString(16).padStart(6, '0');
+    photos[hex] = { at: now - 1000 * (5005 - i), data: null };
+  }
+  await fsp.writeFile(file, JSON.stringify({ photos }));
+  const { fetchImpl } = stubUpstreams({
+    'api.planespotters.net': json({}, 404),
+    'api.adsbdb.com': json({}, 404),
+  });
+  const get = harness(aircraftPhotoProxy({ fetchImpl, cachePath: file }));
+  await get('/?hex=ffffff');
+  t.mock.timers.tick(15_000);
+  const saved = await waitForSaved(file, (s) => s.photos.ffffff);
+  const hexes = Object.keys(saved.photos);
+  assert.equal(hexes.length, 5000);
+  assert.equal(saved.photos['000000'], undefined, 'the oldest is evicted');
+  assert.equal(saved.photos['000005'], undefined, 'and so are the next oldest');
+  assert.ok(saved.photos['000100'], 'newer entries stay');
+});
+
+test('the disk write goes through a temp file: none is left behind and the JSON parses', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const file = await cacheFile(t);
+  const renames = [];
+  const realRename = fsp.rename;
+  t.mock.method(fsp, 'rename', async (from, to) => {
+    renames.push([from, to]);
+    return realRename(from, to);
+  });
+  const { fetchImpl } = stubUpstreams({
+    'api.planespotters.net': json(PLANESPOTTERS_PHOTO),
+  });
+  const get = harness(aircraftPhotoProxy({ fetchImpl, cachePath: file }));
+  await get('/?hex=abc123');
+  t.mock.timers.tick(15_000);
+  const saved = await waitForSaved(file, (s) => s.photos.abc123);
+  assert.equal(saved.photos.abc123.data.photographer, 'Jane Spotter');
+  assert.deepEqual(await fsp.readdir(path.dirname(file)), [path.basename(file)]);
+  assert.deepEqual(renames, [[`${file}.${process.pid}.tmp`, file]]);
+  await assert.rejects(fsp.access(`${file}.${process.pid}.tmp`));
+});
+

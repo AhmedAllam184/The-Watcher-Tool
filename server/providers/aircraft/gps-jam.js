@@ -5,6 +5,7 @@ import {
   GPS_JAM_MIN_AIRCRAFT,
   createGpsJamGrid,
 } from '../../../src/data/gpsJam.js';
+import { WATCHER_USER_AGENT } from '../common/userAgent.js';
 
 /**
  * GPS interference inference from aircraft GPS-quality broadcasts, served at
@@ -201,7 +202,7 @@ export function gpsJamProxy({
         {
           headers: {
             Accept: 'application/json',
-            'User-Agent': 'gods-eye-view-gps-jam/1.0',
+            'User-Agent': WATCHER_USER_AGENT,
           },
           signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         },

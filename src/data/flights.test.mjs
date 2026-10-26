@@ -2296,3 +2296,53 @@ test('display floor: two contacts on the same cell get their own outputs', () =>
   );
   assert.ok(Math.abs(_floorCarto(a).height - _floorCarto(b).height) < 0.05);
 });
+
+test('flight findExact takes an exact hex, callsign or registration and never a partial', () => {
+  const billboard = {
+    position: Cesium.Cartesian3.fromDegrees(-97.1, 30.1, 9000),
+    color: Cesium.Color.WHITE,
+    show: true,
+  };
+  const base = {
+    type: 'B738',
+    altitudeFt: 35000,
+    speedMps: 230,
+    track: 90,
+    klass: 'airliner',
+    onGround: false,
+  };
+  _addFlightTrackingCandidateForTest({
+    icao24: 'fe0a01',
+    billboard,
+    meta: {
+      ...base,
+      callsign: 'XQR12',
+      registration: 'N41201',
+      rawLat: 30.1,
+      rawLon: -97.1,
+    },
+    history: [],
+  });
+  _addFlightTrackingCandidateForTest({
+    icao24: 'fe0a02',
+    billboard,
+    meta: {
+      ...base,
+      callsign: 'XQR1',
+      registration: 'N41202',
+      rawLat: 30.2,
+      rawLon: -97.2,
+    },
+    history: [],
+  });
+  assert.equal(flightsLayer.findExact('XQR'), null, 'a prefix is not exact');
+  assert.equal(flightsLayer.findExact('xqr1')?.icao24, 'fe0a02');
+  assert.equal(flightsLayer.findExact('XQR12')?.icao24, 'fe0a01');
+  assert.equal(flightsLayer.findExact('n41202')?.icao24, 'fe0a02');
+  assert.equal(flightsLayer.findExact('fe0a01')?.icao24, 'fe0a01');
+  assert.equal(
+    flightsLayer.findByQuery('XQR')?.icao24,
+    'fe0a01',
+    'partial search unchanged; equal tiers break on hex',
+  );
+});

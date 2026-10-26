@@ -9,9 +9,12 @@
  * every surface that shows the result must say so.
  *
  * Counting rules:
- * - Each aircraft hex counts at most once per cell per 10-minute bucket. The
- *   first sighting in a bucket decides its class, so one aircraft crossing a
- *   cell cannot inflate it.
+ * - Within one 10-minute bucket an aircraft hex is judged once: the first
+ *   sighting in that bucket decides its class.
+ * - Reporting is per cell over the requested window, by distinct hex. An
+ *   aircraft counts once however many buckets it appears in. It is degraded
+ *   when most of its judged buckets are degraded; a tie goes to its most
+ *   recent judgement. So one loitering aircraft cannot inflate a cell.
  * - Buckets are kept or dropped whole. A bucket leaves the window once its
  *   end is at or before `nowMs - windowMs`.
  * - Aircraft without a usable classification are not counted at all, so they
@@ -124,6 +127,44 @@ export function createGpsJamGrid({
   }
 
   /**
+   * Distinct aircraft and distinct degraded aircraft across the buckets that
+   * are still in the window. Legacy count-only buckets never reach this point
+   * (fromJSON drops them), so every entry here carries its hexes.
+   */
+  function tallyCell(buckets, cutoff) {
+    const tallies = new Map(); // hex → {bad, good, latestAt, latestBad}
+    for (const [start, sightings] of buckets) {
+      if (expired(start, cutoff)) continue;
+      const judged = [
+        ...[...sightings.bad].map((hex) => [hex, true]),
+        ...[...sightings.good]
+          .filter((hex) => !sightings.bad.has(hex))
+          .map((hex) => [hex, false]),
+      ];
+      for (const [hex, isBad] of judged) {
+        let tally = tallies.get(hex);
+        if (!tally) {
+          tally = { bad: 0, good: 0, latestAt: -Infinity, latestBad: false };
+          tallies.set(hex, tally);
+        }
+        if (isBad) tally.bad += 1;
+        else tally.good += 1;
+        if (start >= tally.latestAt) {
+          tally.latestAt = start;
+          tally.latestBad = isBad;
+        }
+      }
+    }
+    let degraded = 0;
+    for (const tally of tallies.values()) {
+      const isDegradedAircraft =
+        tally.bad === tally.good ? tally.latestBad : tally.bad > tally.good;
+      if (isDegradedAircraft) degraded += 1;
+    }
+    return { aircraft: tallies.size, degraded };
+  }
+
+  /**
    * Cells that meet the sighting floor, with ratio and level.
    * `windowMs` may narrow the grid's window (never widen it).
    */
@@ -135,13 +176,7 @@ export function createGpsJamGrid({
     const cutoff = nowMs - Math.min(queryWindowMs, windowMs);
     const out = [];
     for (const { i, j, buckets } of cellsByKey.values()) {
-      let aircraft = 0;
-      let degraded = 0;
-      for (const [start, sightings] of buckets) {
-        if (expired(start, cutoff)) continue;
-        aircraft += sightings.good.size + sightings.bad.size;
-        degraded += sightings.bad.size;
-      }
+      const { aircraft, degraded } = tallyCell(buckets, cutoff);
       if (aircraft === 0 || aircraft < minAircraft) continue;
       const ratio = degraded / aircraft;
       out.push({

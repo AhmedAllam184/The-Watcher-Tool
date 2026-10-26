@@ -9,6 +9,32 @@ import { ISS_NORAD, POINT_STYLES } from './policy.js';
 export function createControls({ state: layerState, services, parts, source }) {
   const { isExplicitLayerStateOrigin } = services.layerState;
 
+  /** Comparable form of a satellite name or id: trimmed, single spaces, upper case. */
+  const normalizeIdentity = (value) =>
+    String(value ?? '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+
+  /** Search descriptor for a catalogued satellite, freshly propagated; null when it has no position. */
+  function describeSatellite(noradId) {
+    const sat = layerState._catalog.get(noradId);
+    const pos = parts.orbits.propagatePosition(sat.satrec, new Date());
+    if (!pos) return null;
+    return {
+      noradId,
+      name: sat.name.trim(),
+      position: Cesium.Cartesian3.fromDegrees(
+        pos.longitude,
+        pos.latitude,
+        pos.altitude,
+      ),
+      latitude: pos.latitude,
+      longitude: pos.longitude,
+      altitudeM: pos.altitude,
+    };
+  }
+
   /**
    * Resolve the canonical point style for a satellite.
    * @param {number} noradId NORAD catalog number.
@@ -187,23 +213,40 @@ export function createControls({ state: layerState, services, parts, source }) {
         }
       }
       if (noradId === null) return null;
+      return describeSatellite(noradId);
+    },
 
-      const sat = layerState._catalog.get(noradId);
-      const pos = parts.orbits.propagatePosition(sat.satrec, new Date());
-      if (!pos) return null;
+    /**
+     * Exact identity only: a NORAD id equal to the query, or a satellite name
+     * equal to it ignoring case and runs of spaces. It never settles for a
+     * name that merely contains the query.
+     * @param {string|number} query NORAD id or full satellite name.
+     * @returns {object|null} Same descriptor as findByQuery, or null.
+     */
+    findExact(query) {
+      if (
+        query === null ||
+        query === undefined ||
+        !layerState._catalog ||
+        layerState._catalog.size === 0
+      )
+        return null;
+      const q = normalizeIdentity(query);
+      if (!q) return null;
 
-      return {
-        noradId,
-        name: sat.name.trim(),
-        position: Cesium.Cartesian3.fromDegrees(
-          pos.longitude,
-          pos.latitude,
-          pos.altitude,
-        ),
-        latitude: pos.latitude,
-        longitude: pos.longitude,
-        altitudeM: pos.altitude,
-      };
+      let noradId = null;
+      if (/^\d+$/.test(q) && layerState._catalog.has(Number(q))) {
+        noradId = Number(q);
+      } else {
+        for (const [id, sat] of layerState._catalog) {
+          if (normalizeIdentity(sat.name) === q) {
+            noradId = id;
+            break;
+          }
+        }
+      }
+      if (noradId === null) return null;
+      return describeSatellite(noradId);
     },
 
     /**

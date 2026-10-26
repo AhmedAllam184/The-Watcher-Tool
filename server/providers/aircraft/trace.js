@@ -1,8 +1,11 @@
 import { readCappedResponseText } from '../common/http.js';
+import { WATCHER_USER_AGENT } from '../common/userAgent.js';
 /**
  * Aircraft trace proxy: ICAO hex → the fixes of the CURRENT flight, from the
- * adsb.lol trace archive (readsb trace format). The full trace is tried first,
- * then the recent one. Only the current flight is returned: the walk runs back
+ * adsb.lol trace archive (readsb trace format). The full and the recent trace
+ * are fetched together; recent fixes newer than the full trace's last fix are
+ * appended, so the newest minutes are never missing. Only the current flight is
+ * returned: the walk runs back
  * from the newest fix and stops at the last point on the ground or at a gap of
  * more than 30 minutes. Long flights are decimated evenly to TRACE_MAX_POINTS.
  * Answers are cached for 60 s per hex (misses too); a failed upstream is not
@@ -14,8 +17,6 @@ const CACHE_MS = 60_000;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 const MAX_TRACE_BYTES = 32 * 1024 * 1024;
 const TRACE_BASE = 'https://globe.adsb.lol/data/traces';
-const USER_AGENT =
-  'TheWatcher/1.0 (+https://github.com/AhmedAllam184/The-Watcher-Tool)';
 
 /** Full then recent trace URLs for a hex (the directory is its last two hex digits). */
 export function traceUrls(hex) {
@@ -39,11 +40,11 @@ export function decimatePoints(points, max = TRACE_MAX_POINTS) {
 }
 
 /**
- * readsb trace JSON → the current flight. Rows are
+ * readsb trace JSON → every usable fix, oldest first. Rows are
  * [dtSeconds, lat, lon, altBaroFt | "ground" | null, ...]; `timestamp` is the
  * epoch-second base for every dt. Returns null when the body is not a trace.
  */
-export function parseTraceFlight(json) {
+export function parseTraceFixes(json) {
   const base = Number(json?.timestamp);
   if (!Number.isFinite(base) || !Array.isArray(json?.trace)) return null;
   const fixes = [];
@@ -63,7 +64,24 @@ export function parseTraceFlight(json) {
       onGround: alt === 'ground',
     });
   }
-  fixes.sort((a, b) => a.t - b.t);
+  return fixes.sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Full-trace fixes, then the recent-trace fixes newer than the full trace's
+ * last fix. Both lists are oldest first; a time present in both is kept once.
+ */
+export function mergeTraceFixes(full = [], recent = []) {
+  const lastT = full.length > 0 ? full[full.length - 1].t : -Infinity;
+  const merged = [...full, ...recent.filter((fix) => fix.t > lastT)];
+  return merged.filter((fix, i) => i === 0 || fix.t !== merged[i - 1].t);
+}
+
+/**
+ * The current flight from ordered fixes. Walks back from the newest fix and
+ * stops before a ground fix or a gap longer than 30 minutes, then decimates.
+ */
+export function currentFlight(fixes) {
   // Walk back from the newest fix: stop before a ground fix, or before a gap.
   let start = fixes.length;
   for (let i = fixes.length - 1; i >= 0; i--) {
@@ -83,6 +101,14 @@ export function parseTraceFlight(json) {
   return { points: flight, startedAt: flight[0]?.t ?? null };
 }
 
+/**
+ * readsb trace JSON → the current flight. Returns null when the body is not a trace.
+ */
+export function parseTraceFlight(json) {
+  const fixes = parseTraceFixes(json);
+  return fixes === null ? null : currentFlight(fixes);
+}
+
 export function aircraftTraceProxy({
   fetchImpl = globalThis.fetch,
   now = () => Date.now(),
@@ -93,7 +119,7 @@ export function aircraftTraceProxy({
   /** GET one trace; 404 is reported as missing, other failures throw. */
   async function getTrace(url) {
     const res = await fetchImpl(url, {
-      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      headers: { 'User-Agent': WATCHER_USER_AGENT, Accept: 'application/json' },
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
     if (res.status === 404) return { missing: true };
@@ -106,19 +132,29 @@ export function aircraftTraceProxy({
     return { json: JSON.parse(text) };
   }
 
-  /** Full trace, then recent; null when neither exists. Throws when upstream failed. */
+  /**
+   * Full and recent traces, fetched in parallel and merged. One success is
+   * enough; null when neither exists; throws when no trace answered and one
+   * of the requests failed.
+   */
   async function resolveTrace(hex) {
-    let failure = null;
-    for (const url of traceUrls(hex)) {
-      try {
-        const got = await getTrace(url);
-        if (got.json) return parseTraceFlight(got.json);
-      } catch (err) {
-        failure = err;
-      }
+    const [full, recent] = await Promise.allSettled(
+      traceUrls(hex).map((url) => getTrace(url)),
+    );
+    const fixesOf = (result) =>
+      result.status === 'fulfilled' && result.value.json
+        ? (parseTraceFixes(result.value.json) ?? [])
+        : null;
+    const fullFixes = fixesOf(full);
+    const recentFixes = fixesOf(recent);
+    if (fullFixes === null && recentFixes === null) {
+      const failure = [full, recent].find(
+        (result) => result.status === 'rejected',
+      );
+      if (failure) throw failure.reason;
+      return null;
     }
-    if (failure) throw failure;
-    return null;
+    return currentFlight(mergeTraceFixes(fullFixes ?? [], recentFixes ?? []));
   }
 
   function lookup(hex) {

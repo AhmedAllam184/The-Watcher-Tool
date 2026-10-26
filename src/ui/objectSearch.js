@@ -63,6 +63,13 @@ export function findLiveObject(dataManager, query) {
     if (onlyKind && kind !== onlyKind) continue;
     if (!dataManager.isEnabled(layerId)) continue;
     const module = dataManager.layers.get(layerId)?.module;
+    // A plain query asks for an exact identity first. findByQuery returns only
+    // the first partial match, so an exact record later in the list would be
+    // missed behind it ("EVER GIVEN II" before "EVER GIVEN").
+    if (!onlyKind && typeof module?.findExact === 'function') {
+      const exact = module.findExact(text);
+      if (exact) return { layerId, kind, found: exact };
+    }
     if (typeof module?.findByQuery !== 'function') continue;
     const found = module.findByQuery(text);
     if (found && (onlyKind || isExactMatch(found, text)))

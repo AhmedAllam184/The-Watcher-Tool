@@ -426,3 +426,20 @@ test('a vessel feed without an AISStream key reports keyRequired and names the k
   assert.equal(layer.getStats().transportStatus, 'missing-key');
   assert.equal(layer.getStats().keyRequired, true);
 });
+
+test('findExact takes the exact vessel name even when a longer name is listed first', async () => {
+  const { layer } = setup({
+    getSnapshot: async () =>
+      snapshot([
+        { ...observation('111'), name: 'EVER GIVEN II' },
+        { ...observation('222'), name: 'EVER GIVEN' },
+      ]),
+  });
+  await layer.update();
+  assert.equal(layer.findByQuery('ever given').name, 'EVER GIVEN II');
+  assert.equal(layer.findExact('ever  given').name, 'EVER GIVEN');
+  assert.equal(layer.findExact(' Ever Given ').mmsi, '222');
+  assert.equal(layer.findExact('222').name, 'EVER GIVEN');
+  assert.equal(layer.findExact('EVER'), null, 'a partial name is not exact');
+  assert.equal(layer.findExact(''), null);
+});

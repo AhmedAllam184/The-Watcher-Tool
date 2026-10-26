@@ -164,3 +164,72 @@ test('objectLabel prefers callsign, then registration, name and identifiers', ()
   assert.equal(objectLabel({ noradId: 25544 }), '25544');
   assert.equal(objectLabel(null), '');
 });
+
+test('a plain query takes the exact record even when a partial match comes first', () => {
+  const exact = {
+    mmsi: 353136000,
+    name: 'EVER GIVEN',
+    latitude: 30,
+    longitude: 32,
+  };
+  const partial = {
+    mmsi: 353136001,
+    name: 'EVER GIVEN II',
+    latitude: 31,
+    longitude: 33,
+  };
+  const vessels = {
+    // The layer's partial search returns the first substring hit in its list.
+    findByQuery: () => partial,
+    findExact: (query) => (query === 'ever given' ? exact : null),
+  };
+  assert.deepEqual(
+    findLiveObject(dataManager({ 'ais-live-vessels': vessels }), 'ever given'),
+    { layerId: 'ais-live-vessels', kind: 'vessel', found: exact },
+  );
+});
+
+test('an exact lookup that finds nothing still falls back to an exact findByQuery hit', () => {
+  const flight = { icao24: 'abc123', callsign: 'UAL123' };
+  const flights = {
+    findExact: () => null,
+    findByQuery: () => flight,
+  };
+  assert.deepEqual(findLiveObject(dataManager({ flights }), 'ual123'), {
+    layerId: 'flights',
+    kind: 'aircraft',
+    found: flight,
+  });
+});
+
+test('a partial match alone never answers a plain query, even with findExact present', () => {
+  const satellites = {
+    findExact: () => null,
+    findByQuery: () => ({ noradId: 25544, name: 'ISS (ZARYA)' }),
+  };
+  assert.equal(findLiveObject(dataManager({ satellites }), 'iss'), null);
+});
+
+test('prefixed queries search by partial name and never use findExact', () => {
+  const calls = [];
+  const found = { mmsi: 431000001, name: 'TOKYO EXPRESS' };
+  const ships = {
+    findExact: () => {
+      calls.push('exact');
+      return null;
+    },
+    findByQuery: (query) => {
+      calls.push(`partial:${query}`);
+      return found;
+    },
+  };
+  assert.deepEqual(
+    findLiveObject(dataManager({ 'ais-live-vessels': ships }), 'ship: tokyo'),
+    {
+      layerId: 'ais-live-vessels',
+      kind: 'vessel',
+      found,
+    },
+  );
+  assert.deepEqual(calls, ['partial:tokyo']);
+});

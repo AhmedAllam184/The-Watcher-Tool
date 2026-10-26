@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
+import { WATCHER_USER_AGENT } from '../common/userAgent.js';
 /**
  * adsbdb.com enrichment proxy: callsign → route (airline + origin/destination
  * airports) and hex → aircraft type/registration. Free community API — cached
@@ -10,6 +11,12 @@ import { promises as fsp } from 'node:fs';
  * Route fallback: when adsbdb has no route for a callsign, adsb.lol's routeset
  * API is asked with the plane's current position (see parseRouteset). Its
  * answers are cached per callsign — 24 h for a route, 6 h for a miss.
+ *
+ * Route answers keep "no route" apart from "upstream unavailable": a route is
+ * 200 {found:true}; no route from every source that answered is 200
+ * {found:false}; when any source errored and none found a route, the answer is
+ * 503 {found:false, transient:true}. Transient outcomes are never cached, so
+ * the client can retry them.
  */
 const CACHE_PATH = path.join(process.cwd(), '.gev-cache', 'adsbdb.json');
 
@@ -70,8 +77,6 @@ export function adsbdbProxy() {
   const TTL_MS = 24 * 3600_000;
   const ROUTE_MISS_TTL_MS = 6 * 3600_000;
   const ROUTESET_URL = 'https://api.adsb.lol/api/0/routeset';
-  const USER_AGENT =
-    'TheWatcher/1.0 (+https://github.com/AhmedAllam184/The-Watcher-Tool)';
   let cache = { routes: {}, aircraft: {}, routesLol: {} };
   let dirty = false;
   let loaded = false;
@@ -140,9 +145,14 @@ export function adsbdbProxy() {
     };
   }
 
+  /**
+   * One adsbdb answer, as { data, transient }. A 200 or a 404 is definitive and
+   * cached (null = known miss). Any other failure is transient: not cached.
+   */
   function lookup(kind, key) {
     const store = kind === 'route' ? cache.routes : cache.aircraft;
-    if (fresh(store[key])) return Promise.resolve(store[key].data);
+    if (fresh(store[key]))
+      return Promise.resolve({ data: store[key].data, transient: false });
     const ik = `${kind}:${key}`;
     if (!inflight.has(ik)) {
       inflight.set(
@@ -161,16 +171,17 @@ export function adsbdbProxy() {
                   : parseAircraft(await res.json());
               store[key] = { at: Date.now(), data }; // data may be null — negative cache
               dirty = true;
-              return data;
+              return { data, transient: false };
             }
             if (res.status === 404) {
               store[key] = { at: Date.now(), data: null }; // known-missing — cache the miss
               dirty = true;
+              return { data: null, transient: false };
             }
             // other statuses: leave uncached so we retry later
-            return fresh(store[key]) ? store[key].data : null;
+            return { data: null, transient: true };
           } catch {
-            return fresh(store[key]) ? store[key].data : null; // network error → stale if any
+            return { data: null, transient: true }; // network error: retry later
           } finally {
             inflight.delete(ik);
           }
@@ -180,10 +191,14 @@ export function adsbdbProxy() {
     return inflight.get(ik);
   }
 
-  /** adsb.lol routeset for one callsign at the plane's position (single-flight). */
+  /**
+   * adsb.lol routeset for one callsign at the plane's position (single-flight),
+   * as { data, transient }. A non-OK answer or a throw is transient.
+   */
   function lookupRouteset(callsign, lat, lon) {
     const hit = cache.routesLol[callsign];
-    if (freshRouteset(hit)) return Promise.resolve(hit.data);
+    if (freshRouteset(hit))
+      return Promise.resolve({ data: hit.data, transient: false });
     const ik = `routeset:${callsign}`;
     if (!inflight.has(ik)) {
       inflight.set(
@@ -195,19 +210,19 @@ export function adsbdbProxy() {
               headers: {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',
-                'User-Agent': USER_AGENT,
+                'User-Agent': WATCHER_USER_AGENT,
               },
               body: JSON.stringify({ planes: [{ callsign, lat, lng: lon }] }),
               signal: AbortSignal.timeout(8000),
             });
             // Upstream trouble is not cached: serve a stale answer if there is one.
-            if (!res.ok) return hit?.data ?? null;
+            if (!res.ok) return { data: hit?.data ?? null, transient: true };
             const data = parseRouteset(await res.json(), callsign);
             cache.routesLol[callsign] = { at: Date.now(), data }; // data may be null — negative cache
             dirty = true;
-            return data;
+            return { data, transient: false };
           } catch {
-            return hit?.data ?? null;
+            return { data: hit?.data ?? null, transient: true };
           } finally {
             inflight.delete(ik);
           }
@@ -233,13 +248,14 @@ export function adsbdbProxy() {
           // Any callsign of 3–8 characters that starts with a letter.
           if (!/^[A-Z][A-Z0-9]{2,7}$/.test(cs))
             return send(400, { error: 'invalid callsign' });
-          const data = await lookup('route', cs);
-          if (data)
+          const adsbdb = await lookup('route', cs);
+          if (adsbdb.data)
             return send(200, {
               found: true,
-              ...data,
-              source: data.source || 'adsbdb',
+              ...adsbdb.data,
+              source: adsbdb.data.source || 'adsbdb',
             });
+          let unavailable = adsbdb.transient;
           // adsbdb has no route: ask adsb.lol, which needs the plane's position.
           const params = new URLSearchParams(
             String(req.url || '').split('?')[1] || '',
@@ -256,15 +272,20 @@ export function adsbdbProxy() {
           const lon = coordinate('lon', 180);
           if (lat !== null && lon !== null) {
             const fallback = await lookupRouteset(cs, lat, lon);
-            if (fallback) return send(200, { found: true, ...fallback });
+            if (fallback.data)
+              return send(200, { found: true, ...fallback.data });
+            unavailable = unavailable || fallback.transient;
           }
+          // "No route" needs every source that was asked to answer; an errored
+          // source makes it a transient outcome the client may retry.
+          if (unavailable) return send(503, { found: false, transient: true });
           return send(200, { found: false });
         }
         if (kind === 'type') {
           const hex = String(rawKey || '').toLowerCase();
           if (!/^[0-9a-f]{6}$/.test(hex))
             return send(400, { error: 'invalid hex' });
-          const data = await lookup('aircraft', hex);
+          const { data } = await lookup('aircraft', hex);
           return send(200, data ? { found: true, ...data } : { found: false });
         }
         return send(404, { error: 'unknown endpoint' });

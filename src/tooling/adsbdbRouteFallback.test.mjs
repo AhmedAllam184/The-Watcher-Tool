@@ -175,10 +175,121 @@ test('an upstream failure is not cached, so the next request retries', async () 
   });
   try {
     const get = harness();
-    assert.deepEqual((await get('/route/THY5040?lat=30.9&lon=31.24')).body, { found: false });
+    const first = await get('/route/THY5040?lat=30.9&lon=31.24');
+    assert.equal(first.status, 503);
+    assert.deepEqual(first.body, { found: false, transient: true });
     const retry = await get('/route/THY5040?lat=30.9&lon=31.24');
+    assert.equal(retry.status, 200);
     assert.equal(retry.body.found, true);
     assert.equal(retry.body.source, 'adsb.lol');
+  } finally {
+    stub.restore();
+  }
+});
+
+/** Route for adsbdb and adsb.lol: each is a Response, an Error (thrown), or a function. */
+function sources({ adsbdb, routeset }) {
+  return (url) => {
+    const reply = url.includes('adsbdb') ? adsbdb : routeset;
+    if (reply instanceof Error) throw reply;
+    return reply();
+  };
+}
+
+const IMPLAUSIBLE = [{ callsign: 'THY5040', plausible: 0, _airports: ROUTESET_OK[0]._airports }];
+
+test('adsbdb 5xx and an adsb.lol 503 answer 503 transient, and neither is negative-cached', async () => {
+  let adsbdbCalls = 0;
+  let routesetCalls = 0;
+  const stub = stubFetch((url) => {
+    if (url.includes('adsbdb')) {
+      adsbdbCalls += 1;
+      return json({}, 502);
+    }
+    routesetCalls += 1;
+    return json({}, 503);
+  });
+  try {
+    const get = harness();
+    for (let i = 0; i < 2; i++) {
+      const res = await get('/route/THY5040?lat=30.9&lon=31.24');
+      assert.equal(res.status, 503);
+      assert.deepEqual(res.body, { found: false, transient: true });
+    }
+    assert.equal(adsbdbCalls, 2, 'adsbdb 5xx is retried, not cached');
+    assert.equal(routesetCalls, 2, 'adsb.lol 503 is retried, not cached');
+  } finally {
+    stub.restore();
+  }
+});
+
+test('an adsbdb network error with an implausible adsb.lol answer is transient, not a miss', async () => {
+  const stub = stubFetch(sources({
+    adsbdb: new Error('socket hang up'),
+    routeset: () => json(IMPLAUSIBLE),
+  }));
+  try {
+    const res = await harness()('/route/THY5040?lat=30.9&lon=31.24');
+    assert.equal(res.status, 503);
+    assert.deepEqual(res.body, { found: false, transient: true });
+  } finally {
+    stub.restore();
+  }
+});
+
+test('a 404 from adsbdb with a throwing adsb.lol is transient', async () => {
+  const stub = stubFetch(sources({
+    adsbdb: () => json({}, 404),
+    routeset: new Error('connection reset'),
+  }));
+  try {
+    const res = await harness()('/route/THY5040?lat=30.9&lon=31.24');
+    assert.equal(res.status, 503);
+    assert.deepEqual(res.body, { found: false, transient: true });
+  } finally {
+    stub.restore();
+  }
+});
+
+test('an unavailable adsbdb with no position cannot be decided, so it is transient', async () => {
+  const stub = stubFetch(() => json({}, 500));
+  try {
+    const res = await harness()('/route/THY5040');
+    assert.equal(res.status, 503);
+    assert.deepEqual(res.body, { found: false, transient: true });
+  } finally {
+    stub.restore();
+  }
+});
+
+test('no route from either source, both answered definitively, is a cached found:false', async () => {
+  const stub = stubFetch(sources({
+    adsbdb: () => json({}, 404),
+    routeset: () => json([]),
+  }));
+  try {
+    const get = harness();
+    for (let i = 0; i < 2; i++) {
+      const res = await get('/route/THY5040?lat=30.9&lon=31.24');
+      assert.equal(res.status, 200);
+      assert.deepEqual(res.body, { found: false });
+    }
+    assert.equal(stub.calls.filter((c) => c.url.includes('adsb.lol')).length, 1);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('an adsbdb 5xx is covered by an adsb.lol route', async () => {
+  const stub = stubFetch(sources({
+    adsbdb: () => json({}, 500),
+    routeset: () => json(ROUTESET_OK),
+  }));
+  try {
+    const res = await harness()('/route/THY5040?lat=30.9&lon=31.24');
+    assert.equal(res.status, 200);
+    assert.equal(res.body.found, true);
+    assert.equal(res.body.source, 'adsb.lol');
   } finally {
     stub.restore();
   }

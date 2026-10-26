@@ -18,6 +18,31 @@ export function createQueries({
   const { state } = vesselState;
   const { formatKnots } = services.labels;
 
+  /** Comparable form of a vessel name or id: trimmed, single spaces, upper case. */
+  const normalizeIdentity = (value) =>
+    String(value ?? '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+
+  /** Search descriptor for a vessel record, or null when it has no drawn position. */
+  function describeVessel(record) {
+    const position =
+      components.rendering.getVisual(record).billboard?.position ||
+      components.rendering.getVisual(record).position;
+    if (!position) return null;
+    return {
+      mmsi: record.mmsi,
+      name: record.name,
+      position,
+      latitude: record.lat,
+      longitude: record.lon,
+      speedKt: record.speed,
+      course: record.course,
+      type: record.type,
+    };
+  }
+
   /**
    * Seconds until the server's next reconnect attempt, or 0 when none is
    * scheduled. Mirrors the flights layer's `retryInSec` chip affordance.
@@ -277,21 +302,28 @@ export function createQueries({
           ) || null;
       }
       if (!record) return null;
+      return describeVessel(record);
+    },
 
-      const position =
-        components.rendering.getVisual(record).billboard?.position ||
-        components.rendering.getVisual(record).position;
-      if (!position) return null;
-      return {
-        mmsi: record.mmsi,
-        name: record.name,
-        position,
-        latitude: record.lat,
-        longitude: record.lon,
-        speedKt: record.speed,
-        course: record.course,
-        type: record.type,
-      };
+    /**
+     * Exact identity only: an MMSI equal to the query, or a vessel name equal
+     * to it ignoring case and runs of spaces. Unlike findByQuery it never
+     * settles for a name that merely contains the query, so "EVER GIVEN" is
+     * not answered by "EVER GIVEN II" when that record comes first.
+     * @param {string|number} query MMSI or full vessel name.
+     * @returns {object|null} Same descriptor as findByQuery, or null.
+     */
+    findExact(query) {
+      if (query === null || query === undefined) return null;
+      const records = state.records.all;
+      if (!Array.isArray(records) || !records.length) return null;
+      const q = normalizeIdentity(query);
+      if (!q) return null;
+      const record =
+        (/^\d+$/.test(q) && state.records.byMmsi.get(q)) ||
+        records.find((r) => normalizeIdentity(r.name) === q) ||
+        null;
+      return record ? describeVessel(record) : null;
     },
 
     /**

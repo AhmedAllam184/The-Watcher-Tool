@@ -180,3 +180,111 @@ test('fromJSON skips malformed entries without throwing', () => {
   assert.equal(cell.aircraft, 2);
   assert.equal(cell.degraded, 1);
 });
+
+test('one loitering degraded aircraft across five buckets is one aircraft, not five', () => {
+  const grid = createGpsJamGrid();
+  for (let k = 0; k < 5; k++)
+    grid.addSamples([ac('loiter', { nic: 3 })], T0 + k * GPS_JAM_BUCKET_MS);
+  const now = T0 + 4 * GPS_JAM_BUCKET_MS;
+  assert.deepEqual(grid.cells({ nowMs: now }), [], 'below minAircraft');
+  assert.deepEqual(
+    grid
+      .cells({ nowMs: now, minAircraft: 1 })
+      .map((c) => [c.aircraft, c.degraded, c.level]),
+    [[1, 1, 'high']],
+  );
+});
+
+test('distinct aircraft are counted once each: 6 aircraft with 1 degraded is a 1/6 ratio', () => {
+  const grid = createGpsJamGrid();
+  // Six distinct airframes; the same six are seen again in later buckets.
+  for (let k = 0; k < 3; k++)
+    grid.addSamples(fleet('d', 6, 1), T0 + k * GPS_JAM_BUCKET_MS);
+  const [cell] = grid.cells({ nowMs: T0 + 2 * GPS_JAM_BUCKET_MS });
+  assert.equal(cell.aircraft, 6);
+  assert.equal(cell.degraded, 1);
+  assert.equal(cell.ratio, 0.1667);
+});
+
+test('an aircraft is degraded when most of its judged buckets are degraded', () => {
+  const grid = createGpsJamGrid();
+  const at = (k) => T0 + k * GPS_JAM_BUCKET_MS;
+  grid.addSamples([ac('majBad', { nic: 3 }), ac('majGood', { nic: 9 })], at(0));
+  grid.addSamples([ac('majBad', { nic: 3 }), ac('majGood', { nic: 9 })], at(1));
+  grid.addSamples([ac('majBad', { nic: 9 }), ac('majGood', { nic: 3 })], at(2));
+  const [cell] = grid.cells({ nowMs: at(2), minAircraft: 1 });
+  assert.equal(cell.aircraft, 2);
+  assert.equal(
+    cell.degraded,
+    1,
+    'bad in 2 of 3 buckets counts; good in 2 of 3 does not',
+  );
+});
+
+test('a tie in judged buckets goes to the most recent judgement', () => {
+  const grid = createGpsJamGrid();
+  const at = (k) => T0 + k * GPS_JAM_BUCKET_MS;
+  // tieEnd: bad, then good -> latest is good -> not degraded.
+  grid.addSamples(
+    [ac('tieEnd', { nic: 3 }), ac('tieStart', { nic: 9 })],
+    at(0),
+  );
+  grid.addSamples(
+    [ac('tieEnd', { nic: 9 }), ac('tieStart', { nic: 3 })],
+    at(1),
+  );
+  const [cell] = grid.cells({ nowMs: at(1), minAircraft: 1 });
+  assert.equal(cell.aircraft, 2);
+  assert.equal(
+    cell.degraded,
+    1,
+    'only the aircraft whose latest judgement is bad',
+  );
+
+  const onlyLatest = createGpsJamGrid();
+  onlyLatest.addSamples([ac('x', { nic: 9 })], at(0));
+  onlyLatest.addSamples([ac('x', { nic: 3 })], at(1));
+  const [flipped] = onlyLatest.cells({ nowMs: at(1), minAircraft: 1 });
+  assert.equal(flipped.degraded, 1, 'good then bad ends degraded');
+});
+
+test('the window decides which judgements count for an aircraft', () => {
+  const grid = createGpsJamGrid({ windowMs: 6 * HOUR });
+  const at = (k) => T0 + k * GPS_JAM_BUCKET_MS;
+  // Degraded early and good late: only the late good judgement is in a 1 h query.
+  grid.addSamples([ac('w', { nic: 3 })], at(0));
+  grid.addSamples([ac('w', { nic: 9 })], at(10));
+  const late = at(10) + GPS_JAM_BUCKET_MS;
+  assert.equal(
+    grid.cells({ nowMs: late, minAircraft: 1, windowMs: HOUR })[0].degraded,
+    0,
+  );
+  assert.equal(
+    grid.cells({ nowMs: late, minAircraft: 1 })[0].degraded,
+    0,
+    'tie: latest good',
+  );
+});
+
+test('legacy count-only buckets load without crashing and add no distinct aircraft', () => {
+  const restored = createGpsJamGrid().fromJSON({
+    cellDeg: 1,
+    cells: [
+      { i: 50, j: 10, buckets: [{ at: T0, good: 3, bad: 2 }] },
+      {
+        i: 50,
+        j: 11,
+        buckets: [
+          { at: T0, good: 4, bad: 4 },
+          { at: T0, good: ['n1'], bad: ['n2'] },
+        ],
+      },
+    ],
+  });
+  // The count-only cell (i 50, j 10) has nothing to judge and is dropped.
+  const cells = restored.cells({ nowMs: T0, minAircraft: 1 });
+  assert.deepEqual(
+    cells.map((c) => [c.lon, c.aircraft, c.degraded]),
+    [[11, 2, 1]],
+  );
+});

@@ -6,6 +6,7 @@ import { isDegraded } from '../../../src/data/gpsJam.js';
 import { detectHolding } from '../../../src/data/holdingDetection.js';
 import { greatCircleKm } from '../../../src/data/routePlausible.js';
 import { parseGeojsonLines } from '../../../src/sources/infrastructureData.js';
+import { WATCHER_USER_AGENT } from '../common/userAgent.js';
 
 /**
  * Airport disruption inference, served at GET /api/airports/status. Each
@@ -25,14 +26,16 @@ import { parseGeojsonLines } from '../../../src/sources/infrastructureData.js';
  * to 8 ICAO codes (?codes=) that become temporary airports for 15 min, at most
  * 16 at once, oldest evicted first.
  *
- * Tiers (see nextAirport): the priority tier is up to 4 airports, namely viewed
- * airports (most recent request first) and watchlist airports currently rated
- * watch or disrupted. Each priority airport is polled about every 60 s. The base
- * watchlist is polled at least every 30 s. Its cycle is about 32 airports at
- * about 2 polls per minute, roughly 16 min each, which is enough for the GPS
- * share but not for holding. Holding is reported only for an airport whose last
- * three polls were at most 3 min apart (holdingReliable); otherwise it is marked
- * not assessed.
+ * Tiers (see priorityTier): the priority tier is up to 4 airports: up to 2
+ * watchlist airports rated disrupted (then watch), then viewed airports (most
+ * recent request first) to fill the rest. Each priority airport is polled about
+ * every 60 s. The base rotation is the watchlist plus any viewed airport outside
+ * the tier, polled at least every 30 s, so every viewed airport is sampled too.
+ * The base cycle is about 32 airports at about 2 polls per minute, roughly 16 min
+ * each, which is enough for the GPS share but not for holding. Holding is
+ * reported only for an airport whose last three polls were at most 3 min apart
+ * (holdingReliable). A viewed airport outside the priority tier is never
+ * assessed for holding; every other airport is marked not assessed until then.
  *
  * A failing airport backs off for 5 min and its failure is logged at most once
  * per 10 min. Track history (40 min) and the last successful sample of each
@@ -106,6 +109,8 @@ const PRIORITY_MS = 60_000;
 /** The base watchlist is polled at least this often. */
 const BASE_FORCE_MS = 30_000;
 const PRIORITY_MAX = 4;
+/** Of the priority tier, at most this many are watchlist airports rated watch or disrupted. */
+const AFFECTED_PRIORITY_MAX = 2;
 /** Holding is assessed only after this many polls, each at most RELIABLE_GAP_MS apart. */
 const RELIABLE_SAMPLES = 3;
 const RELIABLE_GAP_MS = 3 * 60_000;
@@ -268,8 +273,11 @@ function holdingReliable(airport, t) {
   return true;
 }
 
-/** Public shape of one airport at time `t`. */
-function airportStatus(airport, t) {
+/**
+ * Public shape of one airport at time `t`. `assessable: false` reports holding
+ * as not assessed whatever the poll history says.
+ */
+function airportStatus(airport, t, { assessable = true } = {}) {
   const base = {
     icao: airport.icao,
     iata: airport.iata,
@@ -279,7 +287,7 @@ function airportStatus(airport, t) {
     lon: airport.lon,
     lastPolledAt: airport.lastPolledAt,
   };
-  const reliable = holdingReliable(airport, t);
+  const reliable = assessable && holdingReliable(airport, t);
   const unassessed = reliable ? [] : [UNASSESSED_REASON];
   const fresh =
     airport.lastOkAt !== null && t - airport.lastOkAt <= SAMPLE_FRESH_MS;
@@ -598,7 +606,7 @@ export function airportWatchProxy({
         {
           headers: {
             Accept: 'application/json',
-            'User-Agent': 'gods-eye-view-airport-watch/1.0',
+            'User-Agent': WATCHER_USER_AGENT,
           },
           signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         },
@@ -620,27 +628,46 @@ export function airportWatchProxy({
     }
   }
 
-  /** Next base airport in round-robin order that is not backing off, or null. */
-  function nextBase(t) {
-    const count = base.length;
+  /**
+   * The priority tier, at most PRIORITY_MAX airports: up to AFFECTED_PRIORITY_MAX
+   * watchlist airports rated disrupted (then watch), then viewed airports, most
+   * recent request first, to fill the rest.
+   */
+  function priorityTier(t) {
+    const rank = { disrupted: 0, watch: 1 };
+    const affected = base
+      .map((airport) => ({
+        airport,
+        rank: rank[airportStatus(airport, t).level],
+      }))
+      .filter((entry) => entry.rank !== undefined)
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, AFFECTED_PRIORITY_MAX)
+      .map((entry) => entry.airport);
+    const viewed = [...temps].sort((a, b) => b.requestedAt - a.requestedAt);
+    return [...affected, ...viewed].slice(0, PRIORITY_MAX);
+  }
+
+  /**
+   * Next airport of the base rotation that is not backing off, or null. The
+   * rotation is the base airports plus the viewed airports outside the priority
+   * tier, so each viewed airport is still sampled on the base cycle.
+   */
+  function nextBase(t, tier) {
+    const rotation = [
+      ...base,
+      ...temps.filter((airport) => !tier.includes(airport)),
+    ];
+    const count = rotation.length;
     for (let step = 0; step < count; step++) {
       const index = (cursor + step) % count;
-      if (base[index].backoffUntil <= t) {
+      if (rotation[index].backoffUntil <= t) {
         cursor = (index + 1) % count;
-        return base[index];
+        lastBasePollAt = t;
+        return rotation[index];
       }
     }
     return null;
-  }
-
-  /** Viewed airports (most recent request first), then rated watch or disrupted watchlist airports; at most 4. */
-  function priorityAirports(t) {
-    const viewed = [...temps].sort((a, b) => b.requestedAt - a.requestedAt);
-    const rated = base.filter((airport) => {
-      const { level } = airportStatus(airport, t);
-      return level === 'watch' || level === 'disrupted';
-    });
-    return [...viewed, ...rated].slice(0, PRIORITY_MAX);
   }
 
   /**
@@ -653,11 +680,12 @@ export function airportWatchProxy({
    * plus 2 base polls per minute, so the 32-airport base cycle takes about 16 min.
    */
   function nextAirport(t) {
+    const tier = priorityTier(t);
     if (t - lastBasePollAt >= BASE_FORCE_MS) {
-      const forced = nextBase(t);
+      const forced = nextBase(t, tier);
       if (forced) return forced;
     }
-    const due = priorityAirports(t)
+    const due = tier
       .filter((airport) => airport.backoffUntil <= t)
       .filter(
         (airport) =>
@@ -670,7 +698,7 @@ export function airportWatchProxy({
         return x === y ? 0 : x < y ? -1 : 1;
       });
     if (due.length > 0) return due[0];
-    return nextBase(t);
+    return nextBase(t, tier);
   }
 
   async function tick() {
@@ -730,9 +758,16 @@ export function airportWatchProxy({
         activate();
         pruneTemps(t);
 
+        // A viewed airport outside the priority tier is only sampled on the
+        // base rotation, so its holding is never reliable.
+        const tier = priorityTier(t);
         return send(200, {
           generatedAt: t,
-          airports: rotation().map((airport) => airportStatus(airport, t)),
+          airports: rotation().map((airport) =>
+            airportStatus(airport, t, {
+              assessable: base.includes(airport) || tier.includes(airport),
+            }),
+          ),
           method: AIRPORT_WATCH_METHOD,
           note: AIRPORT_WATCH_NOTE,
           source: AIRPORT_WATCH_SOURCE,

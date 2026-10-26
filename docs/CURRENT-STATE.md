@@ -1377,6 +1377,19 @@ The existing aircraft normalizer is separately available through the portable
 `the-watcher/sources/adsb-lol` export. Provider URLs, local credentials, cache
 policy, fallback behavior, response shapes and rendering remain unchanged.
 
+## GPS interference inference (server)
+
+`/api/gps-jam` (`server/providers/aircraft/gps-jam.js`, rules in `src/data/gpsJam.js`)
+infers GPS interference from the navigation quality fields adsb.lol reports per
+aircraft. An airborne aircraft with NIC below 7, or NACp below 8 when NIC is absent,
+counts as degraded; on-ground, positionless and stale-position rows are not judged.
+Each hex counts once per ~1 degree cell per 10-minute bucket, and a cell needs at
+least 5 aircraft in the window. The response is labelled as an inference: the cause
+may be avionics, not jamming. Fourteen fixed regions (two of them controls) are
+polled one at a time every 20 s, only while a request has arrived in the last 10 min.
+Each viewport request adds a temporary region for 15 min, up to three at once.
+Failed regions back off for 5 min. The grid is kept on disk in `.gev-cache/gps-jam.json`.
+
 ## Control names for assistive technology
 
 Scope, Bloom, Sharpen and location search have explicit accessible names.

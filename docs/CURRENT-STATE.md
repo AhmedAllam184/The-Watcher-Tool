@@ -1369,6 +1369,8 @@ in `ais-store.js`. Common response caps, request coalescing and query parsing
 have their own modules. `server/providers/local.js` composes these with the
 remaining providers and retains existing named compatibility exports.
 
+Dark-vessel inference lives in `ais-store.js` (`darkVessels`) and is served at `/api/vessels/dark`. The store counts reports per MMSI and, when a moving vessel is pruned from the 30-minute live cache, remembers it for up to 6 h so it can still be judged. A vessel is reported only when silent for 20 min or more, under way at 3 kt or more, and at least three other vessels nearby still report. That coverage check is what separates a fleet going dark from a receiver gap, but the result is still an inference: it is labelled as such in the response and is not a confirmed transponder fault. No feed message in 5 min returns an empty list, so an outage never looks like a dark fleet.
+
 `the-watcher/server/providers/live` is a Node-only entry for the existing
 plugins and shared request helpers. Importing it starts no sockets or timers.
 The existing aircraft normalizer is separately available through the portable

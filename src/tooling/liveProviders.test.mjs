@@ -285,6 +285,20 @@ test('AIS preview route ingests through the socket, returns tracks and disposes 
   assert.equal(sockets.length, 2);
 });
 
+test('dark-vessel route answers 503 without a key and never falls through to rows', async (t) => {
+  environment(t, { AISSTREAM_API_KEY: undefined });
+  const plugin = providers.aisLiveProxy();
+  t.after(() => plugin.closeBundle());
+  const request = install(plugin, true);
+  const res = await request('/api/vessels', '/dark');
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.headers['cache-control'], 'no-store');
+  assert.deepEqual(JSON.parse(res.body), {
+    error: 'AISSTREAM_API_KEY not set',
+    vessels: [],
+  });
+});
+
 test('military aircraft route serves stale cache on an upstream 429 and cools down for Retry-After', async (t) => {
   let now = Date.now();
   let calls = 0;

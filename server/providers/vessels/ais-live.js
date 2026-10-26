@@ -9,6 +9,7 @@ import {
   ingestAisStreamEnvelope,
   readAisTrack,
   aisStreamRows,
+  darkVessels,
   newestAisPositionAt,
 } from './ais-store.js';
 // ---------------------------------------------------------------------------
@@ -104,6 +105,33 @@ export function aisLiveProxy() {
               source: 'AISStream (accumulated since server start)',
               retainedSec: Math.floor(AISSTREAM_STALE_MS / 1000),
             }),
+          );
+          return;
+        }
+
+        // Dark-vessel inference sub-route, also before the rows snapshot. It is
+        // an inference from coverage, so the feed's last message time gates it:
+        // during an outage it answers empty rather than invent a fleet-wide gap.
+        if (incoming.pathname === '/dark') {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          if (!process.env.AISSTREAM_API_KEY) {
+            res.statusCode = 503;
+            res.end(
+              JSON.stringify({
+                error: 'AISSTREAM_API_KEY not set',
+                vessels: [],
+              }),
+            );
+            return;
+          }
+          res.statusCode = 200;
+          res.end(
+            JSON.stringify(
+              darkVessels({
+                feedLastMessageAt: aisStreamStatusSnapshot().lastMessageAt,
+              }),
+            ),
           );
           return;
         }

@@ -180,7 +180,11 @@ export function gpsJamProxy({
     try {
       grid.prune(t);
       await fsp.mkdir(path.dirname(cachePath), { recursive: true });
-      await fsp.writeFile(cachePath, JSON.stringify(grid), 'utf8');
+      // Write then rename, so a reader (or a crash mid-write) never sees a
+      // half-written cache file.
+      const tmpPath = `${cachePath}.${process.pid}.tmp`;
+      await fsp.writeFile(tmpPath, JSON.stringify(grid), 'utf8');
+      await fsp.rename(tmpPath, cachePath);
     } catch (err) {
       dirty = true; // retry after the next 60 s window
       console.warn('[gps-jam] cache write failed:', err?.message || err);

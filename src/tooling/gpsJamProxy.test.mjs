@@ -305,7 +305,10 @@ test('persisted grid reloads in a new instance and serves cells before polling',
   });
   await get();
   await settle();
-  for (let i = 0; i < 50 && !existsSync(file); i++) await settle();
+  // File writes run on the libuv thread pool, so wait in real time (up to
+  // 2 s) rather than a fixed number of event-loop turns.
+  for (let i = 0; i < 200 && !existsSync(file); i++)
+    await new Promise((resolve) => setTimeout(resolve, 10));
   assert.ok(existsSync(file), 'grid written to the cache path');
 
   const restarted = harness(

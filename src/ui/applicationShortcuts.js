@@ -8,6 +8,12 @@ const STYLE_KEYS = Object.freeze({
   7: 'snow',
 });
 
+const isEditableTarget = (target) =>
+  !!target?.isContentEditable || !!target?.matches?.('select, input, textarea');
+
+const hasOpenDialog = (documentRef) =>
+  !!documentRef.querySelector?.('dialog[open], [role="dialog"]:not([hidden])');
+
 /**
  * Bind the application's existing bubbling keyboard shortcuts.
  * Capture-phase surfaces keep first refusal. The caller owns each action and
@@ -28,6 +34,18 @@ export function bindApplicationShortcuts({
       event.target?.matches?.('select, input, textarea') ||
       event.target === searchInput;
     if (isFormControl && event.key !== 'Escape') return;
+
+    if (
+      event.key === '/' &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey
+    ) {
+      if (isEditableTarget(event.target) || hasOpenDialog(documentRef)) return;
+      event.preventDefault();
+      actions.openSearch();
+      return;
+    }
 
     if (STYLE_KEYS[event.key]) actions.setStyle(STYLE_KEYS[event.key]);
     if (event.key === 'Escape') actions.dismissSearch();

@@ -19,6 +19,12 @@ import { StreetLevelControls } from './streetLevelControls.js';
 import { RadioControls } from './radio.js';
 import { LocalSdrControls } from './localSdrControls.js';
 import { LocationNavigation } from './locationNavigation.js';
+import {
+  findLiveObject,
+  searchableDisabledLayers,
+  searchableLayerName,
+} from './objectSearch.js';
+import { focusLiveObject } from './liveObjectFocus.js';
 import { bindClearLayersControl } from './layers.js';
 import { bindCameraOrientationControls } from './cameraOrientationControls.js';
 import { createSelectionDetailsPanel } from './selectionDetails.js';
@@ -308,6 +314,17 @@ export class StyleManager extends ShellFacade {
         trafficLayer: services.trafficLayer,
         flyToPresetLocation: services.flyToPresetLocation,
         flyToPOI: services.flyToPOI,
+        findLiveObject: (query) => findLiveObject(this._dataManager, query),
+        focusLiveObject: (hit) =>
+          focusLiveObject(hit, {
+            viewer,
+            flyToLandmark: services.flyToLandmark,
+            readDataManager: () => this._dataManager,
+            runNavigation: (noun, navigate) =>
+              this.runImmediateNavigation(noun, navigate),
+          }),
+        disabledSearchLayerNames: () =>
+          searchableDisabledLayers(this._dataManager).map(searchableLayerName),
         GLOBE_VIEW: services.GLOBE_VIEW,
         flyToGlobeView: services.flyToGlobeView,
         interruptCameraMotion: services.interruptCameraMotion,
@@ -497,6 +514,7 @@ export class StyleManager extends ShellFacade {
       },
       elements: {
         _locationSearch: this._locationSearch,
+        _searchToggle: this._searchToggle,
         _bloomBtn: this._bloomBtn,
         _bloomSlider: this._bloomSlider,
         _sharpenBtn: this._sharpenBtn,

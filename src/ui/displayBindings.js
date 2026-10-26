@@ -78,6 +78,18 @@ export class DisplayBindings {
           this._updateHudButtonState();
           this._syncShareState();
         },
+        openSearch: () => {
+          // The tray and search clicks toggle, so each is clicked only when it is closed.
+          if (
+            document
+              .getElementById('location-bar')
+              ?.classList.contains('collapsed')
+          )
+            document.getElementById('location-bar-toggle')?.click();
+          if (!this._locationSearch.classList.contains('expanded'))
+            this._searchToggle?.click();
+          this._locationSearch.focus();
+        },
         toggleOrbit: () => this._toggleOrbit(),
         toggleCleanView: () => this.toggleCleanView(),
         toggleLayers: () =>

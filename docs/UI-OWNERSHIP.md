@@ -8,6 +8,8 @@ scene playback and voice. It delegates; new behavior belongs with its owner.
 | --- | --- |
 | `navigationController.js` | Navigation generation, tracking release and camera authority |
 | `locationNavigation.js` | Destination lookup/selection, orbit, world jumps and globe-reset completion |
+| `objectSearch.js` | Pure live-object lookup (flights, ships, satellites) behind the place search box |
+| `liveObjectFocus.js` | Follows or selects a live object found by the search, through the shell's navigation authority |
 | `cockpitCoordinator.js` | Cockpit entry/rollback, readouts and the single Display portal |
 | `visualSettings.js` | Effects, detection overrides, visual restoration and render-loop lifetime |
 | `panelChrome.js` | Disclosure, docking, layout and Cockpit panel restoration |

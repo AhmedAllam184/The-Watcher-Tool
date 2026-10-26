@@ -1,6 +1,13 @@
 import * as Cesium from 'cesium';
 import { createStateChannel } from '../app/stateChannel.js';
 import { LocationControls } from './location.js';
+import { objectLabel } from './objectSearch.js';
+
+const LIVE_OBJECT_TOAST = Object.freeze({
+  aircraft: (label) => `Following ${label}`,
+  vessel: (label) => `Showing ${label}`,
+  satellite: (label) => `Tracking ${label}`,
+});
 
 /** Own destination selection, lookup, orbit and world-jump lifetime. */
 export class LocationNavigation {
@@ -87,7 +94,8 @@ export class LocationNavigation {
       this._currentPoi = null;
       this._collapsePOIRow();
       this._updateLocationMiniStatus();
-    } else if (change.type === 'missing') this._showToast('Location not found');
+    } else if (change.type === 'missing')
+      this._showToast(this._missingPlaceMessage());
     else if (change.type === 'failed') this._showToast('Search failed');
     else if (change.type === 'settled')
       this._settleLocationSearchUi(change.generation);
@@ -141,9 +149,28 @@ export class LocationNavigation {
       getExpandedCity: () => this._expandedCityId,
       onCity: (id) => this._onCityPillClick(id),
       onPoi: (id, index) => this._onPoiClick(id, index),
-      onSearch: (query) => this._locationLookup.run(query),
+      onSearch: (query) => this._runSearch(query),
       onReset: () => this.resetToGlobeView(),
     });
+  }
+
+  /** Live objects win over places; a query that matches neither falls back to geocoding. */
+  _runSearch(query) {
+    const hit = this.services.findLiveObject?.(query);
+    if (!hit) return this._locationLookup.run(query);
+    const focused = this.services.focusLiveObject?.(hit) === true;
+    this._locationSearch.value = '';
+    const label = objectLabel(hit.found) || String(query).trim();
+    if (focused) this._showToast(LIVE_OBJECT_TOAST[hit.kind](label));
+    // Cockpit refusal has already explained itself through the navigation toast.
+    else if (!this.cockpitView?.active)
+      this._showToast(`Found ${label} but could not track it`);
+  }
+
+  _missingPlaceMessage() {
+    const names = this.services.disabledSearchLayerNames?.() || [];
+    if (!names.length) return 'Location not found';
+    return `No place found. To find flights or ships by name, turn on ${names.join(' / ')} first.`;
   }
 
   _beginWorldJumpTransition() {

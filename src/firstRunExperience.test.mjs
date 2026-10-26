@@ -10,14 +10,12 @@ import {
   EXCLUSIVE_SURFACE_CLASSES,
   FIRST_RUN_MISSIONS,
   FIRST_RUN_SESSION_KEY,
-  FIRST_RUN_STORAGE_KEY,
   environmentalLabel,
   exclusiveSurfaceActive,
   initFirstRunExperience,
   QUICK_START_REQUEST_EVENT,
   rememberFirstRunSessionDismissed,
   runFirstRunChoice,
-  setFirstRunSuppressed,
   shouldShowFirstRun,
 } from './firstRunExperience.js';
 
@@ -32,7 +30,6 @@ function memoryStorage(key, value = null) {
 }
 
 const fresh = () => ({
-  storage: memoryStorage(FIRST_RUN_STORAGE_KEY),
   sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
   location: { search: '' },
 });
@@ -50,43 +47,22 @@ test('a fresh session no longer receives the launcher on its own', () => {
   assert.equal(shouldShowFirstRun({ ...fresh(), location: { search: '?welcome=1' } }), true);
 });
 
-test('a dismissal writes only the session flag, never the durable key', () => {
+test('a dismissal writes only the session flag', () => {
   const session = memoryStorage(FIRST_RUN_SESSION_KEY);
-  const storage = memoryStorage(FIRST_RUN_STORAGE_KEY);
-
   rememberFirstRunSessionDismissed(session);
   assert.equal(session.read(), 'dismissed');
   // The replay link still shows the card after a dismissal.
   assert.equal(shouldShowFirstRun({
-    storage,
     sessionStorageRef: session,
     location: { search: '?welcome=1' },
   }), true);
-  assert.equal(storage.read(), null);
-});
-
-test('the checkbox still writes and clears its durable key, and replay outranks it', () => {
-  // The key is no longer read on load (the card does not auto-open), so the
-  // checkbox is inert for auto-show. The write/clear contract stays pinned.
-  const storage = memoryStorage(FIRST_RUN_STORAGE_KEY);
-  setFirstRunSuppressed(true, storage);
-  assert.equal(storage.read(), 'suppressed');
-  assert.equal(shouldShowFirstRun({
-    storage,
-    sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
-    location: { search: '?welcome=1' },
-  }), true);
-
-  setFirstRunSuppressed(false, storage);
-  assert.equal(storage.read(), null);
 });
 
 test('welcome params work in both directions and outrank both suppressions', () => {
-  const suppressed = memoryStorage(FIRST_RUN_STORAGE_KEY, 'suppressed');
   const dismissed = memoryStorage(FIRST_RUN_SESSION_KEY, 'dismissed');
-  // ?welcome=1 replays past the checkbox AND past a session dismissal.
+  // ?welcome=1 replays past a session dismissal.
   assert.equal(shouldShowFirstRun({
-    storage: suppressed, sessionStorageRef: dismissed, location: { search: '?welcome=1' },
+    sessionStorageRef: dismissed, location: { search: '?welcome=1' },
   }), true);
   // ?welcome=0 suppresses a session that would otherwise see it.
   assert.equal(shouldShowFirstRun({ ...fresh(), location: { search: '?welcome=0' } }), false);
@@ -111,7 +87,6 @@ test('privacy-restricted storage cannot stop a replay, and every write stays bes
     sessionStorageRef: blocked,
     location: { search: '?welcome=1' },
   }), true);
-  assert.doesNotThrow(() => setFirstRunSuppressed(true, blocked));
   assert.doesNotThrow(() => rememberFirstRunSessionDismissed(blocked));
 });
 
@@ -145,8 +120,6 @@ test('a THROWING storage getter still fails open — Safari private mode', () =>
       true,
       'a visitor whose storage throws must still be able to SEE the launcher on replay',
     );
-    assert.doesNotThrow(() => setFirstRunSuppressed(true));
-    assert.doesNotThrow(() => setFirstRunSuppressed(false));
     assert.doesNotThrow(() => rememberFirstRunSessionDismissed());
   } finally {
     if (saved) Object.defineProperty(globalThis, 'localStorage', saved);
@@ -290,38 +263,6 @@ test('one ESC does one thing — the radio disclosure stops the launcher outrigh
   );
 });
 
-test('a refused write takes the tick back instead of promising "never again"', () => {
-  const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
-
-  // The write stays best-effort; the OUTCOME is now reported, because a box left
-  // ticked after a refused write tells the visitor the launcher is gone for good
-  // while it is already guaranteed to return next session.
-  const blocked = {
-    getItem: () => null,
-    setItem: () => { throw new Error('blocked'); },
-    removeItem: () => { throw new Error('blocked'); },
-  };
-  assert.equal(setFirstRunSuppressed(true, blocked), false);
-  assert.equal(setFirstRunSuppressed(false, blocked), false);
-  // No storage area at all is a refusal too — nothing was persisted either way.
-  assert.equal(setFirstRunSuppressed(true, null), false);
-  assert.equal(setFirstRunSuppressed(false, null), false);
-  // ...and a working store still reports success, or the checkbox would revert
-  // on every tick and the pin above would be measuring nothing.
-  const working = memoryStorage(FIRST_RUN_STORAGE_KEY);
-  assert.equal(setFirstRunSuppressed(true, working), true);
-  assert.equal(working.read(), 'suppressed');
-  assert.equal(setFirstRunSuppressed(false, working), true);
-  assert.equal(working.read(), null);
-
-  const handler = module.slice(
-    module.indexOf('const onSuppressChange = (event) => {'),
-    module.indexOf('  const keyboard = createSurfaceKeyboard({'),
-  );
-  assert.match(handler, /if \(setFirstRunSuppressed\(wanted, storage\)\) return;/);
-  assert.match(handler, /box\.checked = !wanted;/, 'a refused write must revert the tick');
-});
-
 test('a surface class that never clears is an ACCEPTED no-show, not a timer', () => {
   const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
   const state = fs.readFileSync(new URL('../docs/CURRENT-STATE.md', import.meta.url), 'utf8');
@@ -448,7 +389,6 @@ test('a plain load keeps the card hidden, and the Help panel reopens it until te
       styleManager: { hasShareState: false },
       dataManager: {},
       documentRef,
-      storage: memoryStorage(FIRST_RUN_STORAGE_KEY),
       sessionStorageRef: memoryStorage(FIRST_RUN_SESSION_KEY),
       location: { search: '' },
     });
@@ -478,6 +418,13 @@ test('a plain load keeps the card hidden, and the Help panel reopens it until te
     if (savedFrame === undefined) delete globalThis.requestAnimationFrame;
     else globalThis.requestAnimationFrame = savedFrame;
   }
+});
+
+test('the Environmental mission still pulls out to the full globe, not the home view', () => {
+  // The mission is about worldwide quakes and fires, so it keeps the globe
+  // pull-out. The Reset button and the home view go to START_VIEW instead.
+  const module = fs.readFileSync(new URL('./firstRunExperience.js', import.meta.url), 'utf8');
+  assert.match(module, /flyToGlobe: \(\) => styleManager\.resetToGlobeView\(\{ target: 'globe' \}\)/);
 });
 
 test('the Help panel dispatches the event the launcher listens for, by the same name', () => {
@@ -671,7 +618,7 @@ test('markup, startup ordering and accessibility remain pinned', () => {
   assert.match(html, /id="first-run-launcher" role="dialog"[^>]*aria-labelledby="first-run-title"[^>]*hidden/);
   assert.equal((html.match(/data-first-run-choice=/g) || []).length, 4);
   assert.match(html, /data-first-run-status[^>]*role="status"[^>]*aria-live="polite"/);
-  assert.match(html, /<input type="checkbox" data-first-run-suppress \/>/);
+  assert.doesNotMatch(html, /data-first-run-suppress/, 'the card has no Don\'t-show checkbox');
   assert.match(html, /<strong data-first-run-environmental-title>/);
   // Subcopy must name BOTH feeds the tile turns on — a tile that promised only
   // half of what it does is the defect this replaced. Only the VISIBLE <small>

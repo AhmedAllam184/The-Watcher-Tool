@@ -3,6 +3,12 @@ import { createStateChannel } from '../app/stateChannel.js';
 import { LocationControls } from './location.js';
 import { objectLabel } from './objectSearch.js';
 
+/** Button labels for the home reset (START_VIEW, over Egypt). */
+const HOME_RESET_LABEL = 'Reset to start view (Egypt)';
+const HOME_RESETTING_LABEL = 'Resetting to start view (Egypt)';
+const HOME_COCKPIT_RESET_LABEL = 'Reset cockpit to start view (Egypt)';
+const HOME_COCKPIT_RESETTING_LABEL = 'Resetting cockpit to start view (Egypt)';
+
 const LIVE_OBJECT_TOAST = Object.freeze({
   aircraft: (label) => `Following ${label}`,
   vessel: (label) => `Showing ${label}`,
@@ -323,10 +329,18 @@ export class LocationNavigation {
     }
   }
 
-  resetToGlobeView() {
+  /**
+   * Reset the camera. `target: 'home'` (the default, used by the Reset button
+   * and the cockpit) returns straight down to the start view over Egypt.
+   * `target: 'globe'` pulls out to the full-earth view, used by the zoom_to_globe
+   * tool and the Environmental mission, whose names and copy mean the globe.
+   */
+  resetToGlobeView({ target = 'home' } = {}) {
     const {
       GLOBE_VIEW,
       flyToGlobeView,
+      HOME_VIEW,
+      flyToHomeView,
       interruptCameraMotion,
       flightsLayer,
       militaryFlightsLayer,
@@ -342,6 +356,8 @@ export class LocationNavigation {
         cancelled: true,
       });
     if (this._globeResetPromise) return this._globeResetPromise;
+    const toHome = target !== 'globe';
+    const view = toHome ? HOME_VIEW : GLOBE_VIEW;
     this._stampNavigation();
     interruptCameraMotion('reset-globe');
     this._stopOrbit();
@@ -398,20 +414,19 @@ export class LocationNavigation {
         ok: !cancelled,
         action: 'zoom_to_globe',
         cancelled,
-        heightKm: Math.round(GLOBE_VIEW.heightM / 1000),
+        heightKm: Math.round(view.heightM / 1000),
         centeredOn: {
           latitude: Number(Cesium.Math.toDegrees(carto.latitude).toFixed(2)),
           longitude: Number(Cesium.Math.toDegrees(carto.longitude).toFixed(2)),
         },
       };
-      this._resetGlobeBtn?.setAttribute(
-        'aria-label',
-        'Reset to full globe view',
-      );
-      this._cockpitResetGlobeBtn?.setAttribute(
-        'aria-label',
-        'Reset cockpit to full globe view',
-      );
+      if (toHome) {
+        this._resetGlobeBtn?.setAttribute('aria-label', HOME_RESET_LABEL);
+        this._cockpitResetGlobeBtn?.setAttribute(
+          'aria-label',
+          HOME_COCKPIT_RESET_LABEL,
+        );
+      }
       this._globeResetPromise = null;
       this._cancelGlobeReset = null;
       resolveReset(result);
@@ -420,23 +435,26 @@ export class LocationNavigation {
     timer = window.setTimeout(() => {
       const height = this.viewer.camera.positionCartographic?.height;
       finish(
-        !Number.isFinite(height) ||
-          Math.abs(height - GLOBE_VIEW.heightM) > 1000,
+        !Number.isFinite(height) || Math.abs(height - view.heightM) > 1000,
       );
     }, 4200);
-    this._resetGlobeBtn?.setAttribute(
-      'aria-label',
-      'Resetting to full globe view',
-    );
-    this._cockpitResetGlobeBtn?.setAttribute(
-      'aria-label',
-      'Resetting cockpit to full globe view',
-    );
-    const target = flyToGlobeView(this.viewer, {
-      onComplete: () => finish(false),
-      onCancel: () => finish(true),
-    });
-    if (!target) finish(true);
+    if (toHome) {
+      this._resetGlobeBtn?.setAttribute('aria-label', HOME_RESETTING_LABEL);
+      this._cockpitResetGlobeBtn?.setAttribute(
+        'aria-label',
+        HOME_COCKPIT_RESETTING_LABEL,
+      );
+    }
+    const flown = toHome
+      ? flyToHomeView(this.viewer, {
+          onComplete: () => finish(false),
+          onCancel: () => finish(true),
+        })
+      : flyToGlobeView(this.viewer, {
+          onComplete: () => finish(false),
+          onCancel: () => finish(true),
+        });
+    if (!flown) finish(true);
     return resetPromise;
   }
 

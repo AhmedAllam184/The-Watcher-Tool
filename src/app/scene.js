@@ -61,15 +61,28 @@ export async function createApplicationScene({
   defer(installTrackpadPinchZoom(viewer));
   registerDataCredits(viewer, credits);
   configureCreditKeyboardAccess(document);
-  loaderStatus.textContent =
-    googleApiKey || googleTokens || cesiumToken
+  // Google 3D is loaded now only when the visitor's remembered stack is 3D.
+  // Otherwise it loads on the first selection (see photorealLoader below), so a
+  // plain start does not download the photorealistic tiles at all.
+  const hasPhotorealCredentials = Boolean(
+    googleApiKey || googleTokens || cesiumToken,
+  );
+  const loadPhotoreal = () =>
+    loadPhotorealisticTileset(Cesium, {
+      googleApiKey,
+      googleTokens,
+      cesiumToken,
+    });
+  const eagerPhotoreal =
+    !hasPhotorealCredentials || readRememberedMapStack() === 'photoreal';
+  loaderStatus.textContent = eagerPhotoreal
+    ? hasPhotorealCredentials
       ? 'Loading Google 3D Tiles...'
-      : 'Loading the keyless globe...';
-  const photoreal = await loadPhotorealisticTileset(Cesium, {
-    googleApiKey,
-    googleTokens,
-    cesiumToken,
-  });
+      : 'Loading the keyless globe...'
+    : 'Loading the map...';
+  const photoreal = eagerPhotoreal
+    ? await loadPhotoreal()
+    : { tileset: null, route: 'osm', errors: [] };
   const tileset = photoreal.tileset;
   // A provider can finish after cancellation; retain ownership of its result.
   defer(() => {
@@ -103,6 +116,27 @@ export async function createApplicationScene({
     requestRender: governorRequestRender,
     ...mapOptions,
     googleTileset: tileset,
+    // Created on the first Google 3D selection, then reused (the controller caches it).
+    photorealLoader:
+      eagerPhotoreal || !hasPhotorealCredentials
+        ? null
+        : async () => {
+            const loaded = await loadPhotoreal();
+            if (!loaded.tileset)
+              throw (
+                loaded.errors.at(-1) || new Error('Google 3D Tiles unavailable')
+              );
+            // Cesium's Google helper sets this on the key route; keep it on lazy loads.
+            try {
+              loaded.tileset.enableCollision = true;
+            } catch {
+              /* older tileset */
+            }
+            console.info(
+              `[Init] Google 3D Tiles loaded on demand via ${loaded.route}.`,
+            );
+            return loaded.tileset;
+          },
     cesiumToken,
     // Flat OSM streets unless the visitor picked otherwise last time. A
     // shared link's map value is applied later by share restoration and wins.

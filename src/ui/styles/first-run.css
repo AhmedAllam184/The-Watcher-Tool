@@ -209,29 +209,6 @@
   letter-spacing: 0.055rem;
 }
 
-.first-run-suppress {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: rgba(199, 225, 231, 0.66);
-  text-transform: none;
-  font-size: 0.62rem;
-  letter-spacing: 0.02rem;
-  cursor: pointer;
-}
-
-.first-run-suppress input {
-  width: 0.82rem;
-  height: 0.82rem;
-  margin: 0;
-  accent-color: #36dcff;
-  cursor: pointer;
-}
-
-.first-run-suppress:hover {
-  color: rgba(225, 244, 248, 0.92);
-}
-
 /* The live region carries mission progress and failures, so it owns a full row
    and reserves its height — otherwise the card resizes as it speaks. */
 .first-run-note {

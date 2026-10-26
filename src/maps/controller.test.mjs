@@ -964,3 +964,70 @@ test('a failing labels provider keeps the base map active and warns once', async
     console.warn = originalWarn;
   }
 });
+
+// ── Google 3D loads on demand: no request at a plain start ──────────────────
+
+function lazyFixture(loader) {
+  const registry = createDefaultMapSources({ photorealLoader: loader });
+  for (const source of registry.sources) {
+    if (!source.imagery) continue;
+    const provider = { id: source.descriptor.id, errorEvent: event() };
+    source.imagery = async () => provider;
+    if (source.labels) source.labels = async () => ({ id: 'labels' });
+    source.terrain = {
+      id: 'keyless',
+      create: async () => ({ provider: { id: 'terrain' } }),
+    };
+  }
+  return { ...fixture(registry), registry };
+}
+
+test('a plain start never requests the Google 3D tileset', async () => {
+  let requests = 0;
+  const env = lazyFixture(async () => {
+    requests += 1;
+    return { show: false, destroy() {} };
+  });
+  assert.equal(env.controller.getActiveId(), 'osm');
+  await env.controller.setStack('osm');
+  await env.controller.setStack('esri-imagery');
+  await env.controller.setStack('osm');
+  assert.equal(requests, 0, 'Google 3D is not fetched until it is chosen');
+  env.controller.destroy();
+});
+
+test('the first Google 3D selection loads the tileset once, and later switches reuse it', async () => {
+  let requests = 0;
+  const tileset = { show: false, destroy() {}, isDestroyed: () => false };
+  const env = lazyFixture(async () => {
+    requests += 1;
+    return tileset;
+  });
+  await env.controller.setStack('photoreal');
+  assert.equal(env.controller.getActiveId(), 'photoreal');
+  assert.equal(requests, 1);
+  assert.equal(tileset.show, true);
+  assert.equal(
+    env.primitives.includes(tileset),
+    true,
+    'the loaded tileset joins the scene',
+  );
+
+  await env.controller.setStack('esri-imagery');
+  assert.equal(tileset.show, false);
+  await env.controller.setStack('photoreal');
+  await env.controller.setStack('photoreal');
+  assert.equal(requests, 1, 'later switches reuse the loaded tileset');
+  assert.equal(tileset.show, true);
+  env.controller.destroy();
+});
+
+test('a failed Google 3D load is reported and the map stays on its stack', async () => {
+  const env = lazyFixture(async () => {
+    throw new Error('quota');
+  });
+  const state = await env.controller.setStack('photoreal');
+  assert.equal(state.activeId, 'osm');
+  assert.equal(state.lastError, 'quota');
+  env.controller.destroy();
+});

@@ -330,6 +330,8 @@ export class StyleManager extends ShellFacade {
           searchableDisabledLayers(this._dataManager).map(searchableLayerName),
         GLOBE_VIEW: services.GLOBE_VIEW,
         flyToGlobeView: services.flyToGlobeView,
+        HOME_VIEW: services.HOME_VIEW,
+        flyToHomeView: services.flyToHomeView,
         interruptCameraMotion: services.interruptCameraMotion,
         flightsLayer: services.flightsLayer,
         militaryFlightsLayer: services.militaryFlightsLayer,

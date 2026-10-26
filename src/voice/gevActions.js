@@ -985,7 +985,7 @@ export function createGevActionRunner({
 
     if (name === 'zoom_to_globe') {
       if (typeof styleManager?.resetToGlobeView === 'function') {
-        return styleManager.resetToGlobeView();
+        return styleManager.resetToGlobeView({ target: 'globe' });
       }
       const result = flyToGlobeView(viewer);
       return {

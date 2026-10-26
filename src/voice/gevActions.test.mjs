@@ -172,9 +172,11 @@ test('zoom to globe adopts the shared visible reset route and returns its result
     centeredOn: { latitude: 30, longitude: -97 },
   };
   let calls = 0;
+  let resetOptions = null;
   const styleManager = {
-    async resetToGlobeView() {
+    async resetToGlobeView(options) {
       calls += 1;
+      resetOptions = options;
       return expected;
     },
   };
@@ -184,6 +186,8 @@ test('zoom to globe adopts the shared visible reset route and returns its result
     dataManager: { layers: new Map(), getAll: () => [] },
   });
   assert.deepEqual(await runner('zoom_to_globe'), expected);
+  // The voice tool means the full globe; the Reset button means home (Egypt).
+  assert.deepEqual(resetOptions, { target: 'globe' });
   assert.equal(calls, 1);
 });
 

@@ -61,7 +61,16 @@ export function createApplicationTools({
   // lifetime. The tileset lets the layer drape while the globe is hidden.
   const recentImagery = dataManager.layers.get('recent-imagery')?.module;
   if (recentImagery) {
-    recentImagery.attachTileset(tileset);
+    // Google 3D may load on the first 3D selection, so the drape host is
+    // re-read from the controller on every settled stack change.
+    const attachImageryHost = () =>
+      recentImagery.attachTileset(
+        mapStackController?.getImageryHostTileset?.() ?? null,
+      );
+    attachImageryHost();
+    const unsubscribeImageryHost =
+      mapStackController?.subscribe?.(attachImageryHost);
+    defer(() => unsubscribeImageryHost?.());
     const imageryBoxTool = initImageryBoxTool({
       viewer,
       onBox: (box) => recentImagery.setBox(box),

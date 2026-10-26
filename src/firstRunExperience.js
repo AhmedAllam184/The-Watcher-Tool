@@ -13,12 +13,8 @@ import { createSurfaceKeyboard } from './ui/surfaceKeyboard.js';
 //   - `?welcome=1`, the demo and support link, which opens it on this load;
 //   - "Quick-start missions…" in the Help panel, at any time.
 //
-// A share link never sees it on load, and `?welcome=0` suppresses it. The
-// storage keys below are still written by the close paths, so nothing that was
-// saved before this ruling is lost, but no longer decides whether it shows.
-//
-// Choosing a mission is deliberately NOT durable suppression: picking a mission
-// is enthusiasm, not "never show me this again".
+// A share link never sees it on load, and `?welcome=0` suppresses it. Closing
+// the card writes only the per-session flag, which nothing reads on load.
 
 /**
  * Dispatched on the document by the Help panel's "Quick-start missions…". A
@@ -26,8 +22,6 @@ import { createSurfaceKeyboard } from './ui/surfaceKeyboard.js';
  */
 export const QUICK_START_REQUEST_EVENT = 'gev:quick-start-request';
 
-/** Durable suppression. Written ONLY by the "Don't show this again" checkbox. */
-export const FIRST_RUN_STORAGE_KEY = 'gev:first-run-mission:v1';
 /** Per-session dismissal. Written by every close path; scoped to sessionStorage. */
 export const FIRST_RUN_SESSION_KEY = 'gev:first-run-mission-session:v1';
 
@@ -175,21 +169,6 @@ function writeStored(kind, injected, key, value) {
 }
 
 /**
- * Remove one key, best-effort.
- * @returns {boolean} true only if the removal actually happened.
- */
-function removeStored(kind, injected, key) {
-  try {
-    const store = resolveStore(kind, injected);
-    if (typeof store?.removeItem !== 'function') return false;
-    store.removeItem(key);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * Decide whether the launcher opens by itself on this page load. It does only
  * for `?welcome=1`; everything else starts on the plain map and reaches the
  * missions from the Help panel. Storage is not consulted here any more.
@@ -208,23 +187,8 @@ export function shouldShowFirstRun({
   // An embedded globe never shows the welcome launcher.
   if (params.get('embed') === '1' || globalThis.GEV_EMBED_INLINE === true)
     return false;
-  // The demo/support link: replays the launcher past any stored suppression.
+  // The demo/support link.
   return params.get('welcome') === '1';
-}
-
-/**
- * Write (or clear) the durable "don't show this again" suppression. Storage is
- * best-effort — a blocked store still closes the launcher for this session —
- * but the outcome is RETURNED, because the checkbox that calls this is showing
- * the visitor a claim about the future and must not keep a tick nothing saved.
- * @param {boolean} suppressed
- * @param {{setItem: Function, removeItem?: Function}|null} [storage]
- * @returns {boolean} true if the durable state now matches what was asked.
- */
-export function setFirstRunSuppressed(suppressed, storage) {
-  return suppressed
-    ? writeStored('local', storage, FIRST_RUN_STORAGE_KEY, 'suppressed')
-    : removeStored('local', storage, FIRST_RUN_STORAGE_KEY);
 }
 
 /**
@@ -311,7 +275,6 @@ export function exclusiveSurfaceActive(documentRef = globalThis.document) {
  * @param {object} input.styleManager Initialized StyleManager.
  * @param {object} [input.dataManager] DataManager, for the globe missions' layers.
  * @param {Document} [input.documentRef]
- * @param {Storage} [input.storage]
  * @param {Storage} [input.sessionStorageRef]
  * @param {Location} [input.location]
  * @returns {null|{dismiss: Function, isTopmost: Function, open: Function, destroy: Function}}
@@ -320,7 +283,6 @@ export function initFirstRunExperience({
   styleManager,
   dataManager = styleManager?._dataManager,
   documentRef = globalThis.document,
-  storage,
   sessionStorageRef,
   location = globalThis.location,
 } = {}) {
@@ -345,7 +307,6 @@ export function initFirstRunExperience({
     environmentalTitle.textContent = environmentalLabel().title;
 
   const status = root.querySelector('[data-first-run-status]');
-  const suppressBox = root.querySelector('[data-first-run-suppress]');
   const buttons = [...root.querySelectorAll('[data-first-run-choice]')];
   const defaultStatus = status?.textContent || '';
   let busy = false;
@@ -462,7 +423,7 @@ export function initFirstRunExperience({
         // these layers, so it persists exactly as clicking those rows would.
         setLayerEnabled: (layerId) =>
           dataManager.setEnabled(layerId, true, { origin: 'user' }),
-        flyToGlobe: () => styleManager.resetToGlobeView(),
+        flyToGlobe: () => styleManager.resetToGlobeView({ target: 'globe' }),
       });
     } catch (error) {
       // A thrown mission is a real defect worth seeing in a bug report; the
@@ -486,21 +447,6 @@ export function initFirstRunExperience({
     setBusy(false);
   };
 
-  const onSuppressChange = (event) => {
-    const box = event.currentTarget;
-    const wanted = Boolean(box?.checked);
-    if (setFirstRunSuppressed(wanted, storage)) return;
-    // The write is best-effort; the TICK is not. A box left checked after a
-    // refused write tells the visitor "never again" about a launcher that is
-    // already guaranteed to come back next session. Put the box back where the
-    // truth is, and say why rather than leaving a control that undoes itself.
-    if (box) box.checked = !wanted;
-    if (!status) return;
-    status.dataset.sticky = 'true';
-    status.textContent =
-      'This browser is blocking storage, so that could not be saved.';
-  };
-
   const keyboard = createSurfaceKeyboard({
     root,
     documentRef,
@@ -512,7 +458,6 @@ export function initFirstRunExperience({
   });
 
   for (const button of buttons) button.addEventListener('click', onChoice);
-  suppressBox?.addEventListener('change', onSuppressChange);
 
   // The scroll fade is an affordance, so it may only appear when the list really
   // overflows. On a viewport where all five tiles fit, a faded bottom edge would

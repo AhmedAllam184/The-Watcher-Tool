@@ -35,6 +35,21 @@ test('Google 3D stays a source but is never the start, with or without its tiles
   assert.equal(createDefaultMapSources({}).defaultId, 'osm');
 });
 
+test('Google 3D is selectable when it can load on demand, and unavailable with neither tileset nor loader', () => {
+  const lazy = createDefaultMapSources({ photorealLoader: async () => ({}) });
+  const lazyPhotoreal = lazy.sources.find((source) => source.descriptor.id === 'photoreal');
+  assert.equal(lazyPhotoreal.available, true);
+  assert.equal(typeof lazyPhotoreal.createTileset, 'function');
+  assert.equal(lazyPhotoreal.tileset, null, 'nothing is fetched when the registry is built');
+  assert.equal(lazy.recoveryId, 'photoreal');
+
+  const none = createDefaultMapSources({});
+  const nonePhotoreal = none.sources.find((source) => source.descriptor.id === 'photoreal');
+  assert.equal(nonePhotoreal.available, false);
+  assert.equal(nonePhotoreal.createTileset, undefined);
+  assert.equal(none.recoveryId, null);
+});
+
 test('a remembered pick comes back, and anything unknown or empty is ignored', () => {
   assert.equal(readRememberedMapStack(memory('photoreal')), 'photoreal');
   assert.equal(readRememberedMapStack(memory('esri-imagery')), 'esri-imagery');

@@ -14,6 +14,7 @@ import { createWorldTerrain, createKeylessTerrain } from './terrain.js';
 /** Select sources and setup guidance without putting provider branches in the controller. */
 export function createDefaultMapSources({
   googleTileset = null,
+  photorealLoader = null,
   cesiumToken = '',
   googleApiKey = '',
 } = {}) {
@@ -26,10 +27,13 @@ export function createDefaultMapSources({
       ? (request) => createWorldTerrain(ionToken, request)
       : createKeylessTerrain,
   };
+  // Google 3D is either already loaded (`googleTileset`) or loaded on the first
+  // selection (`photorealLoader`, which is offered only when credentials exist).
+  const photorealReady = Boolean(googleTileset || photorealLoader);
   return {
     defaultId: DEFAULT_MAP_STACK_ID,
     unknownId: 'photoreal',
-    recoveryId: googleTileset ? 'photoreal' : null,
+    recoveryId: photorealReady ? 'photoreal' : null,
     state: { hasCesiumIonToken: hasIon },
     sources: MAP_STACKS.map((descriptor) => {
       const common = {
@@ -42,9 +46,14 @@ export function createDefaultMapSources({
       if (descriptor.kind === 'photoreal')
         return {
           ...common,
-          available: Boolean(googleTileset),
+          available: photorealReady,
           unavailableReason: photorealUnavailableReason(hasIon || hasGoogle),
           tileset: googleTileset,
+          ...(googleTileset || !photorealLoader
+            ? {}
+            : {
+                createTileset: ({ signal } = {}) => photorealLoader({ signal }),
+              }),
         };
       const imagery =
         descriptor.kind === 'ion'

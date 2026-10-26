@@ -1,7 +1,6 @@
-  <!-- Explicit mission choice on a fresh session. Live feeds are not auto-enabled
-       until the visitor asks; shared links skip this surface entirely. It returns
-       every session until "Don't show this again" is ticked — see
-       src/firstRunExperience.js for the full show policy. -->
+  <!-- Explicit mission choice, opened on request only: ?welcome=1, or Quick-start
+       missions in the Help panel. Live feeds are not auto-enabled until the
+       visitor asks. See src/firstRunExperience.js for the show policy. -->
   <aside id="first-run-launcher" role="dialog" aria-labelledby="first-run-title" aria-describedby="first-run-description" hidden>
     <div class="first-run-scanline" aria-hidden="true"></div>
     <header class="first-run-header">
@@ -45,10 +44,6 @@
       <li>Press <kbd>?</kbd> for help and the map legend</li>
     </ul>
     <div class="first-run-footer">
-      <label class="first-run-suppress">
-        <input type="checkbox" data-first-run-suppress />
-        <span>Don't show this again</span>
-      </label>
       <span>ESC to dismiss</span>
     </div>
     <!-- Kept out of the footer row: it swaps to mission progress and errors, and

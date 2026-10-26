@@ -124,7 +124,12 @@ export class LayerStateCoordinator {
         /* best effort */
       }
       if (stored) {
-        selected = stored;
+        // Every normal start opens with no layer on (owner ruling, 2026-10-26).
+        // The stored enabled set is ignored here; the per-layer options, windows
+        // and chip choices in the same record still restore. A share link that
+        // lists layers is the one way to start with some on, and takes the
+        // share branch above.
+        selected = { ...stored, enabledLayerIds: [] };
         this._source = 'local';
       }
     } else {

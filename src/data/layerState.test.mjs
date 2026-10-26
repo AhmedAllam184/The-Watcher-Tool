@@ -1248,7 +1248,8 @@ test('share payload wins over local, passive restore writes nothing, and explici
   coordinator.destroy();
 });
 
-test('absent share payload restores local state without rewriting it', async () => {
+test('a normal start ignores the stored enabled set but keeps layer options, without rewriting storage', async () => {
+  // Owner ruling 2026-10-26: every normal start opens with all layers off.
   const local = createDefaultLayerState();
   local.enabledLayerIds = ['earthquakes', 'radio'];
   local.options.radio = { filter: 'talk', volume: 0.42 };
@@ -1259,8 +1260,9 @@ test('absent share payload restores local state without rewriting it', async () 
   });
   const results = await coordinator.start();
   assert.equal(coordinator.source, 'local');
-  assert.equal(manager.isEnabled('earthquakes'), true);
-  assert.equal(manager.isEnabled('radio'), true);
+  assert.equal(manager.isEnabled('earthquakes'), false);
+  assert.equal(manager.isEnabled('radio'), false);
+  assert.deepEqual(coordinator.getDurableState().enabledLayerIds, []);
   assert.deepEqual(manager.getLayerParams('radio'), {
     filter: 'talk',
     volume: 0.42,
@@ -1273,6 +1275,23 @@ test('absent share payload restores local state without rewriting it', async () 
     true,
   );
   assert.deepEqual(storage.writes, []);
+  coordinator.destroy();
+});
+
+test('a share link that lists layers still turns exactly those on, over a stored set', async () => {
+  const local = createDefaultLayerState();
+  local.enabledLayerIds = ['radio'];
+  const storage = memoryStorage(serializeStoredLayerState(local));
+  const manager = productionManager();
+  const share = createDefaultLayerState();
+  share.enabledLayerIds = ['earthquakes'];
+  const coordinator = new LayerStateCoordinator(manager, shareSink(), {
+    storage,
+  });
+  await coordinator.start({ shareLayerState: share });
+  assert.equal(coordinator.source, 'share');
+  assert.equal(manager.isEnabled('earthquakes'), true);
+  assert.equal(manager.isEnabled('radio'), false);
   coordinator.destroy();
 });
 

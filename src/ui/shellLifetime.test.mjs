@@ -25,7 +25,9 @@ function location(t) {
     services: {
       OrbitController: class { stop() { calls.push('orbit-stop'); } },
       GLOBE_VIEW: { heightM: 20000000 },
-      flyToGlobeView(_viewer, callbacks) { hooks = callbacks; return {}; },
+      flyToGlobeView(_viewer, callbacks) { calls.push('globe'); hooks = callbacks; return {}; },
+      HOME_VIEW: { name: 'Egypt', lat: 26.8, lon: 30.8, heightM: 2200000 },
+      flyToHomeView(_viewer, callbacks) { calls.push('home'); hooks = callbacks; return {}; },
       interruptCameraMotion() {},
       militaryAwarenessLayer: {}, satellitesLayer: {}, rocketLaunchesLayer: {},
       trafficLayer: {
@@ -43,6 +45,22 @@ function location(t) {
   });
   return { owner, calls, readHooks: () => hooks };
 }
+
+test('the default reset flies home to the start view, not the full globe', (t) => {
+  const { owner, calls } = location(t);
+  owner.resetToGlobeView();
+  assert.equal(calls.includes('home'), true);
+  assert.equal(calls.includes('globe'), false);
+  owner.destroy();
+});
+
+test('target globe still pulls out to the full earth', (t) => {
+  const { owner, calls } = location(t);
+  owner.resetToGlobeView({ target: 'globe' });
+  assert.equal(calls.includes('globe'), true);
+  assert.equal(calls.includes('home'), false);
+  owner.destroy();
+});
 
 test('shell disposal settles a pending globe reset once and revokes its timeout', async (t) => {
   const { owner, calls, readHooks } = location(t);

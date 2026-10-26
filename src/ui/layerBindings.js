@@ -33,6 +33,7 @@ export class LayerBindings {
     this._disposed = false;
     this._dataManager = null;
     this._directionsShellModule = null;
+    this._gpsShellModule = null;
     this._weatherShellModules = [];
     this._cctvRequestFocusHandler = null;
     this._removeCctvRequestFocusListener = null;
@@ -114,6 +115,19 @@ export class LayerBindings {
       floorFn: (lat, lon) => this.services.cachedGroundFloor(lat, lon),
       warmFn: (cells) => this.services.warmGroundFloor(cells),
       showToast: (message) => this._showToast(message),
+    });
+  }
+
+  /** Give the GPS-interference layer the shell's navigation policy for its focus flights. */
+  _connectGpsCamera() {
+    const gps = this._dataManager?.layers?.get('gps-interference')?.module;
+    if (this._gpsShellModule !== gps)
+      this._gpsShellModule?.attachShellServices?.(null);
+    this._gpsShellModule = null;
+    if (typeof gps?.attachShellServices !== 'function') return;
+    this._gpsShellModule = gps;
+    gps.attachShellServices({
+      runNavigation: (navigate) => this.runImmediateNavigation('gps', navigate),
     });
   }
 
@@ -236,6 +250,7 @@ export class LayerBindings {
     this._radioControls.connect();
     this._connectDirectionsCamera();
     this._connectWeatherCamera();
+    this._connectGpsCamera();
     if (!this._awarenessSelectedHandler) {
       this._awarenessSelectedHandler = (event) =>
         this._persistAwarenessSelection(event, false);
@@ -288,5 +303,6 @@ export class LayerBindings {
     this._directionsShellModule = null;
     this._dataManager = null;
     this._connectWeatherCamera();
+    this._connectGpsCamera();
   }
 }

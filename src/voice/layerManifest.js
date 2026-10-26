@@ -207,6 +207,13 @@ const layers = [
     },
   },
   {
+    id: 'gps-interference',
+    aliases: ['gps jamming', 'gps interference', 'jamming'],
+    context: true,
+    noQuery:
+      'inferred map overlay of aircraft GPS-quality cells; no countable records',
+  },
+  {
     id: 'weather-radar',
     aliases: ['weather radar', 'radar', 'rain', 'weather'],
     context: false,

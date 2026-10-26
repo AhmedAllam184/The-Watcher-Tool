@@ -677,6 +677,11 @@
   content: '✈';
 }
 :root[data-ui-theme='cyber']
+  .data-toggle-row[data-layer-id='gps-interference']
+  .data-icon::before {
+  content: '⌖';
+}
+:root[data-ui-theme='cyber']
   .data-toggle-row[data-layer-id='rocket-launches']
   .data-icon::before {
   content: '↑';

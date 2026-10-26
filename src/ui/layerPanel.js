@@ -24,6 +24,7 @@ export const PANEL_GROUPS = [
       'satellites',
       'flights',
       'military',
+      'gps-interference',
       'local-adsb',
       'ais-live-vessels',
       'traffic',

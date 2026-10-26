@@ -232,6 +232,8 @@ test('the legend swatches come from the modules that draw the map', (t) => {
     'rgb(240, 178, 62)', // active fire, orange stop (firmsLabels)
     '#ff0000', // earthquake, shallow (earthquakes/model.js)
     '#4fd8ff', // satellite, navigation (satelliteClass.js)
+    '#fbbf24', // GPS interference, medium (layers/gpsJam/geometry.js GPS_JAM_STYLE)
+    '#f87171', // GPS interference, high (layers/gpsJam/geometry.js GPS_JAM_STYLE)
   ]);
 });
 

@@ -14,6 +14,7 @@ export const MAP_STACKS = [
     kind: 'ion',
     style: Cesium.IonWorldImageryStyle.AERIAL,
     requiresIon: true,
+    labelsOverlay: true,
   },
   {
     id: 'bing-labels',
@@ -29,6 +30,7 @@ export const MAP_STACKS = [
     shortLabel: 'SAT',
     kind: 'esri-imagery',
     requiresIon: false,
+    labelsOverlay: true,
   },
   {
     id: 'osm',

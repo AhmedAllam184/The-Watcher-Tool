@@ -4,6 +4,7 @@ import { keySetupRequirement } from '../keySetupCore.mjs';
 import {
   createOsmImagery,
   createEsriImagery,
+  createEsriReferenceImagery,
   createIonImagery,
   ESRI_ATTRIBUTION_HTML,
 } from './imagery.js';
@@ -54,6 +55,9 @@ export function createDefaultMapSources({
         ...common,
         imagery,
         terrain,
+        ...(descriptor.labelsOverlay
+          ? { labels: createEsriReferenceImagery }
+          : {}),
         ...(descriptor.id === 'esri-imagery'
           ? {
               credit: ESRI_ATTRIBUTION_HTML,

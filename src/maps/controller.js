@@ -20,6 +20,7 @@ export class MapSourceController {
       onError = null,
       requestRender = () => viewer?.scene?.requestRender?.(),
       createImageryLayer = (provider) => new Cesium.ImageryLayer(provider),
+      labelsEnabled = true,
     },
   ) {
     this.viewer = viewer;
@@ -36,6 +37,7 @@ export class MapSourceController {
     this._abort = new AbortController();
     this._imageryProviders = new Map();
     this._terrainProviders = new Map();
+    this._labelsProviders = new Map();
     this._tilesets = new Map();
     this._ownedTilesets = new Set();
     this._disposed = new WeakSet();
@@ -48,6 +50,10 @@ export class MapSourceController {
     this._activeImageryProvider = null;
     this._removeImageryErrorListener = null;
     this._terrainMode = null;
+    /** Place-label overlay drawn above a globe stack whose source declares `labels`. */
+    this._labelsEnabled = labelsEnabled !== false;
+    this._labelsLayer = null;
+    this._labelsWarned = false;
     this._subscribers = new Set();
     this._destroyed = false;
   }
@@ -112,8 +118,29 @@ export class MapSourceController {
       status,
       lastError: this._lastError,
       switchOrigin: this._switchOrigin,
+      labelsEnabled: this._labelsEnabled,
+      labelsAvailable: Boolean(this._sources.get(this._activeId)?.labels),
       ...this._registry.state,
     };
+  }
+  getLabelsEnabled() {
+    return this._labelsEnabled;
+  }
+  /**
+   * Show or hide the place-label overlay on the active stack. Labels are a
+   * separate layer, so a stack without them can still show them on top.
+   * @param {boolean} enabled
+   * @returns {object} The controller state.
+   */
+  setLabelsEnabled(enabled) {
+    if (this._destroyed) return this.getState();
+    this._labelsEnabled = Boolean(enabled);
+    void this._syncLabelsLayer(
+      this._switchGen,
+      this._sources.get(this._activeId),
+    );
+    this._notifySubscribers();
+    return this.getState();
   }
   _emitChange(status) {
     this._onChange?.(this.getState(status));
@@ -244,6 +271,7 @@ export class MapSourceController {
       this._ownedTilesets.add(tileset);
     }
     this._removeImageryLayer();
+    this._removeLabelsLayer();
     this._credits.show(source.credit || null);
     this._showTileset(tileset);
     this.viewer.scene.globe.show = false;
@@ -294,7 +322,44 @@ export class MapSourceController {
       else this.viewer.terrainProvider = result.provider;
       this._terrainMode = terrain.id;
     }
+    void this._syncLabelsLayer(gen, source);
     return resolution;
+  }
+
+  /**
+   * Add or remove the label overlay for a globe source. Failures only drop the
+   * overlay (one warning): the base stack and its fallbacks are never involved.
+   */
+  async _syncLabelsLayer(gen, source) {
+    if (this._destroyed) return;
+    if (!this._labelsEnabled || !source?.labels) {
+      this._removeLabelsLayer();
+      return;
+    }
+    if (this._labelsLayer) return;
+    let provider;
+    try {
+      provider = await this._cached(this._labelsProviders, 'labels', () =>
+        source.labels({ signal: this._abort.signal }),
+      );
+    } catch (error) {
+      if (!this._destroyed && !this._labelsWarned) {
+        this._labelsWarned = true;
+        console.warn('[MapSourceController] place labels unavailable:', error);
+      }
+      return;
+    }
+    // A newer switch or a toggle-off while loading owns the overlay now.
+    if (
+      this._destroyed ||
+      gen !== this._switchGen ||
+      !this._labelsEnabled ||
+      this._labelsLayer
+    )
+      return;
+    this._labelsLayer = this._createImageryLayer(provider);
+    this.viewer.imageryLayers.add(this._labelsLayer);
+    this._requestRender('map-labels');
   }
 
   _cached(cache, id, create) {
@@ -386,6 +451,11 @@ export class MapSourceController {
     this._imageryLayer = null;
     this._activeImageryProvider = null;
   }
+  _removeLabelsLayer() {
+    if (this._labelsLayer)
+      this.viewer.imageryLayers.remove(this._labelsLayer, true);
+    this._labelsLayer = null;
+  }
   _dispose(value) {
     if (!value || this._disposed.has(value)) return;
     this._disposed.add(value);
@@ -400,6 +470,7 @@ export class MapSourceController {
     this._abort.abort();
     this._isSwitching = false;
     this._removeImageryLayer();
+    this._removeLabelsLayer();
     this._credits.destroy();
     for (const promise of this._imageryProviders.values())
       void Promise.resolve(promise).then(
@@ -409,6 +480,11 @@ export class MapSourceController {
     for (const promise of this._terrainProviders.values())
       void Promise.resolve(promise).then(
         (value) => this._dispose(value.provider),
+        () => {},
+      );
+    for (const promise of this._labelsProviders.values())
+      void Promise.resolve(promise).then(
+        (value) => this._dispose(value),
         () => {},
       );
     for (const tileset of this._ownedTilesets) {
@@ -422,6 +498,7 @@ export class MapSourceController {
       );
     this._imageryProviders.clear();
     this._terrainProviders.clear();
+    this._labelsProviders.clear();
     this._tilesets.clear();
     this._ownedTilesets.clear();
     this._onChange = null;

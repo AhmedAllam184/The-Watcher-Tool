@@ -842,6 +842,27 @@
   letter-spacing: 1.35px;
 }
 
+.map-labels-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.map-labels-toggle input:disabled {
+  cursor: default;
+}
+
+.map-labels-toggle:has(input:disabled) {
+  opacity: 0.45;
+  cursor: default;
+}
+
 .map-stack-chip-row {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

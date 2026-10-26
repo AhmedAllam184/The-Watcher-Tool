@@ -79,6 +79,7 @@ function publicFixture() {
     const provider = { id: source.descriptor.id, errorEvent: event() };
     providers.set(source.descriptor.id, provider);
     source.imagery = async () => provider;
+    if (source.labels) source.labels = async () => ({ id: 'labels' });
     source.terrain = {
       id: 'keyless',
       create: async () => ({ provider: { id: 'terrain' } }),
@@ -152,7 +153,8 @@ test('repeated Esri shot handoffs retain imagery and keep tile fallback live', a
   errors.raise();
   await settle();
   assert.equal(env.controller.getActiveId(), 'osm');
-  assert.equal(env.removed.length, 1);
+  // The Esri base and its label overlay both leave; OSM draws its own labels.
+  assert.equal(env.removed.length, 2);
   assert.equal(errors.size, 0);
   env.controller.destroy();
 });
@@ -838,4 +840,120 @@ test('each switch generation reports its origin: an outside setStack is manual, 
     ['recovery', 'manual'],
   ]);
   recovering.controller.destroy();
+});
+
+function overlayRegistry({ labels }) {
+  return {
+    defaultId: 'base',
+    sources: [
+      {
+        descriptor: descriptor('base'),
+        imagery: async () => ({ id: 'base' }),
+        labels,
+        terrain: { id: 'keyless', create: async () => ({ provider: null }) },
+      },
+      {
+        descriptor: { id: '3d', label: '3d', kind: 'photoreal' },
+        tileset: { show: false },
+      },
+    ],
+  };
+}
+
+test('place labels sit above an enabled globe stack, leave with a 3D stack, and follow the toggle', async () => {
+  let destroyed = 0;
+  const labelsProvider = {
+    id: 'labels',
+    destroy() {
+      destroyed++;
+    },
+  };
+  const env = fixture(overlayRegistry({ labels: async () => labelsProvider }), {
+    labelsEnabled: true,
+  });
+  await env.controller.setStack('base');
+  await settle();
+  // The fixture appends, so the last entry is the top layer.
+  assert.deepEqual(
+    env.imagery.map(({ provider }) => provider.id),
+    ['base', 'labels'],
+  );
+  assert.equal(env.controller.getState().labelsAvailable, true);
+  assert.equal(env.controller.getState().labelsEnabled, true);
+
+  env.controller.setLabelsEnabled(false);
+  assert.deepEqual(
+    env.imagery.map(({ provider }) => provider.id),
+    ['base'],
+  );
+  assert.equal(env.removed.at(-1).value.provider.id, 'labels');
+  assert.equal(env.removed.at(-1).destroy, true);
+  assert.equal(env.controller.getState().labelsEnabled, false);
+
+  env.controller.setLabelsEnabled(true);
+  await settle();
+  assert.deepEqual(
+    env.imagery.map(({ provider }) => provider.id),
+    ['base', 'labels'],
+  );
+
+  await env.controller.setStack('3d');
+  await settle();
+  assert.deepEqual(env.imagery, []);
+  assert.equal(env.controller.getState().labelsAvailable, false);
+
+  env.controller.destroy();
+  await settle();
+  assert.equal(destroyed, 1);
+});
+
+test('place labels stay off when the toggle starts disabled', async () => {
+  const env = fixture(
+    overlayRegistry({ labels: async () => ({ id: 'labels' }) }),
+    {
+      labelsEnabled: false,
+    },
+  );
+  await env.controller.setStack('base');
+  await settle();
+  assert.deepEqual(
+    env.imagery.map(({ provider }) => provider.id),
+    ['base'],
+  );
+  assert.equal(env.controller.getState().labelsEnabled, false);
+  assert.equal(env.controller.getState().labelsAvailable, true);
+  env.controller.destroy();
+});
+
+test('a failing labels provider keeps the base map active and warns once', async () => {
+  const warnings = [];
+  const errors = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  try {
+    const env = fixture(
+      overlayRegistry({
+        labels: async () => {
+          throw new Error('labels offline');
+        },
+      }),
+      { onError: (message) => errors.push(message) },
+    );
+    const state = await env.controller.setStack('base');
+    await settle();
+    assert.equal(state.activeId, 'base');
+    assert.equal(state.lastError, null);
+    assert.deepEqual(
+      env.imagery.map(({ provider }) => provider.id),
+      ['base'],
+    );
+    await env.controller.setStack('base');
+    await settle();
+    assert.equal(env.controller.getActiveId(), 'base');
+    assert.deepEqual(errors, []);
+    assert.equal(warnings.length, 1);
+    env.controller.destroy();
+  } finally {
+    console.warn = originalWarn;
+  }
 });

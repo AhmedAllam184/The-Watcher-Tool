@@ -250,3 +250,59 @@ test('completion after destruction cannot paint or notify', async () => {
   assert.equal(f.statusElement.textContent, label);
   assert.equal(await f.controls.select('osm'), null);
 });
+
+test('place labels toggle mirrors the controller, persists its choice, and disables without labels', () => {
+  const stored = new Map();
+  const originalStorage = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (key) => stored.get(key) ?? null,
+    setItem: (key, value) => stored.set(key, String(value)),
+  };
+  try {
+    stored.set('watcher.mapLabels', '0');
+    const labelsToggle = makeElement('input');
+    labelsToggle.checked = true;
+    const calls = [];
+    const state = {
+      activeId: 'esri-imagery',
+      activeStack: { id: 'esri-imagery', label: 'Esri' },
+      status: 'ready',
+      labelsEnabled: true,
+      labelsAvailable: true,
+    };
+    const controller = {
+      getStacks: () => [],
+      getActiveId: () => state.activeId,
+      getState: () => ({ ...state }),
+      getLabelsEnabled: () => state.labelsEnabled,
+      setLabelsEnabled: (enabled) => {
+        calls.push(['labels', enabled]);
+        state.labelsEnabled = enabled;
+        return controller.getState();
+      },
+    };
+    const controls = createMapSourceControls({
+      container: makeElement(),
+      statusElement: makeElement(),
+      labelsToggle,
+      controller,
+      subscribe: () => () => {},
+    });
+    assert.deepEqual(calls, [['labels', false]]);
+    assert.equal(labelsToggle.checked, false);
+
+    labelsToggle.checked = true;
+    labelsToggle.listeners.change[0]();
+    assert.equal(stored.get('watcher.mapLabels'), '1');
+    assert.deepEqual(calls.at(-1), ['labels', true]);
+
+    controls.render({ ...state, labelsAvailable: false });
+    assert.equal(labelsToggle.disabled, true);
+    assert.equal(labelsToggle.title, 'This map already has labels or is 3D');
+    controls.render({ ...state, labelsAvailable: true });
+    assert.equal(labelsToggle.disabled, false);
+    controls.destroy();
+  } finally {
+    globalThis.localStorage = originalStorage;
+  }
+});

@@ -21,6 +21,7 @@ scene playback and voice. It delegates; new behavior belongs with its owner.
 | `selectionDetails.js` | Plain-language details panel for the selected object |
 | `squawkAlerts.js` | Toasts and recent list for emergency transponder squawks announced by the flight layers |
 | `helpPanel.js` | "?" help and map legend dialog, its focus and its larger-text setting |
+| `quickLayers.js` | Bottom-left map switcher: one-click Map/Satellite toggle and the layers tray (3D, live overlays, More) |
 | `textSize.js` | Larger-text preference: the document class and its saved flag |
 
 Owners receive named services, elements, operations and readers. They do not

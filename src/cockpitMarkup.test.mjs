@@ -269,10 +269,13 @@ test('Cockpit owns a focused shared Display portal and compact Radio controls', 
     /@media \(max-width: 720px\)\s*\{[\s\S]*?#top-center-actions\s*\{[\s\S]*?right:\s*16px;[\s\S]*?left:\s*auto;[\s\S]*?transform:\s*none;/,
   );
   assert.match(css, /@media \(max-width: 720px\)\s*\{[\s\S]*?#style-indicator\s*\{\s*display:\s*none;/);
+  // Phones keep the logo and the name: the brand is the one thing the title
+  // must show. Only the sizes change.
   assert.match(
     css,
-    /@media \(max-width: 520px\)\s*\{[\s\S]*?#title-bar h1 > span:last-child,[\s\S]*?#title-bar \.subtitle\s*\{\s*display:\s*none;/,
+    /@media \(max-width: 520px\)\s*\{[\s\S]*?#title-bar h1\s*\{\s*font-size:\s*15px;/,
   );
+  assert.doesNotMatch(css, /#title-bar h1 > span:last-child,[\s\S]{0,40}display:\s*none/);
   assert.match(css, /body\.ui-clean-view #top-center-actions/);
   assert.match(css, /body\.recording-mode #top-center-actions/);
   assert.match(

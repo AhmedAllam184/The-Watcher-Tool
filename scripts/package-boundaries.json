@@ -607,6 +607,7 @@
       "src/data/satcatCodes.js",
       "src/sources/satelliteInfo.js",
       "src/ui/helpPanel.js",
+      "src/ui/quickLayers.js",
       "src/ui/squawkAlerts.js",
       "src/ui/textSize.js",
       "src/ui/applicationShortcuts.js",
@@ -740,6 +741,7 @@
       "src/ui/styles/recent-imagery.css",
       "src/ui/styles/selectionDetails.css",
       "src/ui/styles/helpPanel.css",
+      "src/ui/styles/quickLayers.css",
       "src/ui/styles/readability.css"
     ],
     "external": []
@@ -1963,6 +1965,7 @@
       "src/data/satcatCodes.js",
       "src/sources/satelliteInfo.js",
       "src/ui/helpPanel.js",
+      "src/ui/quickLayers.js",
       "src/ui/textSize.js",
       "src/ui/applicationShortcuts.js",
       "src/ui/cctv.js",

@@ -13,6 +13,24 @@ body:not(.cockpit-mode) #intel-hud .hud-right-edge {
   display: none;
 }
 
+/* Live telemetry (clock, coordinates, the bottom bar) sits on dark glass with
+   a text shadow, so it stays readable over the light default street map. The
+   dark imagery look is unchanged: the glass is near-black and translucent. */
+body:not(.cockpit-mode) #intel-hud .hud-bottom-left .hud-content,
+body:not(.cockpit-mode) #intel-hud .hud-top-right .hud-content,
+body:not(.cockpit-mode) #intel-hud .hud-bottom-right .hud-content {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(6, 12, 18, 0.56);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+body:not(.cockpit-mode) #intel-hud .hud-bottom-bar {
+  background: rgba(6, 12, 18, 0.6);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+}
+
 /* Default: Data Layers meta line and key links are no smaller than 11px, with
    higher-contrast text. The sci-fi look is otherwise unchanged. */
 .data-toggle-meta {
@@ -111,16 +129,25 @@ body:not(.cockpit-mode) #intel-hud .hud-right-edge {
   color: rgba(225, 244, 248, 0.9);
 }
 
-/* Author credit under the title. */
+/* Author credit under the wordmark, aligned with the name (logo + gap). */
 #title-bar .title-credit {
-  margin-top: 6px;
+  margin: 0 0 0 52px;
   font-family: var(--font-sans);
-  font-size: 12px;
-  letter-spacing: 1px;
-  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  line-height: 1.2;
+  color: rgba(226, 240, 244, 0.82);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 @media (max-width: 520px) {
   #title-bar .title-credit {
-    display: none;
+    margin-left: 42px;
+    font-size: 10px;
   }
+}
+
+/* The bottom-left MGRS / lat-lon block already shows the camera position;
+   the full-width bottom bar repeated it and ran under the layers tray. */
+body:not(.cockpit-mode) #intel-hud .hud-bottom-bar {
+  display: none;
 }

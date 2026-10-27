@@ -489,11 +489,29 @@ body.cockpit-mode #cockpit-cloud-effects.active {
 }
 
 /* ── Title Bar ────────────────────────────────── */
+/* The brand block is a glass pill: it stays legible over light street maps
+   as well as dark imagery. Logo and name share the top row; the author credit
+   sits under the name. */
 #title-bar {
   position: fixed;
-  top: 32px;
-  left: 36px;
+  top: 24px;
+  left: 24px;
   z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 16px 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(6, 12, 18, 0.74),
+    rgba(6, 12, 18, 0.5)
+  );
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   pointer-events: none;
   user-select: none;
 }
@@ -513,19 +531,23 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin: 0;
   font-family: var(--font-mono);
-  font-size: 26px;
+  font-size: 22px;
+  line-height: 1;
   font-weight: 600;
-  letter-spacing: 8px;
+  letter-spacing: 6px;
   color: var(--text-primary);
-  text-shadow: 0 0 30px var(--accent-glow);
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.7),
+    0 0 24px var(--accent-glow);
   position: relative;
 }
 
 #title-bar .title-logo {
   position: relative;
   display: block;
-  width: 52px;
+  width: 40px;
   height: auto;
   filter: drop-shadow(0 0 12px rgba(0, 246, 255, 0.5));
 }
@@ -604,15 +626,6 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   font-weight: 300;
 }
 
-#title-bar .subtitle {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: 5px;
-  color: var(--text-dim);
-  margin-top: 8px;
-  text-transform: uppercase;
-}
-
 #title-bar .frame-rate-readout {
   margin-top: 6px;
   font-family: var(--font-mono);
@@ -625,9 +638,20 @@ body.cockpit-mode #cockpit-cloud-effects.active {
 /* ── Style Indicator ──────────────────────────── */
 #style-indicator {
   position: fixed;
-  top: 32px;
-  right: 36px;
+  top: 24px;
+  right: 24px;
   z-index: 100;
+  padding: 8px 14px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(6, 12, 18, 0.74),
+    rgba(6, 12, 18, 0.5)
+  );
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.28);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   pointer-events: none;
   user-select: none;
   text-align: right;

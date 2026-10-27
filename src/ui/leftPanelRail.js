@@ -6,6 +6,40 @@ import {
 } from '../panelStackLayout.js';
 import { measurePanelNaturalHeight } from './panelMeasurement.js';
 
+/** Clear space kept between the bottom of the title block and the rail. */
+const TITLE_BAR_CLEARANCE_PX = 12;
+
+/** True when the element or one of its ancestors is display:none, hidden or transparent. */
+function hiddenByAncestor(element, getComputedStyle) {
+  for (let node = element; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      Number(style.opacity) === 0
+    )
+      return true;
+  }
+  return false;
+}
+
+/**
+ * The lowest y the rail may start at to clear the app title, read from the
+ * live #title-bar rectangle rather than from the obstacle list. The title is
+ * always the top-left floor, so a pass that happens to skip it (an ancestor
+ * hidden at that moment) still cannot place the rail over the brand.
+ * @returns {number} Title bottom plus clearance, or 0 when no title shows here.
+ */
+function titleBarFloor(stack, stackRect, getComputedStyle) {
+  const titleBar = stack.ownerDocument?.getElementById?.('title-bar');
+  if (!titleBar || hiddenByAncestor(titleBar, getComputedStyle)) return 0;
+  const rect = titleBar.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return 0;
+  const overlapsHorizontally =
+    rect.right > stackRect.left && rect.left < stackRect.right;
+  return overlapsHorizontally ? rect.bottom + TITLE_BAR_CLEARANCE_PX : 0;
+}
+
 /**
  * Measure and place the left panel rail for one synchronous layout pass.
  * The caller owns scheduling, obstacle selection, disclosure preferences and
@@ -79,19 +113,7 @@ export function layoutLeftPanelRail({
 
   for (const obstacle of obstacles) {
     if (stack.contains(obstacle)) continue;
-    let hiddenByAncestor = false;
-    for (let element = obstacle; element; element = element.parentElement) {
-      const style = getComputedStyle(element);
-      if (
-        style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        Number(style.opacity) === 0
-      ) {
-        hiddenByAncestor = true;
-        break;
-      }
-    }
-    if (hiddenByAncestor) continue;
+    if (hiddenByAncestor(obstacle, getComputedStyle)) continue;
     const rect = obstacle.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) continue;
     if (obstacle.matches?.('#intel-hud .hud-top-left')) {
@@ -110,6 +132,11 @@ export function layoutLeftPanelRail({
     }
   }
   if (!hudTopLeftRendered) safeTop = obstacleSafeTop;
+  // The title block is the brand: the lane starts below its measured bottom
+  // edge plus TITLE_BAR_CLEARANCE_PX, whichever obstacle pass ran.
+  const titleFloor = titleBarFloor(stack, stackRect, getComputedStyle);
+  obstacleSafeTop = Math.max(obstacleSafeTop, titleFloor);
+  safeTop = Math.max(safeTop, titleFloor);
   safeBottom = resolveLeftStackBottomBoundary({
     baseBottom: safeBottom,
     obstacles: bottomObstacles,

@@ -215,6 +215,33 @@ test('left lane starts under the app title when the HUD mission card is not rend
   assert.ok(Number(f.stack.dataset.safeTopPct) < 10);
 });
 
+test('left lane clears the live title block by 12px, read from its rectangle', () => {
+  // The title is read from the document, so a pass that skips it as an
+  // obstacle still cannot place the lane over the brand.
+  const f = fixture('left');
+  const title = element('title', { top: 16, height: 90, left: 16, width: 330 });
+  f.stack.ownerDocument.getElementById = (id) =>
+    id === 'title-bar' ? title : null;
+  f.options.obstacles = [];
+  f.run();
+  // Title bottom is 106px; 106 + 12 = 118px of a 900px viewport.
+  assert.ok(
+    Number(f.stack.dataset.safeTopPct) >= (118 / 900) * 100 - 0.01,
+    `lane starts at ${f.stack.dataset.safeTopPct}%, above the title clearance`,
+  );
+});
+
+test('left lane ignores a title block that is hidden at layout time', () => {
+  const f = fixture('left');
+  const title = element('title', { top: 16, height: 90, left: 16, width: 330 });
+  title.computed.display = 'none';
+  f.stack.ownerDocument.getElementById = (id) =>
+    id === 'title-bar' ? title : null;
+  f.options.obstacles = [];
+  f.run();
+  assert.ok(Number(f.stack.dataset.safeTopPct) < 5);
+});
+
 test('left lane keeps its 26% floor while the HUD mission card is rendered', () => {
   const f = fixture('left');
   const title = element('title', { top: 0, height: 40 });

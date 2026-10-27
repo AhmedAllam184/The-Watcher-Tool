@@ -30,6 +30,7 @@ import { bindCameraOrientationControls } from './cameraOrientationControls.js';
 import { createSelectionDetailsPanel } from './selectionDetails.js';
 import { createSquawkAlerts } from './squawkAlerts.js';
 import { createHelpPanel } from './helpPanel.js';
+import { createQuickLayers } from './quickLayers.js';
 import { applyStoredTextSize } from './textSize.js';
 import { createMapSourceControls } from './mapSource.js';
 import { STYLES } from './effects.js';
@@ -604,6 +605,7 @@ export class StyleManager extends ShellFacade {
     this._initSelectionDetails();
     this._initSquawkAlerts();
     this._initHelpPanel();
+    this._initQuickLayers();
     this._initClearSelectedLayersButton();
     this._initHUDToggle();
     this._initModels3dToggle();
@@ -1519,6 +1521,23 @@ export class StyleManager extends ShellFacade {
   }
 
   /**
+   * Bottom-left map switcher: one click toggles Map and Satellite, and the
+   * layers tray offers 3D, the live overlays and More (opens Data Layers).
+   */
+  _initQuickLayers() {
+    this._quickLayers?.destroy();
+    this._quickLayers = createQuickLayers({
+      root: document.getElementById('quick-layers'),
+      readDataManager: () => this._dataManager,
+      mapStackController: this.mapStackController,
+      selectMapStack: (stackId) => this._setMapStack(stackId),
+      openDataPanel: () =>
+        this.setPanelCollapsed('data-panel', false, { explicit: true }),
+      showToast: (message) => this._showToast(message),
+    });
+  }
+
+  /**
    * "?" help and map legend, opened by the toolbar button or the ? key. The
    * saved larger-text preference is applied first, so the page starts at it.
    */
@@ -1662,6 +1681,8 @@ export class StyleManager extends ShellFacade {
     this._squawkAlerts?.destroy();
     this._helpPanel?.destroy();
     this._helpPanel = null;
+    this._quickLayers?.destroy();
+    this._quickLayers = null;
     this._clearLayersControl?.destroy();
     this._cctvControls?.destroy();
     this.services?.streetLevelLayer?.attachNavigation?.(null);

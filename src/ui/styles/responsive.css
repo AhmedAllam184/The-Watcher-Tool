@@ -53,16 +53,9 @@
   }
 
   #title-bar .frame-rate-readout {
-    position: fixed;
-    top: 52px;
-    left: 20px;
     margin: 0;
     font-size: 10px;
     line-height: 12px;
-  }
-
-  #title-bar:has(.frame-rate-readout:not([hidden])) .subtitle {
-    visibility: hidden;
   }
 
   #location-bar {
@@ -272,8 +265,24 @@
     left: 16px;
   }
 
-  #title-bar h1 > span:last-child,
-  #title-bar .subtitle {
-    display: none;
+  /* The compact brand keeps its logo and name on phones; only the logo
+     scales down so the pill stays small over the map. The globe actions move
+     to their own row under the brand, and the Data Layers rail starts below. */
+  #title-bar h1 {
+    font-size: 15px;
+    letter-spacing: 3px;
+  }
+
+  #title-bar .title-logo {
+    width: 30px;
+  }
+
+  #top-center-actions {
+    top: 80px;
+    right: 16px;
+  }
+
+  #left-panel-stack {
+    top: 128px;
   }
 }

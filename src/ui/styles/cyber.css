@@ -834,7 +834,6 @@
   text-shadow: 2px 2px 0 rgba(196, 84, 84, 0.3);
 }
 
-:root[data-ui-theme='cyber'] #title-bar .subtitle,
 :root[data-ui-theme='cyber'] #style-indicator .label,
 :root[data-ui-theme='cyber'] #style-indicator .indicator-label {
   color: var(--cyber-red-bright);

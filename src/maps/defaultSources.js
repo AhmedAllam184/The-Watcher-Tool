@@ -5,11 +5,26 @@ import { keySetupRequirement } from '../keySetupCore.mjs';
 import {
   createOsmImagery,
   createEsriImagery,
+  createEsriStreetImagery,
   createEsriReferenceImagery,
   createIonImagery,
   ESRI_ATTRIBUTION_HTML,
 } from './imagery.js';
 import { createWorldTerrain, createKeylessTerrain } from './terrain.js';
+
+/**
+ * Internal source: the OpenStreetMap tiles the streets stack falls back to. It
+ * is not a catalog stack, so it never appears in `getStacks()`; `reportAs`
+ * makes the controller speak for the stack that fell back ('osm').
+ */
+const OSM_TILES_SOURCE = {
+  id: 'osm-tiles',
+  label: 'OpenStreetMap',
+  shortLabel: 'OSM',
+  kind: 'osm',
+  requiresIon: false,
+  reportAs: 'osm',
+};
 
 /** Select sources and setup guidance without putting provider branches in the controller. */
 export function createDefaultMapSources({
@@ -35,54 +50,82 @@ export function createDefaultMapSources({
     unknownId: 'photoreal',
     recoveryId: photorealReady ? 'photoreal' : null,
     state: { hasCesiumIonToken: hasIon },
-    sources: MAP_STACKS.map((descriptor) => {
-      const common = {
-        descriptor,
-        available: !descriptor.requiresIon || hasIon,
-        unavailableReason: descriptor.requiresIon
-          ? keySetupRequirement('cesium-ion')
-          : null,
-      };
-      if (descriptor.kind === 'photoreal')
+    sources: [
+      ...MAP_STACKS.map((descriptor) => {
+        const common = {
+          descriptor,
+          available: !descriptor.requiresIon || hasIon,
+          unavailableReason: descriptor.requiresIon
+            ? keySetupRequirement('cesium-ion')
+            : null,
+        };
+        if (descriptor.kind === 'photoreal')
+          return {
+            ...common,
+            available: photorealReady,
+            unavailableReason: photorealUnavailableReason(hasIon || hasGoogle),
+            tileset: googleTileset,
+            // Google 3D draws the same place names and borders as the globe stacks.
+            labels: createEsriReferenceImagery,
+            ...(googleTileset || !photorealLoader
+              ? {}
+              : {
+                  createTileset: ({ signal } = {}) =>
+                    photorealLoader({ signal }),
+                }),
+          };
+        const imagery =
+          descriptor.kind === 'ion'
+            ? () => createIonImagery(descriptor.style, ionToken)
+            : descriptor.id === 'osm'
+              ? createEsriStreetImagery
+              : createEsriImagery;
         return {
           ...common,
-          available: photorealReady,
-          unavailableReason: photorealUnavailableReason(hasIon || hasGoogle),
-          tileset: googleTileset,
-          ...(googleTileset || !photorealLoader
-            ? {}
-            : {
-                createTileset: ({ signal } = {}) => photorealLoader({ signal }),
-              }),
+          imagery,
+          terrain,
+          ...(descriptor.labelsOverlay
+            ? { labels: createEsriReferenceImagery }
+            : {}),
+          ...(descriptor.id === 'esri-imagery'
+            ? {
+                credit: ESRI_ATTRIBUTION_HTML,
+                constructionFallback: {
+                  id: OSM_TILES_SOURCE.id,
+                  message: 'Esri Satellite is unavailable; using OSM',
+                },
+                tileFailureFallback: {
+                  id: OSM_TILES_SOURCE.id,
+                  threshold: 2,
+                  message: 'Esri Satellite tile requests failed; using OSM',
+                },
+              }
+            : {}),
+          ...(descriptor.id === 'osm'
+            ? {
+                credit: ESRI_ATTRIBUTION_HTML,
+                constructionFallback: {
+                  id: OSM_TILES_SOURCE.id,
+                  message:
+                    'Street map is unavailable; using OpenStreetMap tiles',
+                },
+                tileFailureFallback: {
+                  id: OSM_TILES_SOURCE.id,
+                  threshold: 2,
+                  message:
+                    'Street map tile requests failed; using OpenStreetMap tiles',
+                },
+              }
+            : {}),
         };
-      const imagery =
-        descriptor.kind === 'ion'
-          ? () => createIonImagery(descriptor.style, ionToken)
-          : descriptor.id === 'osm'
-            ? createOsmImagery
-            : createEsriImagery;
-      return {
-        ...common,
-        imagery,
+      }),
+      {
+        descriptor: OSM_TILES_SOURCE,
+        available: true,
+        unavailableReason: null,
+        imagery: createOsmImagery,
         terrain,
-        ...(descriptor.labelsOverlay
-          ? { labels: createEsriReferenceImagery }
-          : {}),
-        ...(descriptor.id === 'esri-imagery'
-          ? {
-              credit: ESRI_ATTRIBUTION_HTML,
-              constructionFallback: {
-                id: 'osm',
-                message: 'Esri Satellite is unavailable; using OSM',
-              },
-              tileFailureFallback: {
-                id: 'osm',
-                threshold: 2,
-                message: 'Esri Satellite tile requests failed; using OSM',
-              },
-            }
-          : {}),
-      };
-    }),
+      },
+    ],
   };
 }

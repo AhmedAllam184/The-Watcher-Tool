@@ -11,6 +11,21 @@ export function createOsmImagery() {
   });
 }
 
+/**
+ * The streets stack: Esri's world street map carries names in English
+ * everywhere, where OSM's standard tiles show each place in its local script.
+ */
+export function createEsriStreetImagery() {
+  return Cesium.ArcGisMapServerImageryProvider.fromUrl(
+    'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer',
+    {
+      credit:
+        'Powered by Esri — Sources: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NRCan, Esri Japan, METI, Esri China (Hong Kong), Esri Korea, Esri (Thailand), NGCC, © OpenStreetMap contributors, and the GIS User Community',
+      enablePickFeatures: false,
+    },
+  );
+}
+
 export function createEsriImagery() {
   return Cesium.ArcGisMapServerImageryProvider.fromUrl(
     'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer',

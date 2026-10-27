@@ -71,7 +71,7 @@ const settle = async () => {
 };
 const descriptor = (id) => ({ id, label: id, kind: 'imagery' });
 function publicFixture() {
-  const tileset = { show: true };
+  const tileset = { show: true, imageryLayers: fakeTilesetLayers() };
   const registry = createDefaultMapSources({ googleTileset: tileset });
   const providers = new Map();
   for (const source of registry.sources) {
@@ -275,8 +275,33 @@ test('Esri construction fallback reports and attributes the source actually rend
     env.controller.getState().lastError,
     'Esri Satellite is unavailable; using OSM',
   );
-  assert.equal(env.imagery[0].provider, env.providers.get('osm'));
+  assert.equal(env.imagery[0].provider, env.providers.get('osm-tiles'));
   assert.equal(env.credits.size, 0);
+  env.controller.destroy();
+});
+
+test('the streets stack lists once, and its OSM fallback speaks for it', async () => {
+  const env = publicFixture();
+  const ids = env.controller.getStacks().map(({ id }) => id);
+  assert.equal(ids.includes('osm-tiles'), false);
+  assert.equal(ids.filter((id) => id === 'osm').length, 1);
+  const streets = env.registry.sources.find(
+    ({ descriptor }) => descriptor.id === 'osm',
+  );
+  streets.imagery = async () => {
+    throw new Error('unreachable');
+  };
+  const state = await env.controller.setStack('osm');
+  assert.equal(state.activeId, 'osm');
+  assert.equal(state.switchOrigin, 'automatic');
+  assert.equal(
+    state.lastError,
+    'Street map is unavailable; using OpenStreetMap tiles',
+  );
+  assert.equal(env.imagery[0].provider, env.providers.get('osm-tiles'));
+  // Outside callers cannot name the internal source; they get the default.
+  await env.controller.setStack('osm-tiles');
+  assert.equal(env.controller.getActiveId(), 'photoreal');
   env.controller.destroy();
 });
 
@@ -596,7 +621,8 @@ test('release keeps a fallback that replaced the comparison stack', async () => 
   assert.equal(env.controller.getActiveId(), 'osm');
   await lease.release();
   assert.equal(env.controller.getActiveId(), 'osm');
-  assert.deepEqual(env.switches, ['esri-imagery', 'osm']);
+  // The controller's own fallback call names the internal OSM tiles source.
+  assert.deepEqual(env.switches, ['esri-imagery', 'osm-tiles']);
   env.controller.destroy();
 });
 
@@ -965,6 +991,249 @@ test('a failing labels provider keeps the base map active and warns once', async
   }
 });
 
+// ── Google 3D place labels: an ImageryLayer draped on the tileset ───────────
+
+function fakeTilesetLayers() {
+  const layers = [];
+  const removed = [];
+  return {
+    layers,
+    removed,
+    add(layer) {
+      layers.push(layer);
+    },
+    remove(layer, destroy) {
+      const index = layers.indexOf(layer);
+      if (index < 0) return false;
+      layers.splice(index, 1);
+      removed.push({ layer, destroy });
+      return true;
+    },
+    contains(layer) {
+      return layers.includes(layer);
+    },
+  };
+}
+
+function drapeRegistry({ tileset, labels }) {
+  return {
+    defaultId: 'base',
+    sources: [
+      {
+        descriptor: descriptor('base'),
+        imagery: async () => ({ id: 'base' }),
+        terrain: { id: 'keyless', create: async () => ({ provider: null }) },
+      },
+      {
+        descriptor: { id: '3d', label: '3d', kind: 'photoreal' },
+        tileset,
+        labels,
+      },
+    ],
+  };
+}
+
+function drapeTileset() {
+  return {
+    show: false,
+    imageryLayers: fakeTilesetLayers(),
+    destroy() {},
+    isDestroyed: () => false,
+  };
+}
+
+function labelsWarnings() {
+  const warnings = [];
+  const original = console.warn;
+  console.warn = (...args) => warnings.push(args);
+  return { warnings, restore: () => (console.warn = original) };
+}
+
+test('Google 3D drapes the place labels on its tileset when labels are enabled', async () => {
+  const tileset = drapeTileset();
+  const env = fixture(
+    drapeRegistry({ tileset, labels: async () => ({ id: 'labels' }) }),
+    { labelsEnabled: true },
+  );
+  await env.controller.setStack('3d');
+  await settle();
+  assert.deepEqual(
+    tileset.imageryLayers.layers.map(({ provider }) => provider.id),
+    ['labels'],
+  );
+  assert.deepEqual(env.imagery, [], 'the viewer keeps no globe overlay');
+  assert.equal(env.controller.getState().labelsAvailable, true);
+  env.controller.destroy();
+});
+
+test('Google 3D drapes no labels while the toggle is off, and drapes them once it is turned on', async () => {
+  const tileset = drapeTileset();
+  const env = fixture(
+    drapeRegistry({ tileset, labels: async () => ({ id: 'labels' }) }),
+    { labelsEnabled: false },
+  );
+  await env.controller.setStack('3d');
+  await settle();
+  assert.deepEqual(tileset.imageryLayers.layers, []);
+  env.controller.setLabelsEnabled(true);
+  await settle();
+  assert.equal(tileset.imageryLayers.layers.length, 1);
+  env.controller.destroy();
+});
+
+test('toggling Google 3D labels off removes the draped layer without destroying its shared provider', async () => {
+  const tileset = drapeTileset();
+  let destroyed = 0;
+  const provider = {
+    id: 'labels',
+    destroy() {
+      destroyed++;
+    },
+  };
+  const env = fixture(
+    drapeRegistry({ tileset, labels: async () => provider }),
+    {
+      labelsEnabled: true,
+    },
+  );
+  await env.controller.setStack('3d');
+  await settle();
+  env.controller.setLabelsEnabled(false);
+  assert.deepEqual(tileset.imageryLayers.layers, []);
+  assert.equal(tileset.imageryLayers.removed.at(-1).destroy, true);
+  assert.equal(tileset.imageryLayers.removed.at(-1).layer.provider, provider);
+  assert.equal(destroyed, 0, 'the shared provider outlives the layer');
+  env.controller.setLabelsEnabled(true);
+  await settle();
+  assert.equal(tileset.imageryLayers.layers.length, 1);
+  env.controller.destroy();
+  env.controller.destroy();
+  await settle();
+  assert.equal(destroyed, 1, 'the provider is destroyed exactly once');
+});
+
+test('switching away from Google 3D removes its label layer, and returning drapes it again', async () => {
+  const tileset = drapeTileset();
+  const env = fixture(
+    drapeRegistry({ tileset, labels: async () => ({ id: 'labels' }) }),
+    { labelsEnabled: true },
+  );
+  await env.controller.setStack('3d');
+  await settle();
+  await env.controller.setStack('base');
+  await settle();
+  assert.deepEqual(tileset.imageryLayers.layers, []);
+  assert.equal(tileset.imageryLayers.removed.at(-1).destroy, true);
+  assert.deepEqual(
+    env.imagery.map(({ provider }) => provider.id),
+    ['base'],
+    'the base globe stack draws no label overlay of its own',
+  );
+  await env.controller.setStack('3d');
+  await settle();
+  assert.equal(tileset.imageryLayers.layers.length, 1);
+  env.controller.destroy();
+});
+
+test('destroying the controller removes the draped layer and the tileset is left to its owner', async () => {
+  const tileset = drapeTileset();
+  const env = fixture(
+    drapeRegistry({ tileset, labels: async () => ({ id: 'labels' }) }),
+    { labelsEnabled: true },
+  );
+  await env.controller.setStack('3d');
+  await settle();
+  env.controller.destroy();
+  assert.deepEqual(tileset.imageryLayers.layers, []);
+  assert.equal(tileset.imageryLayers.removed.at(-1).destroy, true);
+});
+
+test('a lazily created Google 3D tileset receives the labels once it resolves', async () => {
+  const tileset = drapeTileset();
+  let resolveTileset;
+  const registry = drapeRegistry({
+    tileset: null,
+    labels: async () => ({ id: 'labels' }),
+  });
+  registry.sources[1].createTileset = () =>
+    new Promise((done) => {
+      resolveTileset = done;
+    });
+  const env = fixture(registry, { labelsEnabled: true });
+  const pending = env.controller.setStack('3d');
+  await settle();
+  assert.equal(tileset.imageryLayers.layers.length, 0);
+  resolveTileset(tileset);
+  await pending;
+  await settle();
+  assert.deepEqual(
+    tileset.imageryLayers.layers.map(({ provider }) => provider.id),
+    ['labels'],
+  );
+  env.controller.destroy();
+});
+
+test('a tileset without imageryLayers keeps the 3D view and warns once', async () => {
+  const { warnings, restore } = labelsWarnings();
+  try {
+    const tileset = { show: false, destroy() {}, isDestroyed: () => false };
+    const env = fixture(
+      drapeRegistry({ tileset, labels: async () => ({ id: 'labels' }) }),
+      { labelsEnabled: true },
+    );
+    const state = await env.controller.setStack('3d');
+    await settle();
+    assert.equal(state.activeId, '3d');
+    assert.equal(state.lastError, null);
+    assert.equal(tileset.show, true);
+    await env.controller.setStack('base');
+    await env.controller.setStack('3d');
+    await settle();
+    assert.equal(env.controller.getActiveId(), '3d');
+    assert.equal(warnings.length, 1);
+    env.controller.destroy();
+  } finally {
+    restore();
+  }
+});
+
+test('a failing draped layer or labels provider never breaks the 3D view', async () => {
+  const { warnings, restore } = labelsWarnings();
+  try {
+    const tileset = drapeTileset();
+    tileset.imageryLayers.add = () => {
+      throw new Error('layer rejected');
+    };
+    const env = fixture(
+      drapeRegistry({ tileset, labels: async () => ({ id: 'labels' }) }),
+      { labelsEnabled: true },
+    );
+    const state = await env.controller.setStack('3d');
+    await settle();
+    assert.equal(state.activeId, '3d');
+    assert.equal(tileset.show, true);
+    assert.equal(warnings.length, 1);
+    env.controller.destroy();
+
+    const offline = drapeTileset();
+    const second = fixture(
+      drapeRegistry({
+        tileset: offline,
+        labels: async () => {
+          throw new Error('labels offline');
+        },
+      }),
+      { labelsEnabled: true },
+    );
+    assert.equal((await second.controller.setStack('3d')).activeId, '3d');
+    await settle();
+    assert.deepEqual(offline.imageryLayers.layers, []);
+    second.controller.destroy();
+  } finally {
+    restore();
+  }
+});
+
 // ── Google 3D loads on demand: no request at a plain start ──────────────────
 
 function lazyFixture(loader) {
@@ -998,7 +1267,12 @@ test('a plain start never requests the Google 3D tileset', async () => {
 
 test('the first Google 3D selection loads the tileset once, and later switches reuse it', async () => {
   let requests = 0;
-  const tileset = { show: false, destroy() {}, isDestroyed: () => false };
+  const tileset = {
+    show: false,
+    imageryLayers: fakeTilesetLayers(),
+    destroy() {},
+    isDestroyed: () => false,
+  };
   const env = lazyFixture(async () => {
     requests += 1;
     return tileset;

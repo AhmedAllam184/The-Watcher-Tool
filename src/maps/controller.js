@@ -53,6 +53,9 @@ export class MapSourceController {
     /** Place-label overlay drawn above a globe stack whose source declares `labels`. */
     this._labelsEnabled = labelsEnabled !== false;
     this._labelsLayer = null;
+    this._tilesetLabelsLayer = null;
+    this._labelsTileset = null;
+    this._activeTileset = null;
     this._labelsWarned = false;
     this._subscribers = new Set();
     this._destroyed = false;
@@ -62,15 +65,17 @@ export class MapSourceController {
     return this._sources.get(id)?.descriptor || null;
   }
   getStacks() {
-    return [...this._sources.values()].map(({ descriptor }) => {
-      const stack = descriptor;
-      const available = this.isStackAvailable(stack.id);
-      return {
-        ...stack,
-        available,
-        unavailableReason: available ? null : this._unavailableReason(stack),
-      };
-    });
+    return [...this._sources.values()]
+      .filter(({ descriptor }) => !descriptor.reportAs)
+      .map(({ descriptor }) => {
+        const stack = descriptor;
+        const available = this.isStackAvailable(stack.id);
+        return {
+          ...stack,
+          available,
+          unavailableReason: available ? null : this._unavailableReason(stack),
+        };
+      });
   }
   isStackAvailable(id) {
     const source = this._sources.get(id);
@@ -93,6 +98,10 @@ export class MapSourceController {
   }
   getActiveId() {
     return this._activeId;
+  }
+  /** The stack a settled source speaks for: an internal fallback reports its parent. */
+  _reportedId(id) {
+    return this._sources.get(id)?.descriptor?.reportAs || id;
   }
   getActiveStack() {
     return this.getStack(this._activeId);
@@ -135,10 +144,14 @@ export class MapSourceController {
   setLabelsEnabled(enabled) {
     if (this._destroyed) return this.getState();
     this._labelsEnabled = Boolean(enabled);
-    void this._syncLabelsLayer(
-      this._switchGen,
-      this._sources.get(this._activeId),
-    );
+    const source = this._sources.get(this._activeId);
+    if (source && !source.imagery)
+      void this._syncTilesetLabels(
+        this._switchGen,
+        this._activeTileset,
+        source,
+      );
+    else void this._syncLabelsLayer(this._switchGen, source);
     this._notifySubscribers();
     return this.getState();
   }
@@ -189,7 +202,12 @@ export class MapSourceController {
 
   async setStack(id, { silent = false, [AUTOMATIC]: automatic = false } = {}) {
     if (this._destroyed) return this.getState();
-    const stack = this.getStack(id) || this.getStack(this._registry.unknownId);
+    const requested = this.getStack(id);
+    // Internal fallback sources are reachable only through the controller.
+    const stack =
+      requested && (automatic || !requested.reportAs)
+        ? requested
+        : this.getStack(this._registry.unknownId);
     if (!stack) return null;
     if (!this.isStackAvailable(stack.id)) {
       const message = this._unavailableReason(stack);
@@ -205,8 +223,9 @@ export class MapSourceController {
     try {
       const activation = await this._activate(stack, gen);
       if (gen !== this._switchGen) return this.getState();
-      this._activeId = activation?.effectiveStackId || stack.id;
-      if (this._activeId !== stack.id) this._switchOrigin = 'automatic';
+      const settled = activation?.effectiveStackId || stack.id;
+      this._activeId = this._reportedId(settled);
+      if (settled !== stack.id) this._switchOrigin = 'automatic';
       if (activation?.fallbackMessage) {
         this._lastError = activation.fallbackMessage;
         this._onError?.(activation.fallbackMessage, stack);
@@ -229,7 +248,9 @@ export class MapSourceController {
         try {
           const activation = await this._activate(recovery, gen);
           if (gen !== this._switchGen) return this.getState();
-          this._activeId = activation?.effectiveStackId || recovery.id;
+          this._activeId = this._reportedId(
+            activation?.effectiveStackId || recovery.id,
+          );
         } catch (recoveryError) {
           if (gen !== this._switchGen) return this.getState();
           this._lastError = recoveryError?.message || String(recoveryError);
@@ -274,7 +295,9 @@ export class MapSourceController {
     this._removeLabelsLayer();
     this._credits.show(source.credit || null);
     this._showTileset(tileset);
+    this._activeTileset = tileset;
     this.viewer.scene.globe.show = false;
+    void this._syncTilesetLabels(gen, tileset, source);
     // Terrain is intentionally untouched while the globe is hidden.
   }
 
@@ -308,8 +331,9 @@ export class MapSourceController {
     this._removeImageryErrorListener = null;
     this._watchProvider(resolution, gen);
     this._showTileset(null);
+    this._removeTilesetLabels();
     this.viewer.scene.globe.show = true;
-    this._activeId = resolution.effectiveStackId;
+    this._activeId = this._reportedId(resolution.effectiveStackId);
     if (source?.terrain && source.terrain.id !== this._terrainMode) {
       const terrain = source.terrain;
       const result = await this._cached(
@@ -343,10 +367,7 @@ export class MapSourceController {
         source.labels({ signal: this._abort.signal }),
       );
     } catch (error) {
-      if (!this._destroyed && !this._labelsWarned) {
-        this._labelsWarned = true;
-        console.warn('[MapSourceController] place labels unavailable:', error);
-      }
+      this._warnLabelsOnce(error);
       return;
     }
     // A newer switch or a toggle-off while loading owns the overlay now.
@@ -360,6 +381,65 @@ export class MapSourceController {
     this._labelsLayer = this._createImageryLayer(provider);
     this.viewer.imageryLayers.add(this._labelsLayer);
     this._requestRender('map-labels');
+  }
+
+  _warnLabelsOnce(error) {
+    if (this._destroyed || this._labelsWarned) return;
+    this._labelsWarned = true;
+    console.warn('[MapSourceController] place labels unavailable:', error);
+  }
+
+  /**
+   * Drape the label overlay on the shown Google 3D tileset. The tileset takes
+   * its own ImageryLayer, built over the shared labels provider. Any failure
+   * (an older tileset without imageryLayers, a provider error) only drops the
+   * overlay, so the 3D view itself is never involved.
+   */
+  async _syncTilesetLabels(gen, tileset, source) {
+    if (this._destroyed) return;
+    const wanted = Boolean(this._labelsEnabled && tileset && source?.labels);
+    if (!wanted || this._labelsTileset !== tileset) this._removeTilesetLabels();
+    if (!wanted || this._tilesetLabelsLayer) return;
+    let provider;
+    try {
+      provider = await this._cached(this._labelsProviders, 'labels', () =>
+        source.labels({ signal: this._abort.signal }),
+      );
+    } catch (error) {
+      this._warnLabelsOnce(error);
+      return;
+    }
+    if (
+      this._destroyed ||
+      gen !== this._switchGen ||
+      !this._labelsEnabled ||
+      this._tilesetLabelsLayer ||
+      this._activeTileset !== tileset
+    )
+      return;
+    try {
+      const layer = this._createImageryLayer(provider);
+      tileset.imageryLayers.add(layer);
+      this._tilesetLabelsLayer = layer;
+      this._labelsTileset = tileset;
+    } catch (error) {
+      this._warnLabelsOnce(error);
+      return;
+    }
+    this._requestRender('map-labels');
+  }
+
+  _removeTilesetLabels() {
+    const layer = this._tilesetLabelsLayer;
+    const tileset = this._labelsTileset;
+    this._tilesetLabelsLayer = null;
+    this._labelsTileset = null;
+    if (!layer) return;
+    try {
+      tileset?.imageryLayers?.remove(layer, true);
+    } catch (error) {
+      this._warnLabelsOnce(error);
+    }
   }
 
   _cached(cache, id, create) {
@@ -431,7 +511,7 @@ export class MapSourceController {
           if (
             !this._destroyed &&
             this._switchGen === expectedGen &&
-            state?.activeId === fallback.id
+            state?.activeId === this._reportedId(fallback.id)
           ) {
             this._lastError = fallback.message;
             this._emitChange('error');
@@ -471,6 +551,8 @@ export class MapSourceController {
     this._isSwitching = false;
     this._removeImageryLayer();
     this._removeLabelsLayer();
+    this._removeTilesetLabels();
+    this._activeTileset = null;
     this._credits.destroy();
     for (const promise of this._imageryProviders.values())
       void Promise.resolve(promise).then(

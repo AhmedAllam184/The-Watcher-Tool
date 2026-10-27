@@ -685,7 +685,7 @@ function failingMapController() {
     if (!source.imagery) continue;
     const id = source.descriptor.id;
     source.imagery =
-      id === 'osm'
+      id === 'osm-tiles'
         ? async () => {
             throw new Error('OSM offline');
           }
@@ -770,7 +770,7 @@ for (const path of ['subscription', 'stats poll']) {
     // the layer lets the lease go and shows both days without a swipe.
     failEsriTiles();
     await watch();
-    assert.deepEqual(calls, ['esri-imagery', 'osm'], 'no Esri retry');
+    assert.deepEqual(calls, ['esri-imagery', 'osm-tiles'], 'no Esri retry');
     assert.equal(controller.getActiveId(), 'photoreal');
     assert.equal(controller.getSwitchOrigin(), 'automatic');
     assert.equal(f.diag().lease, false);
@@ -790,7 +790,7 @@ for (const path of ['subscription', 'stats poll']) {
     f.layer.setMode('basemap');
     f.layer.setMode('ab');
     await watch();
-    assert.deepEqual(calls, ['esri-imagery', 'osm']);
+    assert.deepEqual(calls, ['esri-imagery', 'osm-tiles']);
 
     // The operator picks Google 3D by hand: that is answered once.
     await controller.setStack('photoreal');
@@ -798,7 +798,7 @@ for (const path of ['subscription', 'stats poll']) {
     await watch();
     assert.deepEqual(calls, [
       'esri-imagery',
-      'osm',
+      'osm-tiles',
       'photoreal',
       'esri-imagery',
     ]);

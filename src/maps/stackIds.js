@@ -14,8 +14,8 @@ export const MAP_STACK_IDS = Object.freeze([
 ]);
 
 /**
- * The stack a visitor starts on: flat OpenStreetMap streets, roads and labels,
- * the way a street map opens. Google 3D, satellite and the rest stay one click
+ * The stack a visitor starts on: a flat English-labelled street map, roads and
+ * place names, the way a street map opens. Google 3D, satellite and the rest stay one click
  * away in MAP SOURCE. Shared links and a remembered choice still win.
  */
 export const DEFAULT_MAP_STACK_ID = 'osm';

@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as Cesium from 'cesium';
-import { createIonImagery } from './imagery.js';
+import {
+  createEsriReferenceImagery,
+  createEsriStreetImagery,
+  createIonImagery,
+  createOsmImagery,
+} from './imagery.js';
+import { MAP_STACKS } from './catalog.js';
 import { createWorldTerrain, createKeylessTerrain } from './terrain.js';
 import { createDefaultMapSources } from './defaultSources.js';
 
@@ -160,4 +166,46 @@ test('both Google 3D routes keep tiles drawing while draped imagery loads', asyn
   assert.equal(calls[1][0].accessToken, 'token');
   assert.equal(calls[1][1].asynchronouslyLoadImagery, true);
   assert.equal(calls[1][1].enableCollision, true);
+});
+
+test('the streets stack draws English Esri streets and falls back to OSM tiles that no list shows', () => {
+  const registry = createDefaultMapSources();
+  const byId = (id) =>
+    registry.sources.find(({ descriptor }) => descriptor.id === id);
+  const streets = byId('osm');
+  assert.equal(streets.descriptor.label, 'Streets');
+  assert.equal(streets.descriptor.shortLabel, 'MAP');
+  assert.equal(streets.imagery, createEsriStreetImagery);
+  assert.equal(
+    streets.labels,
+    undefined,
+    'the streets stack has its own labels',
+  );
+  assert.deepEqual(streets.constructionFallback, {
+    id: 'osm-tiles',
+    message: 'Street map is unavailable; using OpenStreetMap tiles',
+  });
+  assert.equal(streets.tileFailureFallback.id, 'osm-tiles');
+  assert.equal(streets.tileFailureFallback.threshold, 2);
+  const tiles = byId('osm-tiles');
+  assert.equal(tiles.imagery, createOsmImagery);
+  assert.equal(tiles.descriptor.reportAs, 'osm');
+  assert.equal(
+    MAP_STACKS.some(({ id }) => id === 'osm-tiles'),
+    false,
+    'the OSM tiles are internal, not a catalog stack',
+  );
+  const satellite = byId('esri-imagery');
+  assert.equal(satellite.tileFailureFallback.id, 'osm-tiles');
+  assert.equal(satellite.constructionFallback.id, 'osm-tiles');
+});
+
+test('Google 3D is labels-capable with the same reference layer as the globe stacks', () => {
+  const googleTileset = { show: false };
+  const { sources } = createDefaultMapSources({ googleTileset });
+  const photoreal = sources.find(
+    ({ descriptor }) => descriptor.id === 'photoreal',
+  );
+  assert.equal(photoreal.labels, createEsriReferenceImagery);
+  assert.equal(photoreal.imagery, undefined);
 });

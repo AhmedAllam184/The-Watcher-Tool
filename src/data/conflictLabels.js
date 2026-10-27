@@ -3,20 +3,23 @@
  * legend can read them without loading the layer or Cesium.
  */
 
-/** Colour per event class. Anything without a verified ACLED type is a news report. */
+/**
+ * Colour per event class. The three legend classes are the buckets people
+ * read; `news` is the fallback for a type nothing above matches.
+ */
 export const CONFLICT_STYLE = Object.freeze({
   battles: Object.freeze({
-    label: 'Battles',
+    label: 'Fighting / clashes',
     swatch: '#ef4444',
     color: '#ef4444',
   }),
   explosions: Object.freeze({
-    label: 'Explosions / remote violence',
+    label: 'Airstrikes / bombings',
     swatch: '#f97316',
     color: '#f97316',
   }),
   civilians: Object.freeze({
-    label: 'Violence against civilians',
+    label: 'Violence against people',
     swatch: '#a855f7',
     color: '#a855f7',
   }),
@@ -27,10 +30,29 @@ export const CONFLICT_STYLE = Object.freeze({
   }),
 });
 
+/** The classes listed in the layer's legend, in order. */
+export const CONFLICT_LEGEND_KEYS = Object.freeze([
+  'explosions',
+  'battles',
+  'civilians',
+]);
+
+/** Event types (ACLED and GDELT) that fall in each class. */
+const STYLE_KEY_BY_TYPE = new Map([
+  ['Battles', 'battles'],
+  ['Armed clash', 'battles'],
+  ['Fighting', 'battles'],
+  ['Explosions/Remote violence', 'explosions'],
+  ['Airstrike / aerial weapons', 'explosions'],
+  ['Artillery / tank fire', 'explosions'],
+  ['Bombing', 'explosions'],
+  ['Violence against civilians', 'civilians'],
+  ['Assassination', 'civilians'],
+  ['Assault', 'civilians'],
+  ['Mass violence', 'civilians'],
+]);
+
 /** Style key for an event type string from the server. */
 export function conflictStyleKey(type) {
-  if (type === 'Battles') return 'battles';
-  if (type === 'Explosions/Remote violence') return 'explosions';
-  if (type === 'Violence against civilians') return 'civilians';
-  return 'news';
+  return STYLE_KEY_BY_TYPE.get(type) ?? 'news';
 }

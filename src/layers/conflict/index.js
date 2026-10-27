@@ -3,7 +3,10 @@ import {
   CONFLICT_DAYS,
   CONFLICT_DEFAULT_DAYS,
 } from '../../sources/conflict.js';
-import { CONFLICT_STYLE } from '../../data/conflictLabels.js';
+import {
+  CONFLICT_LEGEND_KEYS,
+  CONFLICT_STYLE,
+} from '../../data/conflictLabels.js';
 import {
   isOwnedByOtherLayer,
   registerPickOwner,
@@ -43,6 +46,9 @@ const SOURCE_LABEL = 'ACLED or GDELT news reports';
 const REFRESH_MS = 15 * 60_000;
 /** Camera settle time before a refresh for the new view. */
 const MOVE_SETTLE_MS = 3_000;
+/** Retry after a failed refresh, and the follow-up while the server backfills older reports. */
+const RETRY_MS = 5 * 60_000;
+const BACKFILL_FOLLOW_UP_MS = 60_000;
 const FOCUS_RADIUS_M = 60_000;
 const FOCUS_EVENT_RANGE_M = 400_000;
 const FOCUS_CLUSTER_RANGE_M = 1_200_000;
@@ -85,6 +91,7 @@ export function createConflictLayer({
     clickHandler = null,
     moveEndRemove = null,
     settleTimer = null,
+    followUpTimer = null,
     runNavigation = null,
     days = CONFLICT_DEFAULT_DAYS,
     error = null,
@@ -273,10 +280,12 @@ export function createConflictLayer({
         return true;
       applySnapshot(next);
       error = null;
+      scheduleRefresh(next.backfilling ? BACKFILL_FOLLOW_UP_MS : null);
     } catch (cause) {
       if (controller.signal.aborted || request !== controller) return true;
-      // Keep the last good sample on screen; the row states the failure.
-      error = cause?.message || 'conflict events unavailable';
+      // Keep the last good sample on screen; the row states the failure and when it retries.
+      error = `${cause?.message || 'conflict events unavailable'}; retrying in 5 min`;
+      scheduleRefresh(RETRY_MS);
     } finally {
       signal?.removeEventListener('abort', abort);
       if (request === controller) {
@@ -291,6 +300,17 @@ export function createConflictLayer({
   function cancelSettle() {
     if (settleTimer !== null) timers.clearTimeout(settleTimer);
     settleTimer = null;
+  }
+
+  /** One refresh after `ms`, replacing any pending one; null cancels it. */
+  function scheduleRefresh(ms) {
+    if (followUpTimer !== null) timers.clearTimeout(followUpTimer);
+    followUpTimer = null;
+    if (ms === null || !enabled || destroyed) return;
+    followUpTimer = timers.setTimeout(() => {
+      followUpTimer = null;
+      if (enabled && !destroyed) void refresh();
+    }, ms);
   }
 
   function onMoveEnd() {
@@ -415,6 +435,7 @@ export function createConflictLayer({
     disable() {
       enabled = false;
       cancelSettle();
+      scheduleRefresh(null);
       request?.abort();
       request = null;
       loading = false;
@@ -473,8 +494,11 @@ export function createConflictLayer({
       let info;
       if (snapshot) {
         info = `${summary.total} ${summary.total === 1 ? 'event' : 'events'} · ${snapshot.verified ? 'ACLED (verified)' : 'GDELT news reports (unverified)'}`;
-        if (!snapshot.verified)
+        if (!snapshot.verified) {
+          if (snapshot.coverageHours !== null)
+            info += ` · ${snapshot.coverageHours} h loaded${snapshot.backfilling ? ', loading older reports' : ''}`;
           info += '. Add a free ACLED key for verified data';
+        }
       } else if (error) info = `Conflict events unavailable: ${error}.`;
       else
         info = loading
@@ -491,9 +515,9 @@ export function createConflictLayer({
               ? 'Show events from the last 24 hours'
               : 'Show events from the last 7 days',
         })),
-        legend: Object.entries(CONFLICT_STYLE).map(([key, style]) => ({
-          label: style.label,
-          color: style.swatch,
+        legend: CONFLICT_LEGEND_KEYS.map((key) => ({
+          label: CONFLICT_STYLE[key].label,
+          color: CONFLICT_STYLE[key].swatch,
           count: summary.byKey[key],
         })),
         info,

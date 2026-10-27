@@ -256,7 +256,8 @@ test('enabling and updating fetches the window and the viewed box, then draws th
     );
     assert.deepEqual(
       controls.legend.map(({ count }) => count),
-      [1, 1, 1, 0],
+      [1, 1, 1],
+      'explosions, battles and civilians',
     );
     assert.deepEqual(
       controls.chips.map(({ id, active }) => [id, active]),
@@ -382,9 +383,14 @@ test('a failed refresh keeps the last good sample and states the failure', async
     await h.layer.update(h.viewer);
     await h.layer.update(h.viewer);
     const stats = h.layer.getStats();
-    assert.equal(stats.error, 'Conflict events HTTP 503');
+    assert.equal(stats.error, 'Conflict events HTTP 503; retrying in 5 min');
     assert.equal(stats.count, 3, 'the last good sample stays on screen');
     assert.equal(h.layer.getRowControls().info, '3 events · ACLED (verified)');
+    assert.match(
+      h.layer.getRowControls().info,
+      /^3 events/,
+      'the sample stays readable',
+    );
   } finally {
     h.layer.disable();
     h.restore();
@@ -420,6 +426,98 @@ test('a destroyed layer ignores later refreshes', async () => {
     await h.layer.update(h.viewer);
     assert.equal(h.feed.calls.length, 0);
   } finally {
+    h.restore();
+  }
+});
+
+const pendingTimers = (h) => h.timers.filter((timer) => !timer.cleared);
+
+/** Let a timer's async refresh settle. */
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+
+test('the legend lists the three classes, in order, with their labels', async () => {
+  const h = harness();
+  try {
+    h.layer.enable();
+    await h.layer.update(h.viewer);
+    assert.deepEqual(
+      h.layer.getRowControls().legend.map(({ label }) => label),
+      [
+        'Airstrikes / bombings',
+        'Fighting / clashes',
+        'Violence against people',
+      ],
+    );
+  } finally {
+    h.layer.disable();
+    h.restore();
+  }
+});
+
+test('a failed refresh shows its reason, retries after 5 min, and clears the failure when the retry works', async () => {
+  const h = harness({
+    queue: [
+      ACLED_PAYLOAD,
+      new Error('GDELT HTTP 429 (rate limited)'),
+      ACLED_PAYLOAD,
+    ],
+  });
+  try {
+    h.layer.enable();
+    await h.layer.update(h.viewer);
+    await h.layer.update(h.viewer);
+    assert.equal(
+      h.layer.getStats().error,
+      'GDELT HTTP 429 (rate limited); retrying in 5 min',
+    );
+    assert.equal(
+      h.layer.getRowControls().info,
+      '3 events · ACLED (verified)',
+      'the last good sample stays',
+    );
+    const [retry] = pendingTimers(h);
+    assert.equal(retry.ms, 5 * 60_000);
+    retry.fn();
+    await settle();
+    assert.equal(h.feed.calls.length, 3);
+    assert.equal(h.layer.getStats().error, null);
+  } finally {
+    h.layer.disable();
+    h.restore();
+  }
+});
+
+test('disabling the layer cancels a pending retry', async () => {
+  const h = harness({
+    queue: [ACLED_PAYLOAD, new Error('ACLED HTTP 500')],
+  });
+  try {
+    h.layer.enable();
+    await h.layer.update(h.viewer);
+    await h.layer.update(h.viewer);
+    assert.equal(pendingTimers(h).length, 1);
+    h.layer.disable();
+    assert.equal(pendingTimers(h).length, 0);
+  } finally {
+    h.restore();
+  }
+});
+
+test('a snapshot that is still backfilling follows up after a minute and says so in the row', async () => {
+  const h = harness({
+    queue: [{ ...GDELT_PAYLOAD, coverageHours: 2, backfilling: true }],
+  });
+  try {
+    h.layer.enable();
+    await h.layer.update(h.viewer);
+    const [follow] = pendingTimers(h);
+    assert.equal(follow.ms, 60_000);
+    assert.equal(
+      h.layer.getRowControls().info,
+      '1 event · GDELT news reports (unverified) · 2 h loaded, loading older reports. Add a free ACLED key for verified data',
+    );
+  } finally {
+    h.layer.disable();
     h.restore();
   }
 });

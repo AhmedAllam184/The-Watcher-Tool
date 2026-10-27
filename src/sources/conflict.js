@@ -74,7 +74,19 @@ export function normalizeConflictSnapshot(payload, requestedDays) {
     note: text(payload.note),
     method: text(payload.method),
     fetchedAt: finite(payload.fetchedAt),
+    coverageHours: finite(payload.coverageHours),
+    backfilling: payload.backfilling === true,
   };
+}
+
+/**
+ * The short reason a failed response gives, or null. The server sends a
+ * sentence such as "GDELT HTTP 429 (rate limited)"; it is trimmed and capped.
+ */
+export function conflictFailureReason(payload) {
+  const reason =
+    typeof payload?.reason === 'string' ? payload.reason.trim() : '';
+  return reason ? reason.slice(0, 160) : null;
 }
 
 /**
@@ -135,7 +147,10 @@ export function createConflictSource({
         }
         controller.signal.throwIfAborted();
         if (!response.ok)
-          throw new Error(`Conflict events HTTP ${response.status}`);
+          throw new Error(
+            conflictFailureReason(payload) ??
+              `Conflict events HTTP ${response.status}`,
+          );
         return normalizeConflictSnapshot(payload, days);
       } finally {
         clearTimeout(timer);

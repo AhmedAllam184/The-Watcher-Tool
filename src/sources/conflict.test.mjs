@@ -162,3 +162,48 @@ test('HTTP failures surface the status, and aborts propagate', async () => {
     /stop/,
   );
 });
+
+test('a failed response surfaces the server reason, and falls back to the status without one', async () => {
+  const withReason = createConflictSource({
+    fetchImpl: async () =>
+      new Response(
+        JSON.stringify({
+          error: 'conflict upstream unavailable',
+          transient: true,
+          reason: 'GDELT HTTP 429 (rate limited)',
+        }),
+        { status: 503 },
+      ),
+  });
+  await assert.rejects(withReason.getSnapshot(), {
+    message: 'GDELT HTTP 429 (rate limited)',
+  });
+  const hostile = createConflictSource({
+    fetchImpl: async () =>
+      new Response(JSON.stringify({ reason: 'x'.repeat(400) }), {
+        status: 503,
+      }),
+  });
+  await assert.rejects(
+    hostile.getSnapshot(),
+    (err) => err.message.length === 160,
+  );
+  const bare = createConflictSource({
+    fetchImpl: async () => new Response('', { status: 502 }),
+  });
+  await assert.rejects(bare.getSnapshot(), {
+    message: 'Conflict events HTTP 502',
+  });
+});
+
+test('coverage and backfilling pass through for GDELT and read as absent for ACLED', () => {
+  const gdelt = normalizeConflictSnapshot(
+    { ...PAYLOAD, source: 'gdelt', coverageHours: 2.1, backfilling: true },
+    1,
+  );
+  assert.equal(gdelt.coverageHours, 2.1);
+  assert.equal(gdelt.backfilling, true);
+  const acled = normalizeConflictSnapshot(PAYLOAD, 7);
+  assert.equal(acled.coverageHours, null);
+  assert.equal(acled.backfilling, false);
+});

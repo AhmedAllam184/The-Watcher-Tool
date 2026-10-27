@@ -5,21 +5,27 @@ import os from 'node:os';
 import path from 'node:path';
 import {
   ACLED_API_URL,
-  GDELT_GEO_URL,
   acledCredentials,
   acledEventFromRow,
   conflictProxy,
-  firstGdeltArticle,
-  gdeltEventsFromGeoJson,
   inBbox,
   parseConflictQuery,
   roundBbox,
 } from '../../server/providers/conflict.js';
+import {
+  createGdeltFeed,
+  QUICK_FILES,
+} from '../../server/providers/conflict/gdeltFeed.js';
+import { MIN_ARTICLES } from '../../server/providers/conflict/gdelt.js';
 import { WATCHER_USER_AGENT } from '../../server/providers/common/userAgent.js';
+import { buildZip } from './zipTestWriter.mjs';
 
 const KEY = 'secret-key-123';
 const EMAIL = 'analyst@example.test';
 const FETCHED = Date.UTC(2026, 9, 27, 12, 0, 0);
+const LATEST = Date.UTC(2026, 9, 27, 9, 15, 0);
+const LATEST_STAMP = '20261027091500';
+const HOUR = 3_600_000;
 
 const ACLED_ROWS = [
   {
@@ -47,29 +53,82 @@ const ACLED_ROWS = [
   },
 ];
 
-const GDELT_BODY = {
-  type: 'FeatureCollection',
-  features: [
-    {
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [34.31, 31.35] },
-      properties: {
-        name: 'Khan Younis, Gaza Strip',
-        count: 4,
-        html: '<a href="https://www.example-news.com/a1?x=1&amp;y=2" target="_blank">Strikes hit <b>Khan Younis</b></a>',
-      },
-    },
-    {
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [37.6, 47.9] },
-      properties: {
-        name: 'Donetsk',
-        count: 1,
-        html: '<a href="javascript:alert(1)">unsafe link</a>',
-      },
-    },
-  ],
-};
+/** One 61-field GDELT export row with the named columns set. */
+function gdeltRow(values) {
+  const columns = {
+    GLOBALEVENTID: 0,
+    Actor1Name: 6,
+    Actor2Name: 16,
+    EventCode: 26,
+    EventRootCode: 28,
+    QuadClass: 29,
+    NumMentions: 31,
+    NumSources: 32,
+    NumArticles: 33,
+    ActionGeo_Type: 51,
+    ActionGeo_FullName: 52,
+    ActionGeo_Lat: 56,
+    ActionGeo_Long: 57,
+    DATEADDED: 59,
+    SOURCEURL: 60,
+  };
+  const fields = Array(61).fill('');
+  const base = {
+    Actor1Name: 'MILITARY FORCE',
+    EventCode: '195',
+    EventRootCode: '19',
+    QuadClass: '4',
+    NumMentions: '4',
+    ActionGeo_Type: '4',
+    NumSources: '3',
+    NumArticles: '4',
+    ...values,
+  };
+  for (const [name, value] of Object.entries(base))
+    fields[columns[name]] = String(value);
+  return fields.join('\t');
+}
+
+/** The rows of one 15-minute file: two kept points, and three that must not pass. */
+function gdeltCsv(stamp) {
+  return [
+    gdeltRow({
+      GLOBALEVENTID: `${stamp}1`,
+      ActionGeo_Lat: '31.3457',
+      ActionGeo_Long: '34.3030',
+      ActionGeo_FullName:
+        'Khan Yunis, Khan Yunis, Gaza Strip, Palestinian Territory',
+      SOURCEURL: 'https://www.example-news.com/a1?x=1&y=2',
+      DATEADDED: stamp,
+    }),
+    gdeltRow({
+      GLOBALEVENTID: `${stamp}2`,
+      EventCode: '180',
+      EventRootCode: '18',
+      ActionGeo_Lat: '48.0',
+      ActionGeo_Long: '37.8',
+      ActionGeo_FullName: 'Donetsk, Donetsk, Ukraine',
+      NumArticles: '2',
+      NumSources: '1',
+      SOURCEURL: 'https://news.example.org/b',
+      DATEADDED: stamp,
+    }),
+    gdeltRow({ GLOBALEVENTID: `${stamp}3`, QuadClass: '3', DATEADDED: stamp }),
+    gdeltRow({
+      GLOBALEVENTID: `${stamp}4`,
+      ActionGeo_Type: '1',
+      DATEADDED: stamp,
+    }),
+    gdeltRow({
+      GLOBALEVENTID: `${stamp}5`,
+      NumArticles: '1',
+      NumSources: '1',
+      ActionGeo_Lat: '10',
+      ActionGeo_Long: '10',
+      DATEADDED: stamp,
+    }),
+  ].join('\n');
+}
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -78,15 +137,25 @@ function json(body, status = 200) {
   });
 }
 
+/** The default upstream: lastupdate names LATEST, every file has rows, ACLED returns its rows. */
+function defaultReply(href) {
+  if (href.includes('/gdeltv2/lastupdate.txt'))
+    return new Response(
+      `2048 0f9a http://data.gdeltproject.org/gdeltv2/${LATEST_STAMP}.export.CSV.zip\n`,
+    );
+  const stamp = /\/(\d{14})\.export\.CSV\.zip/.exec(href)?.[1];
+  if (stamp)
+    return new Response(
+      buildZip(`${stamp}.export.CSV`, `${gdeltCsv(stamp)}\n`),
+      {
+        status: 200,
+      },
+    );
+  return json({ success: true, data: ACLED_ROWS });
+}
+
 /** Upstream stub: `reply(href)` returns a Response or throws; every call is recorded. */
-function stubUpstream(
-  reply = (href) =>
-    json(
-      href.startsWith(GDELT_GEO_URL)
-        ? GDELT_BODY
-        : { success: true, data: ACLED_ROWS },
-    ),
-) {
+function stubUpstream(reply = defaultReply) {
   const calls = [];
   const fetchImpl = async (href) => {
     calls.push(String(href));
@@ -103,6 +172,12 @@ function clockFrom(start = FETCHED) {
     },
   };
 }
+
+/** Timers that never fire on their own, so no background tick reaches a stub. */
+const idleTimers = () => ({
+  setTimeout: () => ({ unref() {} }),
+  clearTimeout() {},
+});
 
 /** Route the plugin's middleware and return a request function. */
 function harness(plugin) {
@@ -160,12 +235,26 @@ function setup(t, { reply, env = {}, now = clockFrom(), cachePath } = {}) {
       os.tmpdir(),
       `conflict-test-${process.pid}-${Math.random()}.json`,
     );
-  t.after(() => fsp.rm(file, { force: true }));
+  const gdeltFile = file.replace(/\.json$/, '-gdelt.json');
+  const feed = createGdeltFeed({
+    fetchImpl: upstream.fetchImpl,
+    now: () => now.now(),
+    timers: idleTimers(),
+    sleep: async () => {},
+    cachePath: gdeltFile,
+    log: () => {},
+  });
+  t.after(async () => {
+    await feed.stop();
+    await fsp.rm(file, { force: true });
+    await fsp.rm(gdeltFile, { force: true });
+  });
   const plugin = conflictProxy({
     fetchImpl: upstream.fetchImpl,
     cachePath: file,
     now: () => now.now(),
     env,
+    gdelt: feed,
   });
   return { get: harness(plugin), calls: upstream.calls, now, file, plugin };
 }
@@ -230,53 +319,59 @@ test('ACLED rows keep the three conflict types and drop unusable positions', () 
   );
 });
 
-test('GDELT GeoJSON maps points to news-report events and keeps only http(s) article links', () => {
-  const events = gdeltEventsFromGeoJson(GDELT_BODY, FETCHED);
-  assert.equal(events.length, 2);
-  assert.deepEqual(events[0], {
-    id: 'gdelt:0:31.350:34.310',
-    lat: 31.35,
-    lon: 34.31,
-    date: '2026-10-27',
-    type: 'News report',
-    articles: 4,
-    actors: [],
-    country: null,
-    location: 'Khan Younis, Gaza Strip',
-    title: 'Strikes hit Khan Younis',
-    url: 'https://www.example-news.com/a1?x=1&y=2',
-    sourceName: 'example-news.com',
+test('keyless: GDELT events come from the export files, are labelled unverified, and no GEO API is called', async (t) => {
+  const { get, calls } = setup(t, {
+    env: {},
+    now: clockFrom(LATEST + 5 * 60_000),
   });
-  assert.equal(
-    events[1].url,
-    undefined,
-    'javascript: links are never passed on',
-  );
-  assert.equal(events[1].title, '1 news report near Donetsk');
-  assert.equal(firstGdeltArticle(''), null);
-  assert.throws(() => gdeltEventsFromGeoJson({}, FETCHED), {
-    code: 'BAD_BODY',
-  });
-});
-
-test('keyless: GDELT answers, is labelled unverified, and the fighting query is sent', async (t) => {
-  const env = {};
-  const { get, calls } = setup(t, { env });
   const response = await get('?days=1');
   assert.equal(response.status, 200);
   assert.equal(response.headers['Cache-Control'], 'no-store');
   assert.equal(response.body.source, 'gdelt');
   assert.equal(response.body.verified, false);
-  assert.equal(response.body.events.length, 2);
-  assert.match(response.body.note, /not verified events/);
-  assert.equal(calls.length, 1);
-  assert.ok(calls[0].startsWith(GDELT_GEO_URL));
-  const url = new URL(calls[0]);
-  assert.equal(url.searchParams.get('timespan'), '24h');
-  assert.equal(url.searchParams.get('mode'), 'PointData');
-  assert.equal(url.searchParams.get('format'), 'GeoJSON');
-  assert.equal(url.searchParams.get('maxpoints'), '500');
-  assert.match(url.searchParams.get('query'), /airstrike/);
+  assert.match(response.body.note, /unverified/);
+  assert.match(
+    response.body.method,
+    new RegExp(`MIN_ARTICLES = ${MIN_ARTICLES}`),
+  );
+  assert.equal(
+    response.body.coverageHours,
+    2.1,
+    'the newest 8 files, 2 h, five minutes after the newest',
+  );
+  assert.equal(response.body.backfilling, true);
+  assert.deepEqual(
+    response.body.events.map((event) => [event.location, event.articles]),
+    [
+      [
+        'Khan Yunis, Khan Yunis, Gaza Strip, Palestinian Territory',
+        4 * QUICK_FILES,
+      ],
+      ['Donetsk, Donetsk, Ukraine', 2 * QUICK_FILES],
+    ],
+  );
+  const khan = response.body.events[0];
+  assert.equal(khan.type, 'Airstrike / aerial weapons');
+  assert.equal(
+    khan.title,
+    'Airstrike / aerial weapons · Khan Yunis, Palestinian Territory',
+  );
+  assert.equal(khan.url, 'https://www.example-news.com/a1?x=1&y=2');
+  assert.equal(khan.sourceName, 'example-news.com');
+  assert.equal(
+    calls[0],
+    'https://data.gdeltproject.org/gdeltv2/lastupdate.txt',
+  );
+  assert.equal(calls.length, 1 + QUICK_FILES);
+  assert.ok(
+    calls
+      .slice(1)
+      .every((href) => /\/gdeltv2\/\d{14}\.export\.CSV\.zip$/.test(href)),
+  );
+  assert.ok(
+    calls.every((href) => !href.includes('/api/v2/geo')),
+    'the GEO API is not used',
+  );
 });
 
 test('ACLED is used when both values are set, keeps verified types only, and never exposes the secret', async (t) => {
@@ -292,6 +387,11 @@ test('ACLED is used when both values are set, keeps verified types only, and nev
     assert.deepEqual(
       response.body.events.map((event) => event.id),
       ['acled:SYR1234'],
+    );
+    assert.equal(
+      'coverageHours' in response.body,
+      false,
+      'ACLED answers keep their shape',
     );
     assert.doesNotMatch(
       response.body.note + response.body.method,
@@ -319,11 +419,7 @@ test('ACLED is used when both values are set, keeps verified types only, and nev
   );
 });
 
-test('a single ACLED value does not switch the source; the secret stays out of logs on upstream failure', async (t) => {
-  const partial = setup(t, { env: { ACLED_KEY: KEY } });
-  const onlyKey = await partial.get('');
-  assert.equal(onlyKey.body.source, 'gdelt', 'both values are required');
-
+test('a rejected ACLED key returns the reason, and the secret stays out of the body and the logs', async (t) => {
   const failing = setup(t, {
     env: { ACLED_EMAIL: EMAIL, ACLED_KEY: KEY },
     reply: () => new Response('forbidden', { status: 403 }),
@@ -334,12 +430,23 @@ test('a single ACLED value does not switch the source; the secret stays out of l
     assert.deepEqual(response.body, {
       error: 'conflict upstream unavailable',
       transient: true,
+      reason: 'ACLED rejected the key (HTTP 403)',
     });
     assert.doesNotMatch(response.raw, new RegExp(KEY));
   });
-  assert.match(logs, /acled upstream failed \(HTTP_403\)/i);
+  assert.match(
+    logs,
+    /\[conflict\] ACLED rejected the key \(HTTP 403\); nothing cached/,
+  );
   assert.doesNotMatch(logs, new RegExp(KEY));
   assert.doesNotMatch(logs, new RegExp(EMAIL));
+  assert.doesNotMatch(logs, /https?:\/\//, 'no URL in the log');
+});
+
+test('a single ACLED value does not switch the source away from GDELT', async (t) => {
+  const partial = setup(t, { env: { ACLED_KEY: KEY } });
+  const onlyKey = await partial.get('');
+  assert.equal(onlyKey.body.source, 'gdelt', 'both values are required');
 });
 
 test('the bounding box filters events on the server, and bad parameters are rejected before any fetch', async (t) => {
@@ -348,22 +455,30 @@ test('the bounding box filters events on the server, and bad parameters are reje
   assert.equal(inside.status, 200);
   assert.deepEqual(
     inside.body.events.map((event) => event.location),
-    ['Khan Younis, Gaza Strip'],
+    ['Khan Yunis, Khan Yunis, Gaza Strip, Palestinian Territory'],
   );
+  const before = calls.length;
   const bad = ['?days=3', '?bbox=1,2,3', '?bbox=10,10,5,20'];
   for (const search of bad) {
     const response = await get(search);
     assert.equal(response.status, 400, search);
   }
   assert.equal((await get('x')).status, 404);
-  assert.equal(calls.length, 1, 'only the valid request reached upstream');
+  assert.equal(
+    calls.length,
+    before,
+    'the invalid requests reached no upstream',
+  );
 });
 
-test('a cached window is reused for 15 min (GDELT) and refetched after it', async (t) => {
+test('an ACLED window is reused for 1 h and refetched after it', async (t) => {
   const now = clockFrom();
-  const { get, calls } = setup(t, { now });
+  const { get, calls } = setup(t, {
+    now,
+    env: { ACLED_EMAIL: EMAIL, ACLED_KEY: KEY },
+  });
   await get('');
-  now.t += 14 * 60_000;
+  now.t += 59 * 60_000;
   await get('');
   assert.equal(calls.length, 1);
   now.t += 2 * 60_000;
@@ -371,42 +486,72 @@ test('a cached window is reused for 15 min (GDELT) and refetched after it', asyn
   assert.equal(calls.length, 2);
 });
 
-test('transient upstream failures return 503 and are never cached', async (t) => {
+test('transient upstream failures return 503 with the reason, and are never cached', async (t) => {
   let attempt = 0;
   const { get, calls } = setup(t, {
+    env: { ACLED_EMAIL: EMAIL, ACLED_KEY: KEY },
     reply: () => {
       attempt += 1;
       if (attempt === 1) return new Response('busy', { status: 500 });
       if (attempt === 2) throw new TypeError('network down');
-      return json(GDELT_BODY);
+      return json({ success: true, data: ACLED_ROWS });
     },
   });
   const first = await captureLogs(async () => {
     const response = await get('');
     assert.equal(response.status, 503);
     assert.equal(response.body.transient, true);
+    assert.equal(response.body.reason, 'ACLED HTTP 500');
   });
-  assert.match(first, /gdelt upstream failed \(HTTP_500\)/);
-  assert.equal((await get('')).status, 503);
+  assert.match(first, /\[conflict\] ACLED HTTP 500; nothing cached/);
+  const second = await get('');
+  assert.equal(second.body.reason, 'ACLED unreachable (network/DNS)');
   const recovered = await get('');
   assert.equal(recovered.status, 200);
   assert.equal(calls.length, 3, 'each failure left nothing cached');
 });
 
-test('concurrent misses for one window share a single upstream request', async (t) => {
+test('GDELT feed failures return 503 with the reason, and the log names it without a URL', async (t) => {
+  const { get } = setup(t, {
+    reply: (href) =>
+      href.includes('lastupdate')
+        ? new Response('slow down', { status: 429 })
+        : new Response('', { status: 500 }),
+  });
+  const logs = await captureLogs(async () => {
+    const response = await get('?days=1');
+    assert.equal(response.status, 503);
+    assert.deepEqual(response.body, {
+      error: 'conflict upstream unavailable',
+      transient: true,
+      reason: 'GDELT HTTP 429 (rate limited)',
+    });
+  });
+  assert.match(
+    logs,
+    /\[conflict\] GDELT HTTP 429 \(rate limited\); nothing cached/,
+  );
+  assert.doesNotMatch(logs, /https?:\/\//);
+});
+
+test('concurrent misses share one feed start: one lastupdate and one set of quick files', async (t) => {
   const { get, calls } = setup(t);
   const responses = await Promise.all([get(''), get(''), get(''), get('')]);
   assert.ok(responses.every((response) => response.status === 200));
-  assert.equal(calls.length, 1);
+  assert.equal(calls.filter((href) => href.includes('lastupdate')).length, 1);
+  assert.equal(
+    calls.filter((href) => href.includes('.export.CSV.zip')).length,
+    QUICK_FILES,
+  );
 });
 
-test('the disk cache is written atomically and reloads in a new process', async (t) => {
+test('the ACLED disk cache is written atomically and reloads in a new process', async (t) => {
   const cachePath = path.join(
     os.tmpdir(),
     `conflict-cache-${process.pid}-${Math.random()}.json`,
   );
-  t.after(() => fsp.rm(cachePath, { force: true }));
-  const first = setup(t, { cachePath });
+  const env = { ACLED_EMAIL: EMAIL, ACLED_KEY: KEY };
+  const first = setup(t, { cachePath, env });
   assert.equal((await first.get('')).status, 200);
   const dir = await fsp.readdir(path.dirname(cachePath));
   assert.equal(
@@ -417,34 +562,58 @@ test('the disk cache is written atomically and reloads in a new process', async 
     0,
     'no temp file is left behind',
   );
-  const reopened = setup(
-    { after() {} },
-    { cachePath, reply: () => new Response('down', { status: 500 }) },
-  );
+  const reopened = setup(t, {
+    cachePath,
+    env,
+    reply: () => new Response('down', { status: 500 }),
+  });
   const response = await reopened.get('');
   assert.equal(response.status, 200, 'answered from the persisted record');
   assert.equal(reopened.calls.length, 0);
 });
 
-test('user agent and endpoints match the project conventions', async (t) => {
-  const { calls } = setup(t);
-  const plugin = conflictProxy({
+test('user agent and endpoints match the project conventions for both sources', async (t) => {
+  const { calls, get, plugin } = setup(t);
+  const agents = [];
+  const recording = conflictProxy({
     fetchImpl: async (href, init) => {
-      calls.push({ href: String(href), agent: init.headers['User-Agent'] });
-      return json(GDELT_BODY);
+      agents.push(init.headers['User-Agent']);
+      return defaultReply(String(href));
     },
     cachePath: path.join(os.tmpdir(), `conflict-ua-${process.pid}.json`),
     env: {},
+    gdelt: createGdeltFeed({
+      fetchImpl: async (href, init) => {
+        agents.push(init.headers['User-Agent']);
+        return defaultReply(String(href));
+      },
+      now: () => FETCHED,
+      timers: idleTimers(),
+      sleep: async () => {},
+      cachePath: path.join(
+        os.tmpdir(),
+        `conflict-ua-${process.pid}-gdelt.json`,
+      ),
+      log: () => {},
+    }),
   });
   t.after(() =>
-    fsp.rm(path.join(os.tmpdir(), `conflict-ua-${process.pid}.json`), {
-      force: true,
-    }),
+    Promise.all([
+      fsp.rm(path.join(os.tmpdir(), `conflict-ua-${process.pid}.json`), {
+        force: true,
+      }),
+      fsp.rm(path.join(os.tmpdir(), `conflict-ua-${process.pid}-gdelt.json`), {
+        force: true,
+      }),
+    ]),
   );
-  await harness(plugin)('');
-  assert.equal(calls.at(-1).agent, WATCHER_USER_AGENT);
+  await harness(recording)('');
+  assert.ok(agents.length > 1);
+  assert.ok(agents.every((agent) => agent === WATCHER_USER_AGENT));
   assert.equal(plugin.name, 'conflict-events-proxy');
   assert.equal(typeof plugin.configurePreviewServer, 'function');
+  void calls;
+  void get;
 });
 
 test('credential parsing needs both values and trims them', () => {

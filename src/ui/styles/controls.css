@@ -929,6 +929,77 @@
   outline-offset: 2px;
 }
 
+/* QUICK LAYERS chips: the overlay toggles that used to sit on the map. Same
+   chip language as MAP SOURCE; the purple dot marks a layer that needs a key. */
+.quick-layer-chip-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.quick-layer-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--text-dim);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.quick-layer-chip:hover,
+.quick-layer-chip:focus-visible {
+  border-color: var(--glass-border-hover);
+  color: var(--text-primary);
+}
+
+.quick-layer-chip:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 80%, transparent);
+  outline-offset: 2px;
+}
+
+.quick-layer-chip[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.quick-layer-chip[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.quick-layer-chip[aria-busy='true'] {
+  cursor: progress;
+}
+
+.quick-layer-chip--all {
+  grid-column: 1 / -1;
+}
+
+.quick-layer-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8e24aa;
+}
+
+.quick-layer-dot[hidden] {
+  display: none;
+}
+
 .map-stack-chip.active {
   color: var(--accent);
   border-color: var(--accent);

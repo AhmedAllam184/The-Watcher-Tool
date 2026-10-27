@@ -57,7 +57,7 @@ test('applying the pane state sets the class, the toggle name and its glyph', ()
       toggle: (name, on) => (on ? classes.add(name) : classes.delete(name)),
     },
   };
-  const glyph = { textContent: 'right_panel_close' };
+  const glyph = { textContent: 'left_panel_close' };
   const attributes = new Map();
   const button = {
     title: '',
@@ -68,13 +68,13 @@ test('applying the pane state sets the class, the toggle name and its glyph', ()
   assert.ok(classes.has('right-rail-collapsed'));
   assert.equal(attributes.get('aria-expanded'), 'false');
   assert.equal(attributes.get('aria-label'), 'Expand tools pane');
-  assert.equal(glyph.textContent, 'right_panel_open');
+  assert.equal(glyph.textContent, 'left_panel_open');
 
   applyRightRailCollapsed({ rail, button, collapsed: false });
   assert.ok(!classes.has('right-rail-collapsed'));
   assert.equal(attributes.get('aria-expanded'), 'true');
   assert.equal(attributes.get('aria-label'), 'Collapse tools pane');
-  assert.equal(glyph.textContent, 'right_panel_close');
+  assert.equal(glyph.textContent, 'left_panel_close');
 });
 
 function chromeFixture({ stored = null } = {}) {
@@ -101,7 +101,8 @@ function chromeFixture({ stored = null } = {}) {
     _lifetime: {
       listen: (target, type, handler) => listeners.push([target, type, handler]),
     },
-    _scheduleRightPanelLayout: () => scheduled.push(true),
+    _scheduleLeftPanelLayout: () => scheduled.push('left'),
+    _scheduleRightPanelLayout: () => scheduled.push('right'),
     _setRightRailCollapsed: PanelChrome.prototype._setRightRailCollapsed,
   };
   owner._initRightRailToggle = PanelChrome.prototype._initRightRailToggle;

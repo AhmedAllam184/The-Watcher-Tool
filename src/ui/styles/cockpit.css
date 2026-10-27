@@ -1981,8 +1981,7 @@ body.cockpit-mode #intel-hud.active {
   opacity: 0.72;
   visibility: visible;
 }
-body.cockpit-mode #intel-hud .hud-top-left,
-body.cockpit-mode #intel-hud .hud-bottom-left {
+body.cockpit-mode #intel-hud .hud-top-left {
   left: clamp(18px, 3vw, 44px);
   transform: scale(0.78);
   transform-origin: left center;
@@ -1997,7 +1996,6 @@ body.cockpit-mode #intel-hud .hud-top-left,
 body.cockpit-mode #intel-hud .hud-top-right {
   top: clamp(104px, 13vh, 138px);
 }
-body.cockpit-mode #intel-hud .hud-bottom-left,
 body.cockpit-mode #intel-hud .hud-bottom-right {
   bottom: clamp(84px, 11vh, 118px);
 }

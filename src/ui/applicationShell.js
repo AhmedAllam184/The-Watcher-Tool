@@ -30,7 +30,8 @@ import { bindCameraOrientationControls } from './cameraOrientationControls.js';
 import { createSelectionDetailsPanel } from './selectionDetails.js';
 import { createSquawkAlerts } from './squawkAlerts.js';
 import { createHelpPanel } from './helpPanel.js';
-import { createQuickLayers } from './quickLayers.js';
+import { createVisualPresetLayers } from './visualPresetLayers.js';
+import { initFooterReadouts } from './footerReadouts.js';
 import { applyStoredTextSize } from './textSize.js';
 import { createMapSourceControls } from './mapSource.js';
 import { STYLES } from './effects.js';
@@ -605,7 +606,9 @@ export class StyleManager extends ShellFacade {
     this._initSelectionDetails();
     this._initSquawkAlerts();
     this._initHelpPanel();
-    this._initQuickLayers();
+    this._initVisualPresetLayers();
+    this._footerReadouts?.destroy();
+    this._footerReadouts = initFooterReadouts(document);
     this._initClearSelectedLayersButton();
     this._initHUDToggle();
     this._initModels3dToggle();
@@ -1521,16 +1524,17 @@ export class StyleManager extends ShellFacade {
   }
 
   /**
-   * Bottom-left map switcher: one click toggles Map and Satellite, and the
-   * layers tray offers 3D, the live overlays and More (opens Data Layers).
+   * QUICK LAYERS section of the VISUAL PRESETS tray: overlay chips with their
+   * on/off state, and "All layers" (opens DATA LAYERS).
    */
-  _initQuickLayers() {
-    this._quickLayers?.destroy();
-    this._quickLayers = createQuickLayers({
-      root: document.getElementById('quick-layers'),
+  _initVisualPresetLayers() {
+    this._presetLayers?.destroy();
+    this._presetLayers = createVisualPresetLayers({
+      root: document.getElementById('quick-layer-chips'),
+      allButton: document.getElementById('quick-layers-all'),
+      trayToggle: document.getElementById('control-panel-toggle'),
+      statusNode: document.getElementById('quick-layers-status'),
       readDataManager: () => this._dataManager,
-      mapStackController: this.mapStackController,
-      selectMapStack: (stackId) => this._setMapStack(stackId),
       openDataPanel: () =>
         this.setPanelCollapsed('data-panel', false, { explicit: true }),
       showToast: (message) => this._showToast(message),
@@ -1681,8 +1685,10 @@ export class StyleManager extends ShellFacade {
     this._squawkAlerts?.destroy();
     this._helpPanel?.destroy();
     this._helpPanel = null;
-    this._quickLayers?.destroy();
-    this._quickLayers = null;
+    this._presetLayers?.destroy();
+    this._presetLayers = null;
+    this._footerReadouts?.destroy();
+    this._footerReadouts = null;
     this._clearLayersControl?.destroy();
     this._cctvControls?.destroy();
     this.services?.streetLevelLayer?.attachNavigation?.(null);

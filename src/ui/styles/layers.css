@@ -148,12 +148,12 @@
   position: fixed;
   z-index: 110;
   top: var(--right-stack-safe-top, 26vh);
-  right: var(--right-rail-x);
+  left: var(--left-stack-x);
   width: 330px;
   max-height: var(--right-stack-max-height, 70vh);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 8px;
   pointer-events: none;
   transition:
@@ -197,11 +197,9 @@
 #right-context-rail #weather-panel.collapsed,
 #right-context-rail #recent-imagery-panel.collapsed {
   width: var(--right-display-collapsed-width);
-  margin-left: auto;
 }
 #right-context-rail > #pp-toggles.collapsed {
   width: var(--right-display-collapsed-width);
-  margin-left: auto;
 }
 #right-context-rail > #pp-toggles.collapsed .pp-header-row {
   width: 100%;
@@ -238,9 +236,6 @@
 }
 #right-context-rail #global-context-panel.collapsed {
   width: var(--right-context-collapsed-width);
-  /* Keep the compact Context tab on the rail edge rather than leaving it
-     stranded at the rail's expanded-width origin. */
-  margin-left: auto;
 }
 #right-context-rail
   #global-context-panel.collapsed

@@ -2,8 +2,8 @@
 .selection-details {
   position: fixed;
   top: 96px;
-  /* Sit left of the collapsed right rail (Display, CCTV, Context) so it stays reachable. */
-  right: 240px;
+  /* The right edge is free now that every pane lives in the left column. */
+  right: 16px;
   z-index: 110;
   box-sizing: border-box;
   display: flex;

@@ -20,9 +20,6 @@
     <span class="indicator-value" id="active-style-name">NORMAL</span>
   </div>
 
-  <!-- Bottom-left map switcher (filled by src/ui/quickLayers.js) -->
-  <div id="quick-layers"></div>
-
   <!-- Top-center camera and share actions -->
   <nav id="top-center-actions" aria-label="Globe actions">
     <button id="clear-selected-layers" type="button" aria-label="Clear selected data layers" title="Turn off all selected data layers">
@@ -65,3 +62,14 @@
   <div id="safe-frame-overlay">
     <div id="safe-frame-box"></div>
   </div>
+
+  <!-- Bottom footer: camera position (left) and map credits (right). The
+       credit container is filled by scene.js; the position by src/hud.js. -->
+  <footer id="hud-footer" class="hud-footer" aria-label="Camera position and map credits">
+    <span id="hud-footer-readouts" class="hud-footer-readouts">
+      <span id="hud-footer-clock" class="hud-footer-clock">UTC --:--:--</span>
+      <span class="hud-footer-sep" aria-hidden="true">·</span>
+      <span id="hud-footer-position" class="hud-footer-position" aria-live="off">--</span>
+    </span>
+    <div id="hud-footer-credits" class="hud-footer-credits"></div>
+  </footer>

@@ -17,52 +17,30 @@ const LEFT_STACK_OBSTACLE_SELECTOR = [
   '#top-center-actions',
   '#traffic-sync-chip',
   '#cctv-sync-chip',
-  '#quick-layers .ql-switch',
   '#intel-hud .hud-top-left',
   '#intel-hud .hud-top-right',
-  '#intel-hud .hud-bottom-left',
   '#intel-hud .hud-bottom-right',
   '#intel-hud .hud-top-bar',
-  '#intel-hud .hud-bottom-bar',
   '#intel-hud .hud-left-edge',
   '#intel-hud .hud-right-edge',
   '#cockpit-context',
-  '#cesium-credits .cesium-credit-logoContainer',
-  '#cesium-credits .cesium-credit-textContainer',
+  '#hud-footer',
   '#location-bar',
   '#control-panel',
-  '#gev-voice-control',
-  '#pp-toggles',
-  '#param-slider-panel',
-].join(', ');
-/**
- * Fixed UI regions that can occupy the right control lane. Runtime rectangle
- * filtering keeps the rail clear of whichever HUD variant is currently
- * visible without tying the layout to one screen height.
- */
-const RIGHT_STACK_OBSTACLE_SELECTOR = [
-  '#cockpit-hud .cockpit-topline',
-  '#cockpit-hud .cockpit-topline > div',
-  '#title-bar',
-  '#style-indicator',
-  '#top-center-actions',
-  '#traffic-sync-chip',
-  '#cctv-sync-chip',
-  '#intel-hud .hud-top-left',
-  '#intel-hud .hud-top-right',
-  '#intel-hud .hud-bottom-left',
-  '#intel-hud .hud-bottom-right',
-  '#intel-hud .hud-top-bar',
-  '#intel-hud .hud-bottom-bar',
-  '#intel-hud .hud-left-edge',
-  '#intel-hud .hud-right-edge',
-  '#cockpit-context',
-  '#cockpit-signal-stream',
-  '#cesium-credits .cesium-credit-logoContainer',
-  '#cesium-credits .cesium-credit-textContainer',
   '#command-dock',
   '#gev-voice-control',
 ].join(', ');
+/**
+ * Share of the viewport height the TOOLS pane keeps free at the foot of the
+ * left column, so DATA LAYERS and GUIDED TOURS cannot take the whole lane.
+ */
+const TOOLS_LANE_RESERVE_VH = 0.4;
+/**
+ * Fixed UI regions that can occupy the TOOLS pane's lane. The pane now shares
+ * the left column with DATA LAYERS and GUIDED TOURS, so it takes the same
+ * obstacles: the one column is the one lane.
+ */
+const RIGHT_STACK_OBSTACLE_SELECTOR = LEFT_STACK_OBSTACLE_SELECTOR;
 export class PanelLayoutController {
   constructor({
     readHud,
@@ -460,7 +438,19 @@ export class PanelLayoutController {
       onRetry: () => this._scheduleLeftPanelLayout(),
       collapsedHeights: this._leftStackCollapsedHeights,
       onAligned: () => this._scheduleRightPanelLayout(),
+      reserveBottomPx: this._toolsLaneReservePx(),
     });
+  }
+
+  /**
+   * Lane the left column must leave for the TOOLS pane below it: none while
+   * the pane is collapsed to its tab, hidden (Cockpit) or absent.
+   */
+  _toolsLaneReservePx() {
+    const rail = this._rightPanelStack;
+    if (!rail || rail.classList.contains(RIGHT_RAIL_COLLAPSED_CLASS)) return 0;
+    if (!rail.getClientRects().length) return 0;
+    return Math.round(window.innerHeight * TOOLS_LANE_RESERVE_VH);
   }
   destroy() {
     if (this.destroyed) return;

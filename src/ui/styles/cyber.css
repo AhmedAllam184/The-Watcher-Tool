@@ -1544,20 +1544,6 @@
     animation: none;
   }
 }
-
-#intel-hud[data-variant='cyber'] .hud-bottom-bar {
-  display: flex;
-  border-color: var(--hud-border);
-  background-color: rgba(14, 20, 23, 0.9);
-  background-image: linear-gradient(
-    90deg,
-    rgba(196, 84, 84, 0.12),
-    transparent 46%
-  );
-  box-shadow: 0 0 0 1px rgba(234, 240, 241, 0.06) inset;
-  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
-}
-
 #intel-hud[data-variant='cyber'] .hud-top-bar {
   display: none;
 }
@@ -1567,26 +1553,13 @@
 #intel-hud[data-variant='cyber'] .hud-top-left .hud-system {
   display: none;
 }
-
-#intel-hud[data-variant='cyber'] .hud-bottom-bar {
-  bottom: calc(2vh + 9.8rem);
-  width: min(48vw, 680px);
-}
-
 #intel-hud[data-variant='cyber'] .hud-top-left,
 #intel-hud[data-variant='cyber'] .hud-top-right {
   top: max(14vh, 136px);
 }
 
-#intel-hud[data-variant='cyber'] .hud-bottom-left,
 #intel-hud[data-variant='cyber'] .hud-bottom-right {
-  bottom: calc(2vh + 6.5rem);
-}
-
-/* Attribution's logo row extends above its text baseline. Reserve the whole
-   row plus a gap above the dock-relative 2vh + 5rem credit position. */
-#intel-hud[data-variant='cyber'] .hud-bottom-left {
-  bottom: calc(2vh + 7.75rem);
+  bottom: calc(2vh + var(--hud-footer-h) + 6.5rem);
 }
 
 #intel-hud[data-variant='cyber'] .hud-corner {
@@ -1631,7 +1604,7 @@
      below its 650px threshold. Keep the left rail inside the same telemetry
      and attribution-safe floor while its panel bodies take over scrolling. */
   :root[data-ui-theme='cyber'] #left-panel-stack {
-    bottom: calc(2vh + 13rem);
+    bottom: calc(2vh + var(--hud-footer-h) + 13rem);
   }
 }
 
@@ -1652,7 +1625,7 @@
 
   :root[data-ui-theme='cyber'] #left-panel-stack {
     top: var(--cyber-left-rail-top) !important;
-    bottom: calc(2vh + 13rem);
+    bottom: calc(2vh + var(--hud-footer-h) + 13rem);
     left: 54px;
     width: 300px;
     padding-left: 10px;
@@ -1728,7 +1701,8 @@
   :root[data-ui-theme='cyber'] #right-context-rail {
     --right-display-collapsed-width: var(--cyber-panel-collapsed-width);
     --right-context-collapsed-width: var(--cyber-panel-collapsed-width);
-    right: 62px;
+    left: var(--left-stack-x);
+    right: auto;
     width: 312px;
   }
 
@@ -1843,11 +1817,6 @@
     content: '';
     transform: translate(-50%, -50%);
   }
-
-  #intel-hud[data-variant='cyber'] .hud-bottom-bar {
-    display: none;
-  }
-
   #intel-hud[data-variant='cyber'] .hud-bottom-right {
     right: 28px;
     bottom: 28px;
@@ -1859,8 +1828,7 @@
     background-size: 78px 78px;
   }
 
-  #intel-hud[data-variant='cyber'] .hud-top-bar,
-  #intel-hud[data-variant='cyber'] .hud-bottom-bar {
+  #intel-hud[data-variant='cyber'] .hud-top-bar {
     display: none;
   }
 

@@ -394,27 +394,16 @@ test('Cyber dock pins escape the tray mask and its decoration overrides the lega
   assert.match(decoration, /pointer-events:\s*none;/);
 });
 
-test('Cyber lower-left telemetry tracks the credit anchor with clearance for its logo row', () => {
-  const telemetry = cssRuleBody(
-    cyberStyles,
-    /#intel-hud\[data-variant='cyber'\] \.hud-bottom-left/,
-  );
-  const offset = telemetry.match(/bottom:\s*calc\(2vh \+ ([\d.]+)rem\);/);
-  assert.ok(offset, 'telemetry must retain the attribution viewport anchor');
-  const credits = read('./styles/command-dock-trays.css');
-  const creditOffsets = [
-    ...credits.matchAll(
-      /#cesium-credits\s*\{[^}]*bottom:\s*calc\(2vh \+ ([\d.]+)rem\);/g,
-    ),
-  ];
-  assert.ok(creditOffsets.length > 0);
-  for (const credit of creditOffsets) {
-    assert.ok(
-      Number(offset[1]) - Number(credit[1]) >= 2.75,
-      'reserve the 28px logo row, baseline descent and 12px clearance at the 16px root size',
-    );
-  }
-  assert.doesNotMatch(cyberStyles, /\.hud-bottom-left\s*\{\s*bottom:\s*60px;/);
+test('Cyber keeps the dock clear of the bottom footer, which now carries the attribution', () => {
+  // The lower-left telemetry block and its credit-anchor offsets are gone: the
+  // camera line and the attribution share one footer bar along the window foot.
+  assert.doesNotMatch(cyberStyles, /\.hud-bottom-left/);
+  assert.match(cyberStyles, /#intel-hud\[data-variant='cyber'\] \.hud-bottom-right/);
+  const dock = read('./styles/command-dock.css');
+  assert.match(dock, /#command-dock \{[^}]*bottom: calc\(2vh \+ var\(--hud-footer-h\)\);/);
+  const foundation = read('./styles/foundation.css');
+  assert.match(foundation, /--hud-footer-h: 24px;/);
+  assert.match(foundation, /#hud-footer \{[\s\S]*?bottom: 0;[\s\S]*?height: var\(--hud-footer-h\);/);
 });
 
 test('shared panel hooks affect only opted-in rail surfaces without overriding disclosure and concealment', () => {
@@ -683,7 +672,6 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
   assert.match(cyberStyles, /#top-center-actions button::before/);
   assert.match(cyberStyles, /\.hud-top-left/);
   assert.match(cyberStyles, /transparent 0 min\(40vw, 52vh\)/);
-  assert.match(cyberStyles, /\.hud-bottom-bar \{\s*display: none;/);
   assert.match(
     cyberStyles,
     /#intel-hud\[data-variant='cyber'\] \.hud-top-bar \{\s*display: none;/,
@@ -704,7 +692,7 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
   );
   assert.match(
     cyberStyles,
-    /#left-panel-stack \{[\s\S]*?top: var\(--cyber-left-rail-top\) !important;[\s\S]*?bottom: calc\(2vh \+ 13rem\);/,
+    /#left-panel-stack \{[\s\S]*?top: var\(--cyber-left-rail-top\) !important;[\s\S]*?bottom: calc\(2vh \+ (?:var\(--hud-footer-h\) \+ )?13rem\);/,
   );
   assert.match(
     cyberStyles,
@@ -712,7 +700,7 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
   );
   assert.match(
     rightRail,
-    /const leftStackTop = settledLeftRailTop\([\s\S]*?const alignedTop = Number\.isFinite\(leftStackTop\)[\s\S]*?baseTop: alignedTop,/,
+    /const columnBottom = settledLeftColumnBottom\([\s\S]*?const alignedTop = Number\.isFinite\(columnBottom\)[\s\S]*?baseTop: alignedTop,/,
   );
   assert.match(
     cyberStyles,
@@ -736,8 +724,8 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
   assert.match(cyberStyles, /flex: 1 1 auto;/);
   assert.match(cyberStyles, /#left-panel-stack:has/);
   assert.match(cyberStyles, /left: 54px;/);
-  assert.match(cyberStyles, /right: 62px;/);
-  assert.match(cyberStyles, /bottom: calc\(2vh \+ 13rem\);/);
+  assert.match(cyberStyles, /left: var\(--left-stack-x\);\s*right: auto;/);
+  assert.match(cyberStyles, /bottom: calc\(2vh \+ (?:var\(--hud-footer-h\) \+ )?13rem\);/);
   assert.doesNotMatch(cyberStyles, /NAV 01  \/\/  COMMAND BUS  \/\/  VIS 03/);
   assert.match(cyberStyles, /data-layer-id='satellites'/);
   assert.match(cyberStyles, /#search-toggle::before/);

@@ -288,27 +288,108 @@ body.cockpit-mode #cockpit-cloud-effects.active {
   display: none !important;
 }
 
-/* Data-source attribution (Google Maps / 3D Tiles, etc.).
-   Required by the Google Maps Platform Terms of Service — keep it visible.
-   Styled to be unobtrusive but legible against the dark UI. */
-#cesium-credits {
+/* Bottom footer: one slim glass bar across the foot of the window. Camera
+   position sits on the left, data-source attribution on the right. Attribution
+   is required by the data licences (Google Maps / 3D Tiles, Cesium, etc.), so
+   the footer is never hidden. No backdrop-filter or transform here: Cesium's
+   attribution lightbox is position:fixed and must not be clipped to the bar. */
+:root {
+  --hud-footer-h: 24px;
+}
+#hud-footer {
   position: fixed;
-  /* Bottom-LEFT corner, mirrored from the GEV mic pill (right:36/bottom:36) so the two bottom
-     corners are symmetric; sits below the coordinate HUD (.hud-bottom-left, bottom:180). Was
-     dead-center at the bottom, tucked under the LOCATIONS/STYLE panels. Must stay visible (Google
-     /Cesium attribution ToS). */
-  bottom: 36px;
-  left: 36px;
-  z-index: 90;
-  max-width: 90vw;
-  /* Keep the Google logo + "Data attribution" link on ONE line — they were wrapping to a second
-     row (looked like it was falling over). nowrap + a roomy max-width holds them inline. */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--hud-footer-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(
+    90deg,
+    rgba(6, 12, 18, 0.78),
+    rgba(6, 12, 18, 0.6)
+  );
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  color: rgba(232, 234, 237, 0.8);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  user-select: none;
+}
+@media (max-width: 720px) {
+  /* Phones keep the attribution whole; the readouts stay in the Display panel. */
+  .hud-footer-readouts {
+    display: none;
+  }
+}
+/* Display > "Show readouts" hides the clock and coordinates. The attribution
+   beside them is a licence requirement and is never hidden with them. */
+body.readouts-hidden .hud-footer-readouts {
+  display: none;
+}
+.hud-footer-readouts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.hud-footer-clock {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.hud-footer-sep {
+  opacity: 0.5;
+}
+.hud-footer-position {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.hud-footer-credits {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  max-width: 62%;
+}
+/* Cesium's credit container, now a flow child of the footer's right slot. */
+#cesium-credits {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
   white-space: nowrap;
   pointer-events: auto;
   font-family: var(--font-mono);
-  font-size: 10px;
-  color: rgba(232, 234, 237, 0.55);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  font-size: 11px;
+  color: rgba(232, 234, 237, 0.7);
+}
+/* Cesium absolutely positions its credit block at the container's left edge
+   (CesiumWidget.css). Inside the footer it is ordinary inline content. */
+#cesium-credits .cesium-widget-credits {
+  position: static;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  color: inherit;
+  text-shadow: inherit;
+  font-size: inherit;
+  white-space: nowrap;
+}
+#cesium-credits .cesium-credit-logoContainer img {
+  height: 14px;
+  width: auto;
 }
 #cesium-credits .cesium-credit-logoContainer,
 #cesium-credits .cesium-credit-textContainer,

@@ -109,11 +109,7 @@ export function syncContextLayout() {
   }
   const contextBounds = this.context.getBoundingClientRect();
   let safeBottom = window.innerHeight - 24;
-  for (const selector of [
-    '#cesium-credits',
-    '#command-dock',
-    '#view-switcher',
-  ]) {
+  for (const selector of ['#hud-footer', '#command-dock', '#view-switcher']) {
     const obstacle = document.querySelector(selector);
     if (!obstacle) continue;
     const style = window.getComputedStyle(obstacle);

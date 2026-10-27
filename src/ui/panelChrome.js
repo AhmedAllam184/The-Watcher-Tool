@@ -179,6 +179,8 @@ export class PanelChrome {
       collapsed,
     });
     if (persist) writeRightRailCollapsed(next);
+    // The TOOLS pane sits in the left column, so its reserve moves with it.
+    this._scheduleLeftPanelLayout();
     this._scheduleRightPanelLayout();
   }
 

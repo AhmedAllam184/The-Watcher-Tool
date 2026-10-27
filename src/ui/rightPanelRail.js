@@ -23,6 +23,30 @@ function railHeaderReserve(stack, gap) {
   return Number.isFinite(height) && height > 0 ? Math.ceil(height) + gap : 0;
 }
 
+/** Gap between the last left-column panel and the TOOLS pane below it. */
+const COLUMN_GAP_PX = 8;
+
+/**
+ * Where the TOOLS pane starts: directly under the left column's panels
+ * (DATA LAYERS, GUIDED TOURS) at their settled positions. Falls back to the
+ * column's own top when it has no visible panel. NaN when there is no column.
+ */
+function settledLeftColumnBottom(leftStack, viewportHeight, getComputedStyle) {
+  const top = settledLeftRailTop(leftStack, viewportHeight, getComputedStyle);
+  if (!Number.isFinite(top)) return NaN;
+  let contentBottom = 0;
+  for (const panel of leftStack.querySelectorAll(':scope > [data-panel-id]')) {
+    if (panel.hidden || panel.classList.contains('panel-floating')) continue;
+    const style = getComputedStyle(panel);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    contentBottom = Math.max(
+      contentBottom,
+      panel.offsetTop + panel.offsetHeight,
+    );
+  }
+  return contentBottom > 0 ? top + contentBottom + COLUMN_GAP_PX : top;
+}
+
 /**
  * Where the left rail's top will settle, not where it is mid-transition:
  * nothing re-runs this pass when the `top` animation ends (ResizeObserver
@@ -58,7 +82,7 @@ function settledLeftRailTop(leftStack, viewportHeight, getComputedStyle) {
  * @param {Function} options.onCollapse Update a panel's disclosure chrome.
  * @param {Function} options.onRetry Request another pass after automatic collapse.
  * @param {Function} [options.getComputedStyle] Optional DOM style reader override.
- * @param {HTMLElement} options.leftStack Rail supplying the shared top baseline.
+ * @param {HTMLElement} options.leftStack Left column whose panels the pane follows.
  * @param {HTMLElement} options.displayPanel Panel whose allocation owns its scroll.
  * @param {Function} options.readDisplayScrollTop Read the caller's scroll restoration value.
  * @param {Document} [options.documentRef] Document supplying current keyboard focus.
@@ -161,13 +185,13 @@ export function layoutRightPanelRail({
   const viewportHeight = Math.max(1, windowRef.innerHeight);
   const safeGap = Math.max(8, viewportHeight * 0.012);
   const stackRect = stack.getBoundingClientRect();
-  const leftStackTop = settledLeftRailTop(
+  const columnBottom = settledLeftColumnBottom(
     leftStack,
     viewportHeight,
     getComputedStyle,
   );
-  const alignedTop = Number.isFinite(leftStackTop)
-    ? leftStackTop
+  const alignedTop = Number.isFinite(columnBottom)
+    ? columnBottom
     : viewportHeight * 0.26;
   const obstacleRects = [];
 

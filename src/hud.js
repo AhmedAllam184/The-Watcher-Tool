@@ -17,6 +17,7 @@ import * as Cesium from 'cesium';
 import { forward as toMGRS } from 'mgrs';
 import { CITY_POIS } from './locations.js';
 import { composeLocalityTag } from './hudLocality.js';
+import { formatFooterPosition } from './hudFooterFormat.js';
 import {
   ellipsoidalToMslDisplayM,
   ensureGeoidReady,
@@ -208,14 +209,6 @@ export class IntelHUD {
         <div class="hud-bracket">┐</div>
       </div>
 
-      <div class="hud-corner hud-bottom-left">
-        <div class="hud-bracket">└</div>
-        <div class="hud-content">
-          <div id="hud-mgrs">MGRS: ---</div>
-          <div id="hud-latlon">--°--'--"N ---°--'--"W</div>
-        </div>
-      </div>
-
       <div class="hud-corner hud-bottom-right">
         <div class="hud-content" style="text-align:right">
           <div id="hud-ais-vessel" class="hud-ais-vessel">AIS: --</div>
@@ -233,10 +226,6 @@ export class IntelHUD {
         <div>BITS: 11</div>
         <div>LVL: 1A</div>
       </div>
-
-      <div class="hud-bottom-bar">
-        <span id="hud-bottom-line">LAT: --  LON: --  MGRS: ---</span>
-      </div>
     `;
     this._el.dataset.variant = this._variant;
   }
@@ -248,13 +237,20 @@ export class IntelHUD {
    */
   _startTimers() {
     // Timestamp — every second
+    // The clock shows in the bottom footer; the corner copy is hidden outside
+    // Cockpit but kept so its readers still find the element.
     this._timestampInterval = setInterval(() => {
-      const el = document.getElementById('hud-timestamp');
-      if (el) el.textContent = this._formatUTC();
+      const text = this._formatUTC();
+      for (const id of ['hud-timestamp', 'hud-footer-clock']) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+      }
     }, 1000);
 
     // Camera-derived data — 4 updates/second (250ms)
     this._updateInterval = setInterval(() => {
+      // The footer position is on screen whether or not the HUD overlay is.
+      this._refreshFooterPosition();
       if (!this._visible) return;
       this._updateCameraData();
     }, 250);
@@ -324,30 +320,6 @@ export class IntelHUD {
     const lonDeg = Cesium.Math.toDegrees(cartographic.longitude);
     const latDeg = Cesium.Math.toDegrees(cartographic.latitude);
     const altM = cartographic.height;
-    const latDMS = this._toDMS(latDeg, 'lat');
-    const lonDMS = this._toDMS(lonDeg, 'lon');
-    let mgrsLabel = '---';
-
-    // MGRS
-    try {
-      const mgrsStr = toMGRS([lonDeg, latDeg], 4); // 4 = 10m precision
-      // Format: 18SUJ23370716 → 18S UJ 2337 0716
-      const formatted = this._formatMGRS(mgrsStr);
-      mgrsLabel = formatted;
-      const el = document.getElementById('hud-mgrs');
-      if (el) el.textContent = `MGRS: ${formatted}`;
-    } catch {
-      const el = document.getElementById('hud-mgrs');
-      if (el) el.textContent = 'MGRS: ---';
-    }
-
-    // Lat/Lon DMS
-    const llEl = document.getElementById('hud-latlon');
-    if (llEl) llEl.textContent = `${latDMS} ${lonDMS}`;
-    const bottomEl = document.getElementById('hud-bottom-line');
-    if (bottomEl) {
-      bottomEl.textContent = `MGRS: ${mgrsLabel}  LAT: ${latDMS}  LON: ${lonDMS}`;
-    }
 
     // Altitude — reported as height above MEAN SEA LEVEL. `altM` is the raw
     // ellipsoidal camera height, which reads far below zero wherever the geoid
@@ -413,6 +385,30 @@ export class IntelHUD {
   }
 
   /**
+   * Write the camera position into the bottom footer. Runs on the 250 ms tick
+   * whether or not the HUD overlay is shown, so the footer never goes stale.
+   */
+  _refreshFooterPosition() {
+    const el = document.getElementById('hud-footer-position');
+    const cartographic = this.viewer?.camera?.positionCartographic;
+    if (!el || !cartographic) return;
+    const lonDeg = Cesium.Math.toDegrees(cartographic.longitude);
+    const latDeg = Cesium.Math.toDegrees(cartographic.latitude);
+    const altMslM = ellipsoidalToMslDisplayM(
+      cartographic.height,
+      this._geoidUndulationM(latDeg, lonDeg),
+    );
+    let mgrs = '---';
+    try {
+      // 4 = 10m precision; formatted as 36R TQ 8130 6617.
+      mgrs = this._formatMGRS(toMGRS([lonDeg, latDeg], 4));
+    } catch {
+      /* the footer keeps its placeholder MGRS for poles and bad input */
+    }
+    el.textContent = formatFooterPosition({ latDeg, lonDeg, mgrs, altMslM });
+  }
+
+  /**
    * Insert spaces into a raw MGRS string for human-readable display.
    * @param {string} mgrs - Raw MGRS string, e.g. `"18SUJ23370716"`.
    * @returns {string} Formatted string, e.g. `"18S UJ 2337 0716"`.
@@ -427,31 +423,6 @@ export class IntelHUD {
     const easting = coords.slice(0, half);
     const northing = coords.slice(half);
     return `${zone} ${square} ${easting} ${northing}`;
-  }
-
-  /**
-   * Convert a decimal-degree value to a degrees-minutes-seconds string.
-   * @param {number} decimal - Coordinate in decimal degrees.
-   * @param {'lat'|'lon'} type - Axis selector; controls hemisphere letter
-   *   and zero-padding width (2 digits for lat, 3 for lon).
-   * @returns {string} Formatted DMS string, e.g. `"38°53'23.10"N"`.
-   */
-  _toDMS(decimal, type) {
-    const abs = Math.abs(decimal);
-    const deg = Math.floor(abs);
-    const minFloat = (abs - deg) * 60;
-    const min = Math.floor(minFloat);
-    const sec = ((minFloat - min) * 60).toFixed(2);
-
-    let dir;
-    if (type === 'lat') dir = decimal >= 0 ? 'N' : 'S';
-    else dir = decimal >= 0 ? 'E' : 'W';
-
-    const degStr =
-      type === 'lon'
-        ? String(deg).padStart(3, '0')
-        : String(deg).padStart(2, '0');
-    return `${degStr}°${String(min).padStart(2, '0')}'${String(sec).padStart(5, '0')}"${dir}`;
   }
 
   /**

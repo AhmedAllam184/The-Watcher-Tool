@@ -48,7 +48,10 @@ export async function createApplicationScene({
   // Provider attribution stays visible, including clean-view and recording.
   const creditContainer = document.createElement('div');
   creditContainer.id = 'cesium-credits';
-  document.body.appendChild(creditContainer);
+  // Attribution lives in the bottom footer's right-hand slot.
+  (document.getElementById('hud-footer-credits') || document.body).appendChild(
+    creditContainer,
+  );
   defer(() => creditContainer.remove());
   const viewer = createApplicationViewer({
     container: 'cesiumContainer',

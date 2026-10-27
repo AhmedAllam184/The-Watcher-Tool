@@ -68,7 +68,7 @@
 
   #gev-voice-control {
     right: 16px;
-    bottom: 16px;
+    bottom: calc(16px + var(--hud-footer-h));
     min-width: 196px;
   }
 
@@ -76,8 +76,7 @@
     max-width: 112px;
   }
 
-  .hud-top-left,
-  .hud-bottom-left {
+  .hud-top-left {
     left: 16px;
   }
 
@@ -91,8 +90,7 @@
     display: none;
   }
 
-  .hud-top-bar,
-  .hud-bottom-bar {
+  .hud-top-bar {
     width: calc(100vw - 24px);
     left: 12px;
     transform: none;
@@ -109,12 +107,6 @@
     width: calc(100vw - 24px);
     transform: none;
   }
-
-  .hud-bottom-bar {
-    bottom: 90px;
-    font-size: 9px;
-  }
-
   #data-panel {
     top: auto;
     left: 16px;
@@ -176,22 +168,17 @@
   #right-context-rail {
     top: calc(50vh + 8px);
     right: 16px;
-    /* The rail goes edge-to-edge at this width, so its floor is what decides
-       whether the required Google/Cesium credit line survives. The credit's
-       top edge sits at calc(2vh + 5rem) plus its own 28px, so a flat 100px
-       floor cut into it at EVERY viewport height — the DISPLAY toggles were
-       drawn straight over the notice. Track the credit's own anchor instead
-       and the 12px of clear air holds regardless of height; the rail already
-       scrolls (overflow-y below), so it loses reach, not content. */
-    bottom: calc(2vh + 7.5rem);
+    /* The rail sits above the bottom footer, which carries the required
+       Google/Cesium attribution. Its floor follows the footer's height so the
+       notice is never drawn over; the rail already scrolls (overflow-y below). */
+    bottom: calc(2vh + var(--hud-footer-h) + 7.5rem);
     left: 16px;
     width: auto;
     max-height: none;
     overflow-y: auto;
   }
 
-  /* The collapsed tab keeps its place at the right edge. Its bottom stays on
-     the credit anchor, so the tab never covers the required credit line. */
+  /* The collapsed tab keeps its place at the right edge, above the footer. */
   #right-context-rail.right-rail-collapsed {
     left: auto;
     width: 40px;

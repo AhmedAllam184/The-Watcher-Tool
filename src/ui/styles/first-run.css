@@ -239,7 +239,7 @@ body.scene-playback-mode #first-run-launcher {
 @media (max-width: 620px) {
   #first-run-launcher {
     top: auto;
-    bottom: 5.8rem;
+    bottom: calc(5.8rem + var(--hud-footer-h));
     padding: 0.9rem;
     transform: translate(-50%, 0.8rem) scale(0.985);
   }

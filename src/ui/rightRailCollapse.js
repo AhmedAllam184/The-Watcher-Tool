@@ -66,7 +66,7 @@ export function applyRightRailCollapsed({ rail, button = null, collapsed }) {
     button.title = `${action} tools pane`;
     const glyph = button.querySelector?.('.material-symbols-outlined');
     if (glyph)
-      glyph.textContent = next ? 'right_panel_open' : 'right_panel_close';
+      glyph.textContent = next ? 'left_panel_open' : 'left_panel_close';
   }
   return next;
 }

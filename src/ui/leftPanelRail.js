@@ -55,6 +55,9 @@ function titleBarFloor(stack, stackRect, getComputedStyle) {
  * @param {Function} [options.getComputedStyle] Optional DOM style reader override.
  * @param {Map<string, number>} options.collapsedHeights Caller-owned measurement cache.
  * @param {Function} options.onAligned Notify the caller after the left rail moves.
+ * @param {number} [options.reserveBottomPx=0] Lane space kept free at the foot
+ *   of the viewport for the TOOLS pane, which sits in the same column below
+ *   these panels. The rail never grows into that space.
  */
 export function layoutLeftPanelRail({
   stack,
@@ -66,6 +69,7 @@ export function layoutLeftPanelRail({
   onRetry,
   collapsedHeights,
   onAligned,
+  reserveBottomPx = 0,
   getComputedStyle = (element) => windowRef.getComputedStyle(element),
 }) {
   if (!stack) return;
@@ -142,6 +146,15 @@ export function layoutLeftPanelRail({
     obstacles: bottomObstacles,
     safeGap,
   });
+  // The TOOLS pane shares this column. Leave it the reserved floor so the
+  // two panes split one lane instead of the data panels taking all of it.
+  const reserved = Math.max(0, Number(reserveBottomPx) || 0);
+  const sharesColumn = reserved > 0;
+  if (sharesColumn)
+    safeBottom = Math.max(
+      safeTop,
+      Math.min(safeBottom, viewportHeight - reserved),
+    );
 
   const obstacleSafeBottom = safeBottom;
 
@@ -149,14 +162,17 @@ export function layoutLeftPanelRail({
   // useful. During live viewport-height changes, retain the aligned lane
   // instead of extending a tiny midpoint corridor through a lower obstacle.
   const minimumLaneHeight = viewportHeight * 0.16;
-  ({ safeTop, safeBottom } = resolvePanelStackCorridor({
-    viewportHeight,
-    safeTop,
-    safeBottom,
-    obstacleSafeTop,
-    obstacleSafeBottom,
-    minimumHeight: minimumLaneHeight,
-  }));
+  // With the TOOLS pane below, the column keeps its top anchor: centering it
+  // would pull the pane up under the middle of the screen and starve it.
+  if (!sharesColumn)
+    ({ safeTop, safeBottom } = resolvePanelStackCorridor({
+      viewportHeight,
+      safeTop,
+      safeBottom,
+      obstacleSafeTop,
+      obstacleSafeBottom,
+      minimumHeight: minimumLaneHeight,
+    }));
   const viewportMidpoint = viewportHeight * 0.5;
   for (const panel of panels) {
     const rect = panel.getBoundingClientRect();
@@ -235,6 +251,7 @@ export function layoutLeftPanelRail({
   const tailAvailableHeight = Math.max(0, obstacleSafeBottom - obstacleSafeTop);
   const tailTolerance = wasTail ? stabilityBand : -stabilityBand;
   const shouldTail =
+    !sharesColumn &&
     expandedPanels.length > 0 &&
     tailLayoutTop >= obstacleSafeTop - tailTolerance &&
     tailLayoutBottom <= obstacleSafeBottom + tailTolerance;

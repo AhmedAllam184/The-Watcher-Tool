@@ -7,7 +7,7 @@
 #key-setup-chip {
   position: fixed;
   right: 0.9rem;
-  bottom: 0.9rem;
+  bottom: calc(0.9rem + var(--hud-footer-h));
   z-index: 60;
   display: flex;
   align-items: center;
@@ -392,7 +392,7 @@ body.scene-playback-mode #key-setup {
 @media (max-width: 620px) {
   /* Clear the dock. Desktop-first app; this is a courtesy, not a layout. */
   #key-setup-chip {
-    bottom: 5.8rem;
+    bottom: calc(5.8rem + var(--hud-footer-h));
   }
 }
 

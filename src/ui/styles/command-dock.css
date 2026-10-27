@@ -2,7 +2,7 @@
 #command-dock {
   position: fixed;
   right: auto;
-  bottom: 2vh;
+  bottom: calc(2vh + var(--hud-footer-h));
   left: 50%;
   z-index: 145;
   display: grid;
@@ -213,44 +213,12 @@
 #command-dock .poi-row-container.expanded {
   margin-bottom: 4px;
 }
-
-/* Keep required map attribution clear of the full-width command surface. */
-body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
-  bottom: calc(2vh + 7rem);
-}
-
-body:not(.ui-clean-view):not(.recording-mode):has(
-    #intel-hud[data-variant='minimal'].active
-  )
-  #cesium-credits {
-  right: 36px;
-  left: auto;
-  width: min(340px, calc(100vw - 72px)) !important;
-  text-align: right;
-}
-
 body.ui-clean-view #command-dock,
 body.recording-mode #command-dock {
   opacity: 0 !important;
   visibility: hidden !important;
   pointer-events: none !important;
 }
-
-body.ui-clean-view #cesium-credits,
-body.recording-mode #cesium-credits {
-  right: auto;
-  bottom: 36px;
-  left: 36px;
-}
-
-#intel-hud[data-variant='minimal'] .hud-bottom-left {
-  bottom: calc(2vh + 7.5rem);
-}
-
-#intel-hud[data-variant='minimal'] .hud-bottom-bar {
-  bottom: calc(2vh + 11.5rem);
-}
-
 @media (max-width: 980px) {
   #command-dock {
     grid-template-areas:
@@ -273,23 +241,11 @@ body.recording-mode #cesium-credits {
   #command-dock > #gev-voice-control {
     margin: -10px 0 0;
   }
-
-  body:not(.ui-clean-view):not(.recording-mode) #cesium-credits {
-    bottom: calc(2vh + 9.5rem);
-  }
-
-  #intel-hud[data-variant='minimal'] .hud-bottom-left {
-    bottom: calc(2vh + 12rem);
-  }
-
-  #intel-hud[data-variant='minimal'] .hud-bottom-bar {
-    bottom: calc(2vh + 16rem);
-  }
 }
 
 @media (max-width: 720px) {
   #command-dock {
-    bottom: 8px;
+    bottom: calc(8px + var(--hud-footer-h));
   }
 
   #command-dock .location-search-wrap {

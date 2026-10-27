@@ -614,3 +614,47 @@ test('a late catalogue answer for a previous satellite is ignored', async () => 
   assert.deepEqual(loader.calls, ['25544', '28228']);
   assert.equal(rowTexts(env.aside)['Owner / country'], undefined, 'the first answer does not land on the second satellite');
 });
+
+test('a flight with no airframe photo shows a labelled type photo linked to its article', async () => {
+  const calls = [];
+  const photoLoader = {
+    load(hex, options = {}) {
+      calls.push({ hex, type: options.type ?? null });
+      return Promise.resolve({
+        src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c17.jpg',
+        link: 'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
+        photographer: null,
+        source: 'Wikipedia',
+        kind: 'type',
+        title: 'Boeing C-17 Globemaster III',
+      });
+    },
+  };
+  const env = setup({ photoLoader });
+  const record = flightRecord({
+    id: 'ae0001',
+    properties: { icao24: 'ae0001', type: 'C17' },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  assert.deepEqual(calls, [{ hex: 'ae0001', type: 'C17' }]);
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, false);
+  const credit = findByClass(figure, 'selection-details__photo-credit');
+  const link = findAll(credit, (node) => node.tagName === 'A')[0];
+  assert.equal(
+    link.textContent,
+    'Type photo: Boeing C-17 Globemaster III (Wikipedia) — not this exact aircraft',
+  );
+  assert.equal(
+    link.href,
+    'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
+  );
+  assert.equal(link.rel, 'noopener noreferrer');
+  const image = findAll(figure, (node) => node.tagName === 'IMG')[0];
+  assert.equal(
+    image.attributes.alt,
+    'Photo of a Boeing C-17 Globemaster III, not this aircraft',
+  );
+});

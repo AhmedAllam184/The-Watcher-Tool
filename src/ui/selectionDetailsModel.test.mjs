@@ -159,6 +159,27 @@ test('flight details carry the lower-case hex for the photo lookup', () => {
   assert.equal(military.photoHex, '43c123');
 });
 
+test('flight details carry the aircraft type for the photo fallback', () => {
+  assert.equal(
+    buildSelectionDetails(flightRecord(), { now: NOW }).photoType,
+    'Airbus A320',
+  );
+  const named = buildSelectionDetails(
+    flightRecord({ typeName: 'Boeing C-17A Globemaster III', type: 'C17' }),
+    { now: NOW },
+  );
+  assert.equal(named.photoType, 'Boeing C-17A Globemaster III');
+  const military = buildSelectionDetails(
+    flightRecord({ icao24: '43c123', type: 'C17' }, { layerId: 'military' }),
+    { now: NOW },
+  );
+  assert.equal(military.photoType, 'C17');
+  const untyped = buildSelectionDetails(flightRecord({ type: '' }), {
+    now: NOW,
+  });
+  assert.equal(untyped.photoType, null);
+});
+
 test('flight details translate units, heading and status', () => {
   const details = buildSelectionDetails(flightRecord(), { now: NOW });
   assert.equal(details.kind, 'flight');

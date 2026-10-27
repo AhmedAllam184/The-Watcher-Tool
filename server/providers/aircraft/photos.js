@@ -1,20 +1,30 @@
 import path from 'node:path';
 import { promises as fsp } from 'node:fs';
 import { WATCHER_USER_AGENT } from '../common/userAgent.js';
+import { MILITARY_TYPE_NAMES } from '../../../src/data/militaryTypeNames.js';
 /**
  * Aircraft photo proxy: ICAO hex → one photo of that airframe, with the
  * photographer credited and a link to its source page. Planespotters.net is
  * tried first (its terms require the photographer and link to be shown); the
  * airport-data.com thumbnail that adsbdb lists for the hex is the fallback.
- * Cached on disk like the adsbdb proxy: photos for a week, "no photo" answers
- * for a day, and upstream failures are never cached. Memory and disk hold at
- * most 5,000 hexes; the oldest by time are evicted first.
+ * When neither has the airframe and the caller gives its aircraft type, a
+ * Wikipedia image of that type stands in (kind 'type', not this exact
+ * aircraft). Cached on disk like the adsbdb proxy: airframe photos for a week,
+ * "no photo" answers for a day; type photos for 30 days, type misses for 7
+ * days. Upstream failures are never cached. Memory and disk hold at most 5,000
+ * entries; the oldest by time are evicted first.
  */
 const PHOTO_TTL_MS = 7 * 24 * 3600_000;
 const MISS_TTL_MS = 24 * 3600_000;
-/** Disk and memory hold at most this many hexes. */
+const TYPE_PHOTO_TTL_MS = 30 * 24 * 3600_000;
+const TYPE_MISS_TTL_MS = 7 * 24 * 3600_000;
+/** Type lookups share the photo cache under keys with this prefix (hexes never start with it). */
+const TYPE_PREFIX = 'type:';
+/** Disk and memory hold at most this many entries. */
 const MAX_ENTRIES = 5000;
 const UPSTREAM_TIMEOUT_MS = 8000;
+/** 2–80 letters, digits, spaces, hyphens, dots and parentheses. */
+const TYPE_PATTERN = /^[A-Za-z0-9 .\-()]{2,80}$/;
 
 /** Only https image and page URLs reach the browser. */
 function httpsUrl(value) {
@@ -25,6 +35,28 @@ function httpsUrl(value) {
   } catch {
     return null;
   }
+}
+
+/** Wikimedia image URLs only: https on upload.wikimedia.org. */
+function wikimediaImageUrl(value) {
+  const url = httpsUrl(value);
+  if (!url) return null;
+  return new URL(url).hostname === 'upload.wikimedia.org' ? url : null;
+}
+
+/** The aircraft type text the route accepts (trimmed, spaces collapsed), or null. */
+export function parseAircraftType(value) {
+  if (typeof value !== 'string') return null;
+  const text = value.trim().replace(/\s+/g, ' ');
+  return TYPE_PATTERN.test(text) ? text : null;
+}
+
+/** The name to search for: a military designator's common name, else the text itself. */
+export function searchNameForType(text) {
+  const code = text.replace(/\s+/g, '').toUpperCase();
+  return Object.hasOwn(MILITARY_TYPE_NAMES, code)
+    ? MILITARY_TYPE_NAMES[code]
+    : text;
 }
 
 /** First photo of a Planespotters hex lookup, or null when it has none. */
@@ -43,6 +75,7 @@ export function parsePlanespottersPhoto(json) {
     link: httpsUrl(first.link),
     photographer,
     source: 'Planespotters.net',
+    kind: 'airframe',
   };
 }
 
@@ -58,6 +91,43 @@ export function parseAdsbdbPhoto(json) {
     link: full,
     photographer: null,
     source: 'airport-data.com via adsbdb',
+    kind: 'airframe',
+  };
+}
+
+/** The Wikipedia search URL for a type: the best-matching article's thumbnail. */
+export function wikipediaTypeUrl(searchName) {
+  const params = new URLSearchParams({
+    action: 'query',
+    format: 'json',
+    formatversion: '2',
+    generator: 'search',
+    gsrsearch: `${searchName} aircraft`,
+    gsrlimit: '1',
+    prop: 'pageimages|info',
+    piprop: 'thumbnail',
+    pithumbsize: '640',
+    inprop: 'url',
+  });
+  return `https://en.wikipedia.org/w/api.php?${params}`;
+}
+
+/** The Wikipedia article's image for a type search, or null when it has none. */
+export function parseWikipediaTypePhoto(json) {
+  const page = Array.isArray(json?.query?.pages) ? json.query.pages[0] : null;
+  const src = wikimediaImageUrl(page?.thumbnail?.source);
+  if (!src) return null;
+  const title =
+    typeof page.title === 'string' && page.title.trim()
+      ? page.title.trim()
+      : null;
+  return {
+    src,
+    link: httpsUrl(page.fullurl),
+    photographer: null,
+    source: 'Wikipedia',
+    kind: 'type',
+    title,
   };
 }
 
@@ -72,22 +142,28 @@ export function aircraftPhotoProxy({
   let loading = null;
   const inflight = new Map();
 
-  const fresh = (e) =>
-    e && Date.now() - e.at < (e.data ? PHOTO_TTL_MS : MISS_TTL_MS);
+  /** How long an entry lives: by its key (hex or type) and whether it has a photo. */
+  function ttlFor(key, data) {
+    const typed = key.startsWith(TYPE_PREFIX);
+    if (data) return typed ? TYPE_PHOTO_TTL_MS : PHOTO_TTL_MS;
+    return typed ? TYPE_MISS_TTL_MS : MISS_TTL_MS;
+  }
+
+  const fresh = (key, e) => e && Date.now() - e.at < ttlFor(key, e.data);
 
   /** Keep the newest MAX_ENTRIES in memory; the oldest by `at` go first. */
   function enforceCap() {
-    const hexes = Object.keys(cache);
-    if (hexes.length <= MAX_ENTRIES) return;
-    hexes.sort((a, b) => cache[a].at - cache[b].at);
-    for (const hex of hexes.slice(0, hexes.length - MAX_ENTRIES))
-      delete cache[hex];
+    const keys = Object.keys(cache);
+    if (keys.length <= MAX_ENTRIES) return;
+    keys.sort((a, b) => cache[a].at - cache[b].at);
+    for (const key of keys.slice(0, keys.length - MAX_ENTRIES))
+      delete cache[key];
   }
 
   /** What reaches the disk: fresh entries only, capped. */
   function persistable() {
     const entries = Object.entries(cache)
-      .filter(([, entry]) => fresh(entry))
+      .filter(([key, entry]) => fresh(key, entry))
       .sort(([, a], [, b]) => b.at - a.at)
       .slice(0, MAX_ENTRIES);
     return Object.fromEntries(entries);
@@ -125,9 +201,9 @@ export function aircraftPhotoProxy({
         /* first run */
       }
       // Expired entries are dropped on load, then the cap applies.
-      for (const hex of Object.keys(cache)) {
-        if (!fresh(cache[hex])) {
-          delete cache[hex];
+      for (const key of Object.keys(cache)) {
+        if (!fresh(key, cache[key])) {
+          delete cache[key];
           dirty = true;
         }
       }
@@ -152,7 +228,7 @@ export function aircraftPhotoProxy({
   }
 
   /** Try Planespotters, then adsbdb. `uncertain` means an upstream failed. */
-  async function resolve(hex) {
+  async function resolveAirframe(hex) {
     let uncertain = false;
     try {
       const { json } = await fetchJson(
@@ -176,29 +252,47 @@ export function aircraftPhotoProxy({
     }
   }
 
-  function lookup(hex) {
-    if (fresh(cache[hex])) return Promise.resolve(cache[hex].data);
-    if (!inflight.has(hex)) {
+  /** Wikipedia's best article for the type; `uncertain` when the request failed. */
+  async function resolveType(text) {
+    try {
+      const { json } = await fetchJson(
+        wikipediaTypeUrl(searchNameForType(text)),
+        { 'User-Agent': WATCHER_USER_AGENT },
+      );
+      const photo = json ? parseWikipediaTypePhoto(json) : null;
+      return { photo, uncertain: false };
+    } catch {
+      return { photo: null, uncertain: true };
+    }
+  }
+
+  /**
+   * One cached answer per key. A definitive answer (photo or known miss) is
+   * stored; an upstream failure is not, and serves the stale entry if any.
+   */
+  function cached(key, resolveFn) {
+    if (fresh(key, cache[key])) return Promise.resolve(cache[key].data);
+    if (!inflight.has(key)) {
       inflight.set(
-        hex,
+        key,
         (async () => {
           try {
-            const { photo, uncertain } = await resolve(hex);
+            const { photo, uncertain } = await resolveFn();
             if (photo || !uncertain) {
-              cache[hex] = { at: Date.now(), data: photo }; // null = known miss
+              cache[key] = { at: Date.now(), data: photo }; // null = known miss
               enforceCap();
               dirty = true;
               return photo;
             }
             // Upstream failed: serve a stale answer if there is one, else none.
-            return cache[hex]?.data ?? null;
+            return cache[key]?.data ?? null;
           } finally {
-            inflight.delete(hex);
+            inflight.delete(key);
           }
         })(),
       );
     }
-    return inflight.get(hex);
+    return inflight.get(key);
   }
 
   const installMiddleware = (server) => {
@@ -215,7 +309,17 @@ export function aircraftPhotoProxy({
         const hex = String(url.searchParams.get('hex') || '').toLowerCase();
         if (!/^[0-9a-f]{6}$/.test(hex))
           return send(400, { error: 'invalid hex' });
-        const photo = await lookup(hex);
+        const rawType = String(url.searchParams.get('type') || '').trim();
+        const type = rawType ? parseAircraftType(rawType) : null;
+        if (rawType && !type) return send(400, { error: 'invalid type' });
+        const airframe = await cached(hex, () => resolveAirframe(hex));
+        const photo =
+          airframe ??
+          (type
+            ? await cached(`${TYPE_PREFIX}${type.toLowerCase()}`, () =>
+                resolveType(type),
+              )
+            : null);
         return send(200, { hex, photo });
       } catch {
         console.error('[aircraft-photo] request failed');

@@ -126,6 +126,12 @@ export const DATA_CREDITS = [
       '(each photo credits its photographer and links to its page); fallback airport-data.com via adsbdb',
   },
   {
+    key: 'aircraft-type-photos',
+    html:
+      'Aircraft type photos: <a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia</a> ' +
+      '(licence varies per image; each links to its article)',
+  },
+  {
     key: 'aisstream',
     html:
       'Live vessels (AIS): ' +

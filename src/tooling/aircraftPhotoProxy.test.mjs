@@ -106,6 +106,7 @@ test('Planespotters photo is returned with photographer, link and source', async
       link: 'https://www.planespotters.net/photo/1/example',
       photographer: 'Jane Spotter',
       source: 'Planespotters.net',
+      kind: 'airframe',
     },
   });
   assert.equal(calls.length, 1, 'adsbdb is not asked when Planespotters has a photo');
@@ -124,6 +125,7 @@ test('falls back to the adsbdb airport-data photo when Planespotters has none', 
     link: 'https://airport-data.com/images/aircraft/1.jpg',
     photographer: null,
     source: 'airport-data.com via adsbdb',
+    kind: 'airframe',
   });
 });
 
@@ -324,3 +326,213 @@ test('the disk write goes through a temp file: none is left behind and the JSON 
   await assert.rejects(fsp.access(`${file}.${process.pid}.tmp`));
 });
 
+const WIKI_URL = 'https://en.wikipedia.org/';
+const WIKIPEDIA_C17 = {
+  query: {
+    pages: [
+      {
+        pageid: 1,
+        title: 'Boeing C-17 Globemaster III',
+        fullurl: 'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
+        thumbnail: {
+          source:
+            'https://upload.wikimedia.org/wikipedia/commons/thumb/c17.jpg/640px-c17.jpg',
+          width: 640,
+          height: 400,
+        },
+      },
+    ],
+  },
+};
+/** Upstreams that have no photo of the airframe, so only a type photo can answer. */
+const NO_AIRFRAME = {
+  'api.planespotters.net': json({}, 404),
+  'api.adsbdb.com': json({}, 404),
+};
+const wikiCalls = (calls) => calls.filter((c) => c.url.startsWith(WIKI_URL));
+
+test('an airframe photo is returned without asking Wikipedia about the type', async () => {
+  const { fetchImpl, calls } = stubUpstreams({
+    'api.planespotters.net': json(PLANESPOTTERS_PHOTO),
+    'en.wikipedia.org': json(WIKIPEDIA_C17),
+  });
+  const res = await harness(proxy(fetchImpl))('/?hex=abc123&type=C17');
+  assert.equal(res.body.photo.kind, 'airframe');
+  assert.equal(wikiCalls(calls).length, 0);
+});
+
+test('with no airframe photo, a Wikipedia type photo stands in and is labelled as a type', async () => {
+  const { fetchImpl, calls } = stubUpstreams({
+    ...NO_AIRFRAME,
+    'en.wikipedia.org': json(WIKIPEDIA_C17),
+  });
+  const res = await harness(proxy(fetchImpl))('/?hex=ae0001&type=C17');
+  assert.deepEqual(res.body, {
+    hex: 'ae0001',
+    photo: {
+      src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c17.jpg/640px-c17.jpg',
+      link: 'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
+      photographer: null,
+      source: 'Wikipedia',
+      kind: 'type',
+      title: 'Boeing C-17 Globemaster III',
+    },
+  });
+  const [wiki] = wikiCalls(calls);
+  const params = new URL(wiki.url).searchParams;
+  assert.equal(params.get('generator'), 'search');
+  assert.equal(params.get('gsrsearch'), 'C-17 Globemaster III aircraft');
+  assert.equal(params.get('gsrlimit'), '1');
+  assert.equal(params.get('prop'), 'pageimages|info');
+  assert.equal(params.get('pithumbsize'), '640');
+  assert.equal(wiki.headers['User-Agent'], WATCHER_USER_AGENT);
+});
+
+test('a military code is searched by its common name, other types as typed', async () => {
+  for (const [type, search] of [
+    ['K35R', 'KC-135 Stratotanker aircraft'],
+    ['h60', 'UH-60 Black Hawk aircraft'],
+    ['Eurofighter Typhoon', 'Eurofighter Typhoon aircraft'],
+    ['A10X', 'A10X aircraft'],
+  ]) {
+    const { fetchImpl, calls } = stubUpstreams({
+      ...NO_AIRFRAME,
+      'en.wikipedia.org': json(WIKIPEDIA_C17),
+    });
+    await harness(proxy(fetchImpl))(
+      `/?hex=ae0002&type=${encodeURIComponent(type)}`,
+    );
+    assert.equal(
+      new URL(wikiCalls(calls)[0].url).searchParams.get('gsrsearch'),
+      search,
+      type,
+    );
+  }
+});
+
+test('no type given means no Wikipedia lookup, even with no airframe photo', async () => {
+  const { fetchImpl, calls } = stubUpstreams({
+    ...NO_AIRFRAME,
+    'en.wikipedia.org': json(WIKIPEDIA_C17),
+  });
+  const res = await harness(proxy(fetchImpl))('/?hex=ae0001&type=');
+  assert.deepEqual(res.body, { hex: 'ae0001', photo: null });
+  assert.equal(wikiCalls(calls).length, 0);
+});
+
+test('invalid types are rejected before any upstream call', async () => {
+  const { fetchImpl, calls } = stubUpstreams({});
+  const get = harness(proxy(fetchImpl));
+  for (const type of [
+    'x',
+    'a'.repeat(81),
+    'C17<script>',
+    'a/b',
+    '../x',
+    'C17;DROP',
+    '%20%20',
+  ]) {
+    const res = await get(`/?hex=abc123&type=${encodeURIComponent(type)}`);
+    assert.equal(res.status, 400, type);
+    assert.deepEqual(res.body, { error: 'invalid type' });
+  }
+  assert.equal(calls.length, 0);
+});
+
+test('a Wikipedia failure gives no photo and is retried, not cached', async () => {
+  let attempts = 0;
+  const { fetchImpl } = stubUpstreams({
+    ...NO_AIRFRAME,
+    'en.wikipedia.org': () => {
+      attempts += 1;
+      throw new Error('down');
+    },
+  });
+  const get = harness(proxy(fetchImpl));
+  assert.equal((await get('/?hex=ae0001&type=C17')).body.photo, null);
+  assert.equal((await get('/?hex=ae0001&type=C17')).body.photo, null);
+  assert.equal(attempts, 2);
+});
+
+test('a type photo is cached per normalised type: a second airframe of that type skips Wikipedia', async () => {
+  const { fetchImpl, calls } = stubUpstreams({
+    ...NO_AIRFRAME,
+    'en.wikipedia.org': json(WIKIPEDIA_C17),
+  });
+  const get = harness(proxy(fetchImpl));
+  await get('/?hex=ae0001&type=C17');
+  const second = await get('/?hex=ae0002&type=%20c17%20');
+  assert.equal(second.body.photo.kind, 'type');
+  assert.equal(wikiCalls(calls).length, 1);
+});
+
+test('a type with no Wikipedia image is a cached miss', async () => {
+  const { fetchImpl, calls } = stubUpstreams({
+    ...NO_AIRFRAME,
+    'en.wikipedia.org': json({
+      query: {
+        pages: [
+          {
+            title: 'Nothing',
+            fullurl: 'https://en.wikipedia.org/wiki/Nothing',
+          },
+        ],
+      },
+    }),
+  });
+  const get = harness(proxy(fetchImpl));
+  assert.equal((await get('/?hex=ae0001&type=Nothing')).body.photo, null);
+  assert.equal((await get('/?hex=ae0002&type=Nothing')).body.photo, null);
+  assert.equal(wikiCalls(calls).length, 1);
+});
+
+test('only https upload.wikimedia.org images are returned as type photos', async () => {
+  for (const source of [
+    'http://upload.wikimedia.org/wikipedia/commons/c17.jpg',
+    'https://evil.example/c17.jpg',
+    'javascript:alert(1)',
+  ]) {
+    const page = {
+      title: 'C-17',
+      fullurl: 'https://en.wikipedia.org/wiki/C-17',
+      thumbnail: { source },
+    };
+    const { fetchImpl } = stubUpstreams({
+      ...NO_AIRFRAME,
+      'en.wikipedia.org': json({ query: { pages: [page] } }),
+    });
+    const res = await harness(proxy(fetchImpl))('/?hex=ae0001&type=C17');
+    assert.equal(res.body.photo, null, source);
+  }
+});
+
+test('type entries keep their own lifetimes: 30 days for a photo, 7 days for a miss', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] });
+  const file = await cacheFile(t);
+  const DAY = 24 * 3600_000;
+  await fsp.writeFile(
+    file,
+    JSON.stringify({
+      photos: {
+        'type:c17': {
+          at: Date.now() - 10 * DAY,
+          data: { ...CACHED_PHOTO, kind: 'type' },
+        },
+        'type:f16': { at: Date.now() - 8 * DAY, data: null },
+      },
+    }),
+  );
+  const { fetchImpl } = stubUpstreams({
+    'api.planespotters.net': json(PLANESPOTTERS_PHOTO),
+  });
+  const get = harness(aircraftPhotoProxy({ fetchImpl, cachePath: file }));
+  await get('/?hex=abc123');
+  t.mock.timers.tick(15_000);
+  const saved = await waitForSaved(file, (s) => s.photos.abc123);
+  assert.ok(saved.photos['type:c17'], 'a type photo under 30 days old is kept');
+  assert.equal(
+    saved.photos['type:f16'],
+    undefined,
+    'a type miss over 7 days old is dropped',
+  );
+});

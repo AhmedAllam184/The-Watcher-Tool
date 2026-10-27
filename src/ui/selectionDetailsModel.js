@@ -258,6 +258,9 @@ function buildFlight(record, properties) {
     alert,
     // Hex for the aircraft photo lookup (lower-case, validated).
     photoHex: /^[0-9a-f]{6}$/i.test(icao24) ? icao24.toLowerCase() : null,
+    // Type text for the photo's type fallback (a name, or a military code).
+    photoType:
+      String(properties.typeName || properties.type || '').trim() || null,
   };
 }
 

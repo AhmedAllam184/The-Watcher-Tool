@@ -47,7 +47,7 @@ function writeClipboard(text) {
  * @param {(text: string) => Promise<void>} [options.copyText] Clipboard writer.
  * @param {() => object|null} [options.getSelected] Returns the store's selected record.
  * @param {() => number} [options.now] Clock for relative times.
- * @param {{load: (hex: string) => Promise<object|null>}} [options.photoLoader] Aircraft photo source.
+ * @param {{load: (hex: string, options?: {type?: string|null}) => Promise<object|null>}} [options.photoLoader] Aircraft photo source.
  * @param {{load: (norad: string) => Promise<{satellite: object|null}>}} [options.satelliteInfoLoader] Satellite catalogue source.
  * @returns {{show: Function, hide: Function, refresh: Function, destroy: Function}}
  */
@@ -69,6 +69,7 @@ export function createSelectionDetailsPanel({
   let token = 0;
   let destroyed = false;
   let photoHex = null;
+  let photoType = null;
   let photoToken = 0;
   let shownImage = null;
   // Catalogue lookup for the selected satellite: { norad, status, satellite }.
@@ -165,7 +166,13 @@ export function createSelectionDetailsPanel({
     const image = doc.createElement('img');
     image.className = 'selection-details__photo-image';
     image.setAttribute('src', photo.src);
-    image.setAttribute('alt', `Photo of ${subjectTitle || 'aircraft'}`);
+    const isTypePhoto = photo.kind === 'type';
+    image.setAttribute(
+      'alt',
+      isTypePhoto
+        ? `Photo of a ${photo.title || 'similar aircraft'}, not this aircraft`
+        : `Photo of ${subjectTitle || 'aircraft'}`,
+    );
     image.setAttribute('loading', 'lazy');
     image.setAttribute('referrerpolicy', 'no-referrer');
     // A photo that fails to load is no photo: drop the block, keep the panel.
@@ -185,26 +192,40 @@ export function createSelectionDetailsPanel({
     }
     const credit = doc.createElement('figcaption');
     credit.className = 'selection-details__photo-credit';
-    const parts = [
-      photo.photographer ? `© ${photo.photographer}` : '',
-      photo.source,
-    ].filter(Boolean);
-    credit.textContent = parts.join(' · ');
+    if (isTypePhoto) {
+      // Another airframe of the same type: say so, and link the article.
+      const label = `Type photo: ${photo.title || 'aircraft type'} (Wikipedia) — not this exact aircraft`;
+      if (photo.link) {
+        const anchor = doc.createElement('a');
+        anchor.href = photo.link;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.textContent = label;
+        credit.append(anchor);
+      } else credit.textContent = label;
+    } else {
+      const parts = [
+        photo.photographer ? `© ${photo.photographer}` : '',
+        photo.source,
+      ].filter(Boolean);
+      credit.textContent = parts.join(' · ');
+    }
     photoBox.append(media, credit);
     photoBox.hidden = false;
   }
 
   /** Load the photo when the selected aircraft changes; no-op otherwise. */
-  function syncPhoto(hex, subjectTitle) {
-    if (hex === photoHex) return;
+  function syncPhoto(hex, type, subjectTitle) {
+    if (hex === photoHex && type === photoType) return;
     photoHex = hex;
+    photoType = type;
     photoToken += 1;
     const token = photoToken;
     clearPhoto();
     if (!hex) return;
     showPhotoStatus('Loading aircraft photo…');
     Promise.resolve()
-      .then(() => photoLoader.load(hex))
+      .then(() => photoLoader.load(hex, { type }))
       .then(
         (photo) => {
           if (destroyed || token !== photoToken) return;
@@ -263,7 +284,11 @@ export function createSelectionDetailsPanel({
     title.textContent = details.title;
     subtitle.textContent = details.subtitle;
     subtitle.hidden = !details.subtitle;
-    syncPhoto(details.photoHex || null, details.title);
+    syncPhoto(
+      details.photoHex || null,
+      details.photoType || null,
+      details.title,
+    );
 
     // Set only on change: the panel re-renders every second and a repeated
     // role=alert text would be announced again.
@@ -331,6 +356,7 @@ export function createSelectionDetailsPanel({
     current = null;
     details = null;
     photoHex = null;
+    photoType = null;
     photoToken += 1;
     clearPhoto();
     syncSatelliteInfo(null);

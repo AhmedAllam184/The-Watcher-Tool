@@ -62,6 +62,7 @@
       "src/data/adsbLolFallback.js",
       "src/data/aisStreamAdapter.js",
       "src/data/aisWatchdog.js",
+      "src/data/militaryTypeNames.js",
       "src/sources/httpBody.js"
     ],
     "external": ["ws"]

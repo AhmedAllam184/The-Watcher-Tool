@@ -204,6 +204,15 @@ export const DATA_CREDITS = [
       '(location-matched article links; publisher terms apply)',
   },
   {
+    key: 'conflict-events',
+    html:
+      'Conflict events: ' +
+      '<a href="https://acleddata.com/terms-of-use/" target="_blank" rel="noopener">ACLED</a> ' +
+      '(verified, with a free key; ACLED terms apply) or ' +
+      '<a href="https://www.gdeltproject.org/about.html" target="_blank" rel="noopener">GDELT Project</a> ' +
+      'news-report locations (unverified)',
+  },
+  {
     key: 'austin-cctv',
     html:
       'CCTV cameras &amp; frames: City of Austin, TX — ' +

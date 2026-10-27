@@ -28,6 +28,7 @@ import { createApplicationFirePerimeters } from './layers/perimeters.js';
 import { createApplicationCables } from './layers/submarineCables.js';
 import { createApplicationStreetLevel } from './layers/streetLevel.js';
 import { createGpsJamLayer } from '../layers/gpsJam/index.js';
+import { createConflictLayer } from '../layers/conflict/index.js';
 import { createInfrastructureLayers } from '../data/infrastructure.js';
 import { createAirportStatusOverlay } from '../layers/airportStatus/overlay.js';
 import { localGeoJsonServices } from './localGeojsonServices.js';
@@ -163,6 +164,7 @@ export function createApplicationCatalog({
         }),
         createCyclonesLayer({ feed: sources.cyclones }),
         createGpsJamLayer({ feed: sources['gps-jam'] }),
+        createConflictLayer({ feed: sources['conflict-events'] }),
         ...createInfrastructureLayers(localGeoJsonServices, {
           airportStatus: createAirportStatusOverlay({
             services: localGeoJsonServices,

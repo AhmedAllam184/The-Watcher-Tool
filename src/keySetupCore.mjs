@@ -77,6 +77,14 @@ export const KEY_SETUP_KEYS = Object.freeze([
     tier: 'free',
   }),
   Object.freeze({
+    id: 'acled',
+    title: 'ACLED',
+    unlocks: 'Verified conflict events with fatalities',
+    getUrl: 'https://acleddata.com/register/',
+    envVars: Object.freeze(['ACLED_EMAIL', 'ACLED_KEY']),
+    tier: 'free',
+  }),
+  Object.freeze({
     id: 'tomtom',
     title: 'TOMTOM',
     unlocks: 'Real live traffic (keyless runs a simulation)',

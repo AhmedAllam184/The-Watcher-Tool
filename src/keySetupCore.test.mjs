@@ -56,6 +56,21 @@ test('external ownership uses boot provenance even when store and shell values m
   }), false, 'an absent live credential has no external owner');
 });
 
+test('the ACLED key needs both its email and access key, and counts once as a free key', () => {
+  const entry = KEY_SETUP_KEYS.find((key) => key.id === 'acled');
+  assert.deepEqual(entry.envVars, ['ACLED_EMAIL', 'ACLED_KEY']);
+  assert.equal(entry.tier, 'free');
+  assert.equal(entry.getUrl, 'https://acleddata.com/register/');
+  assert.equal(entry.clientExposed, undefined, 'ACLED values stay server-side');
+  const half = keySetupStatus({ ACLED_EMAIL: 'analyst@example.test' });
+  assert.equal(half.keys.find((key) => key.id === 'acled').set, false);
+  const full = keySetupStatus({ ACLED_EMAIL: 'analyst@example.test', ACLED_KEY: 'k-1' });
+  assert.equal(full.keys.find((key) => key.id === 'acled').set, true);
+  assert.equal(full.setCount, keySetupStatus({}).setCount + 1);
+  assert.equal(full.total, keySetupStatus({}).total, 'the total is the registry count, not the set count');
+  assert.ok(!JSON.stringify(full).includes('k-1'), 'no value in the status payload');
+});
+
 test('the status payload reports presence without any credential material', () => {
   const env = {
     GOOGLE_MAPS_API_KEY: 'AIzaSyFakeFakeFakeFake1234',

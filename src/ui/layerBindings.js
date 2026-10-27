@@ -34,6 +34,7 @@ export class LayerBindings {
     this._dataManager = null;
     this._directionsShellModule = null;
     this._gpsShellModule = null;
+    this._conflictShellModule = null;
     this._weatherShellModules = [];
     this._cctvRequestFocusHandler = null;
     this._removeCctvRequestFocusListener = null;
@@ -128,6 +129,20 @@ export class LayerBindings {
     this._gpsShellModule = gps;
     gps.attachShellServices({
       runNavigation: (navigate) => this.runImmediateNavigation('gps', navigate),
+    });
+  }
+
+  /** Give the Conflict Events layer the shell's navigation policy for its focus flights. */
+  _connectConflictCamera() {
+    const conflict = this._dataManager?.layers?.get('conflict-events')?.module;
+    if (this._conflictShellModule !== conflict)
+      this._conflictShellModule?.attachShellServices?.(null);
+    this._conflictShellModule = null;
+    if (typeof conflict?.attachShellServices !== 'function') return;
+    this._conflictShellModule = conflict;
+    conflict.attachShellServices({
+      runNavigation: (navigate) =>
+        this.runImmediateNavigation('conflict', navigate),
     });
   }
 
@@ -265,6 +280,7 @@ export class LayerBindings {
     this._connectDirectionsCamera();
     this._connectWeatherCamera();
     this._connectGpsCamera();
+    this._connectConflictCamera();
     this._connectAirportCamera();
     if (!this._awarenessSelectedHandler) {
       this._awarenessSelectedHandler = (event) =>
@@ -319,6 +335,7 @@ export class LayerBindings {
     this._dataManager = null;
     this._connectWeatherCamera();
     this._connectGpsCamera();
+    this._connectConflictCamera();
     this._connectAirportCamera();
   }
 }

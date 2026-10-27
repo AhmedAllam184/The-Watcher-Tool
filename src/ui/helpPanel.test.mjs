@@ -235,6 +235,10 @@ test('the legend swatches come from the modules that draw the map', (t) => {
     '#4fd8ff', // satellite, navigation (satelliteClass.js)
     '#fbbf24', // GPS interference, medium (layers/gpsJam/geometry.js GPS_JAM_STYLE)
     '#f87171', // GPS interference, high (layers/gpsJam/geometry.js GPS_JAM_STYLE)
+    '#ef4444', // conflict, battles (data/conflictLabels.js CONFLICT_STYLE)
+    '#f97316', // conflict, explosions or remote violence (CONFLICT_STYLE)
+    '#a855f7', // conflict, violence against civilians (CONFLICT_STYLE)
+    '#f59e0b', // conflict, news report (CONFLICT_STYLE)
   ]);
 });
 

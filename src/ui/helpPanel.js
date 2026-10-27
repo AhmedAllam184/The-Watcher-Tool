@@ -9,6 +9,7 @@ import { accentForSeverity } from '../data/firmsLabels.js';
 import { SATELLITE_CLASSES } from '../data/satelliteClass.js';
 import { accentForVesselType } from '../data/vesselLabels.js';
 import { GPS_JAM_STYLE } from '../data/gpsJamLabels.js';
+import { CONFLICT_STYLE } from '../data/conflictLabels.js';
 import { AIRPORT_STATUS_STYLE } from '../data/airportStatusLabels.js';
 import { applyTextSize, readLargeTextPreference } from './textSize.js';
 
@@ -238,6 +239,22 @@ export function createHelpPanel({
     otherList,
     GPS_JAM_STYLE.high.swatch,
     'GPS interference, over 10% (inferred)',
+  );
+  makeSwatchItem(otherList, CONFLICT_STYLE.battles.swatch, 'Conflict, battles');
+  makeSwatchItem(
+    otherList,
+    CONFLICT_STYLE.explosions.swatch,
+    'Conflict, explosions or remote violence',
+  );
+  makeSwatchItem(
+    otherList,
+    CONFLICT_STYLE.civilians.swatch,
+    'Conflict, violence against civilians',
+  );
+  makeSwatchItem(
+    otherList,
+    CONFLICT_STYLE.news.swatch,
+    'Conflict, news report (unverified)',
   );
   makeSwatchItem(
     otherList,

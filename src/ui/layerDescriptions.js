@@ -61,6 +61,8 @@ export const LAYER_DESCRIPTIONS = Object.freeze({
     'Large and scheduled-service airports worldwide, with names and codes (OurAirports).',
   'gps-interference':
     'Aircraft reporting degraded GPS: a sign of jamming or spoofing. Inferred, not confirmed.',
+  'conflict-events':
+    'Armed-conflict events reported in the news (GDELT) or verified by ACLED with a key.',
 });
 
 /**

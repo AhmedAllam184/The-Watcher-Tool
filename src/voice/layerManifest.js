@@ -214,6 +214,13 @@ const layers = [
       'inferred map overlay of aircraft GPS-quality cells; no countable records',
   },
   {
+    id: 'conflict-events',
+    aliases: ['conflicts', 'conflict zones', 'war', 'fighting'],
+    context: true,
+    noQuery:
+      'map of armed-conflict events for the last day or week; counts show on the row',
+  },
+  {
     id: 'weather-radar',
     aliases: ['weather radar', 'radar', 'rain', 'weather'],
     context: false,

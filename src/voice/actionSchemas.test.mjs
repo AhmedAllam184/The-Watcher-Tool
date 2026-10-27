@@ -40,7 +40,8 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     // The Watcher rename rewords three tool descriptions.
     // Airports layer adds one layer enum value.
     // GPS Interference layer adds one layer enum value.
-    '8b1134d92e4db5de35ff4f73b988b5be4452cafd84844728cc39c067146dcd20',
+    // Conflict Events layer adds one layer enum value.
+    '62ee9a6737fa05cae9862b3f7a656593c11df8f3b900ede78a55e13b8db0e306',
   );
 });
 

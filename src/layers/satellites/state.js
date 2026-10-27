@@ -88,7 +88,12 @@ export function createState({ services }) {
 
   // Runtime params (DataLayerManager.setLayerParams path)
 
-  state._params = { catalog: 'core', showPoints: true, showOrbits: true };
+  state._params = {
+    catalog: 'core',
+    showPoints: true,
+    showOrbits: true,
+    showIssOrbit: false,
+  };
   // 'core' | 'dense'
 
   state._denseIds = [];

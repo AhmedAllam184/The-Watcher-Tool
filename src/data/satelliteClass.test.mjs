@@ -451,7 +451,10 @@ test('a catalog rebuild refreshes the detection overlay class strings', async ()
 test('a dependency owner hiding the points surrenders the whole row', async () => {
   try {
     _setDenseCatalogStateForTest({});
-    assert.equal(satellitesLayer.getRowControls().chips.length, 1);
+    assert.deepEqual(
+      satellitesLayer.getRowControls().chips.map((chip) => chip.id),
+      ['catalog', 'iss-orbit'],
+    );
 
     // Space Missions borrows this layer for TLE lookup with showPoints:false.
     satellitesLayer.setParams({ showPoints: false });
@@ -460,7 +463,7 @@ test('a dependency owner hiding the points surrenders the whole row', async () =
     assert.deepEqual(owned.legend, [], 'no legend describing an empty sky');
 
     satellitesLayer.setParams({ showPoints: true });
-    assert.equal(satellitesLayer.getRowControls().chips.length, 1, 'released on restore');
+    assert.equal(satellitesLayer.getRowControls().chips.length, 2, 'released on restore');
   } finally {
     _clearDenseCatalogStateForTest();
   }

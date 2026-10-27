@@ -69,12 +69,8 @@ export function createLifecycle({
             layerState._enabled,
             layerState._params.showPoints,
           );
-      // Orbit ring primitives + persistent ISS host label — show them
-      for (const path of layerState._orbitPaths.values())
-        path.primitive.show = parts.controls.satelliteVisualsVisible(
-          layerState._enabled,
-          layerState._params.showOrbits,
-        );
+      // Orbit lines follow the selection and the ISS chip; the persistent ISS host label follows too.
+      parts.rendering._syncOrbitPaths();
       parts.labels._syncIssOverlay();
       // Re-attach input handlers and preRender propagation
       parts.interaction._installClickHandler(viewer);
@@ -98,8 +94,8 @@ export function createLifecycle({
       layerState._enabled = false;
       releaseContinuousRender('satellites');
       if (layerState._pointCollection) layerState._pointCollection.show = false;
-      for (const path of layerState._orbitPaths.values())
-        path.primitive.show = false;
+      // Layer off: no orbit line survives. Enable re-draws what the selection needs.
+      parts.rendering._clearOrbitPaths();
       parts.tracking._clearTracking();
       parts.labels._syncIssOverlay();
       // Remove click handler + keydown listener + preRender propagation while disabled

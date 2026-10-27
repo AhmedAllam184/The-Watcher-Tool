@@ -5,6 +5,7 @@ import {
   compassPoint,
   flagFromMmsi,
   formatRelativeTime,
+  satelliteNoradOf,
 } from './selectionDetailsModel.js';
 
 const NOW = Date.UTC(2026, 9, 26, 12, 0, 0);
@@ -451,4 +452,163 @@ test('an unnamed mapped installation reads as other, never as a flight', () => {
   assert.equal(rowValue(details, 'Callsign'), undefined);
   assert.equal(details.rows.some((row) => /flight/i.test(row.label)), false);
   assert.equal(details.links.some((link) => /adsb|flightradar/i.test(link.href)), false);
+});
+
+const SATELLITE_RECORD = {
+  id: '25544',
+  layerId: 'satellites',
+  layerName: 'Satellites',
+  source: 'CelesTrak',
+  label: 'ISS (ZARYA)',
+  latitude: 51.6,
+  longitude: -0.1,
+  properties: {
+    name: 'ISS (ZARYA)',
+    operator: '',
+    noradId: '25544',
+    class: 'STATION · ISS',
+    altitude: '420 km',
+  },
+};
+
+const SATELLITE_INFO = {
+  norad: 25544,
+  name: 'ISS (ZARYA)',
+  intlDesignator: '1998-067A',
+  objectType: 'PAY',
+  objectTypeText: 'Payload (working spacecraft)',
+  status: '+',
+  statusText: 'Operational',
+  owner: { code: 'ISS', name: 'International Space Station partners' },
+  launchDate: '1998-11-20',
+  launchSite: { code: 'TYMSC', name: 'Baikonur, Kazakhstan' },
+  decayDate: null,
+  periodMin: 92.9,
+  inclinationDeg: 51.6,
+  apogeeKm: 420,
+  perigeeKm: 413,
+  orbitClass: 'LEO',
+  rcsM2: 399.2,
+  rcsSize: 'large',
+  source: 'CelesTrak SATCAT',
+};
+
+test('satellites are kind satellite and wait for the catalogue record', () => {
+  const pending = buildSelectionDetails(SATELLITE_RECORD, {
+    now: NOW,
+    satelliteInfo: { norad: '25544', status: 'loading', satellite: null },
+  });
+  assert.equal(pending.kind, 'satellite');
+  assert.equal(pending.title, 'ISS (ZARYA)');
+  assert.equal(rowValue(pending, 'NORAD ID'), '25544');
+  assert.equal(rowValue(pending, 'Catalogue'), 'Loading catalogue data…');
+  assert.equal(rowValue(pending, 'Owner / country'), undefined);
+  assert.equal(rowValue(pending, 'Class'), 'STATION · ISS');
+  assert.equal(rowValue(pending, 'Altitude'), '420 km');
+  assert.equal(rowValue(pending, 'Coordinates'), '51.6000° N, 0.1000° W');
+});
+
+test('a loaded catalogue record shows who owns the satellite and its orbit, launch and size', () => {
+  const details = buildSelectionDetails(SATELLITE_RECORD, {
+    now: NOW,
+    satelliteInfo: { norad: '25544', status: 'ok', satellite: SATELLITE_INFO },
+  });
+  assert.equal(details.subtitle, 'Payload (working spacecraft)');
+  assert.equal(rowValue(details, 'Owner / country'), 'International Space Station partners');
+  assert.equal(rowValue(details, 'Type'), 'Payload (working spacecraft)');
+  assert.equal(rowValue(details, 'Status'), 'Operational');
+  assert.equal(rowValue(details, 'Launched'), '1998-11-20 · Baikonur, Kazakhstan');
+  assert.equal(rowValue(details, 'International ID'), '1998-067A');
+  assert.equal(rowValue(details, 'Orbit'), 'LEO · 420 km × 413 km · 51.6° · 93 min');
+  assert.equal(rowValue(details, 'Size'), 'Large (399 m²)');
+  assert.equal(rowValue(details, 'Data source'), 'CelesTrak SATCAT');
+  assert.equal(rowValue(details, 'Decayed'), undefined);
+  assert.equal(rowValue(details, 'Catalogue'), undefined);
+  assert.equal(rowValue(details, 'Class'), 'STATION · ISS');
+});
+
+test('a satellite record without a size, decay or owner omits those rows', () => {
+  const details = buildSelectionDetails(SATELLITE_RECORD, {
+    now: NOW,
+    satelliteInfo: {
+      norad: '25544',
+      status: 'ok',
+      satellite: {
+        ...SATELLITE_INFO,
+        owner: null,
+        rcsM2: null,
+        rcsSize: null,
+        decayDate: '2030-01-01',
+        launchSite: null,
+      },
+    },
+  });
+  assert.equal(rowValue(details, 'Owner / country'), undefined);
+  assert.equal(rowValue(details, 'Size'), undefined);
+  assert.equal(rowValue(details, 'Decayed'), '2030-01-01');
+  assert.equal(rowValue(details, 'Launched'), '1998-11-20');
+});
+
+test('a failed lookup says so, and an absent catalogue entry adds nothing', () => {
+  const failed = buildSelectionDetails(SATELLITE_RECORD, {
+    now: NOW,
+    satelliteInfo: { norad: '25544', status: 'failed', satellite: null },
+  });
+  assert.equal(rowValue(failed, 'Catalogue'), 'Info unavailable');
+  const absent = buildSelectionDetails(SATELLITE_RECORD, {
+    now: NOW,
+    satelliteInfo: { norad: '25544', status: 'ok', satellite: null },
+  });
+  assert.equal(rowValue(absent, 'Catalogue'), undefined);
+  assert.equal(rowValue(absent, 'Owner / country'), undefined);
+});
+
+test('a lookup state for another NORAD id is not applied to this satellite', () => {
+  const details = buildSelectionDetails(SATELLITE_RECORD, {
+    now: NOW,
+    satelliteInfo: { norad: '99999', status: 'ok', satellite: SATELLITE_INFO },
+  });
+  assert.equal(rowValue(details, 'Owner / country'), undefined);
+});
+
+test('the rocket-body and debris names show their type before any data arrives', () => {
+  const rocketBody = buildSelectionDetails(
+    {
+      ...SATELLITE_RECORD,
+      id: '28228',
+      label: 'CZ-2C R/B',
+      properties: { name: 'CZ-2C R/B', noradId: '28228', class: 'VISUAL', altitude: '' },
+    },
+    { now: NOW },
+  );
+  assert.equal(
+    rowValue(rocketBody, 'Type'),
+    'Rocket body — spent upper stage, not a working satellite',
+  );
+  assert.equal(rowValue(rocketBody, 'Altitude'), undefined);
+  const debris = buildSelectionDetails(
+    { ...SATELLITE_RECORD, label: 'COSMOS 1408 DEB', properties: { name: 'COSMOS 1408 DEB', noradId: '30000' } },
+    { now: NOW },
+  );
+  assert.equal(rowValue(debris, 'Type'), 'Debris');
+});
+
+test('satellite links go to N2YO and the CelesTrak SATCAT page for the same id', () => {
+  const details = buildSelectionDetails(SATELLITE_RECORD, { now: NOW });
+  assert.deepEqual(details.links, [
+    { label: 'N2YO', href: 'https://www.n2yo.com/satellite/?s=25544' },
+    {
+      label: 'CelesTrak',
+      href: 'https://celestrak.org/satcat/table-satcat.php?CATNR=25544&PAYLOAD=0',
+    },
+  ]);
+  assert.equal(details.satelliteNorad, '25544');
+});
+
+test('satelliteNoradOf reads only satellite records with a usable catalogue number', () => {
+  assert.equal(satelliteNoradOf(SATELLITE_RECORD), '25544');
+  assert.equal(satelliteNoradOf({ layerId: 'satellites', id: 'SAT-1' }), null);
+  assert.equal(satelliteNoradOf({ layerId: 'satellites', id: '0' }), null);
+  assert.equal(satelliteNoradOf({ layerId: 'flights', id: '25544' }), null);
+  assert.equal(satelliteNoradOf(null), null);
 });

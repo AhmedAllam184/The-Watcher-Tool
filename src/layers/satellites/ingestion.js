@@ -1,6 +1,6 @@
 import { twoline2satrec } from 'satellite.js';
 import * as Cesium from 'cesium';
-import { CATALOG_GROUPS, ISS_NORAD, POINT_STYLES } from './policy.js';
+import { CATALOG_GROUPS } from './policy.js';
 
 export function createIngestion({
   state: layerState,
@@ -144,14 +144,10 @@ export function createIngestion({
           layerState._points.set(noradId, point);
         }
 
-        // Show ISS orbital path by default
-        if (layerState._catalog.has(ISS_NORAD)) {
-          parts.rendering._showOrbitPath(ISS_NORAD, POINT_STYLES.iss.color);
-          const issPath = layerState._orbitPaths.get(ISS_NORAD);
-          if (issPath) issPath.primitive.show = layerState._params.showOrbits;
-
-          parts.labels._syncIssOverlay();
-        }
+        // The rebuild cleared every orbit line. Re-draw the ones the current
+        // selection and the ISS chip call for; nothing is drawn by default.
+        parts.rendering._syncOrbitPaths();
+        parts.labels._syncIssOverlay();
 
         layerState._count = layerState._points.size;
         layerState._catalogRevision++;
@@ -162,9 +158,7 @@ export function createIngestion({
           status: failed.length ? 'partial' : 'accepted',
           failedGroups: [...failed],
         };
-        console.log(
-          `[Data:Satellites] ${layerState._count} satellites active, ISS path shown`,
-        );
+        console.log(`[Data:Satellites] ${layerState._count} satellites active`);
 
         // Re-apply dense mode after a full catalog rebuild (fire-and-forget —
         // _loadDenseCatalog handles its own errors and token invalidation).

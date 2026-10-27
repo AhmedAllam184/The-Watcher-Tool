@@ -10,7 +10,9 @@ import { satelliteClassColor } from '../../data/satelliteClass.js';
  * Renders positions via PointPrimitiveCollection, orbital paths as polylines.
  * Click any satellite to track it with camera follow + orbital path.
  *
- * ISS gets special treatment: larger point, persistent host label, path shown by default.
+ * ISS gets special treatment: larger point and persistent host label. Its orbit
+ * line is opt-in (the 'Show ISS orbit' chip); a line is drawn only for the
+ * tracked satellite and for the ISS when that chip is on.
  */
 
 export const ISS_NORAD = 25544;

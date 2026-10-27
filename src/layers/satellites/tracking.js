@@ -105,10 +105,6 @@ export function createTracking({ state: layerState, services, parts, source }) {
     layerState._trackedFrameNumber = -1;
     layerState._trackedFrameGeo = null;
 
-    // Remove tracked entity and orbit path (unless ISS — keep its path)
-    if (layerState._trackedNorad !== ISS_NORAD) {
-      parts.rendering._hideOrbitPath(layerState._trackedNorad);
-    }
     if (layerState._viewer && !skipViewerUntrack)
       layerState._viewer.trackedEntity = undefined;
     if (layerState._trackedEntity) {
@@ -116,6 +112,8 @@ export function createTracking({ state: layerState, services, parts, source }) {
       layerState._trackedEntity = null;
     }
     layerState._trackedNorad = null;
+    // Drops the tracked line; the ISS line stays only while its chip is on.
+    parts.rendering._syncOrbitPaths();
     parts.labels._syncIssOverlay();
     clearTrackedSubjectContext('satellites');
     layerState._contextRefreshedAtMs = 0;
@@ -406,8 +404,8 @@ export function createTracking({ state: layerState, services, parts, source }) {
     // left the camera stranded; this mirrors the proven flights pattern).
     point.show = false;
 
-    // Show orbital path
-    parts.rendering._showOrbitPath(noradId, Cesium.Color.YELLOW);
+    // Show the tracked satellite's orbital path (and the ISS line if chosen)
+    parts.rendering._syncOrbitPaths();
 
     // Tracked entity position propagates per evaluation through the per-frame
     // cache (WS-D2) — dot, host readout, and camera share one SGP4 epoch per frame.

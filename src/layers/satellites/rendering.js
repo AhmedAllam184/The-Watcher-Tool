@@ -1,6 +1,11 @@
 import * as Cesium from 'cesium';
 import { gstime } from 'satellite.js';
-import { ISS_NORAD, POSITION_UPDATE_MS, RING_ROTATION_MS } from './policy.js';
+import {
+  ISS_NORAD,
+  POINT_STYLES,
+  POSITION_UPDATE_MS,
+  RING_ROTATION_MS,
+} from './policy.js';
 
 export function createRendering({
   state: layerState,
@@ -70,6 +75,10 @@ export function createRendering({
       }),
       asynchronous: false, // build this frame — no async-rebuild blink window
       allowPicking: false, // ring clicks fall through to satellites/deselect
+      show: parts.controls.satelliteVisualsVisible(
+        layerState._enabled,
+        layerState._params.showOrbits,
+      ),
     });
     layerState._viewer.scene.primitives.add(primitive);
 
@@ -134,6 +143,34 @@ export function createRendering({
         layerState._viewer.scene.primitives.remove(path.primitive); // remove() destroys
       layerState._orbitPaths.delete(noradId);
     }
+  }
+
+  /**
+   * Draw exactly the orbit lines the selection calls for: the tracked satellite
+   * (yellow) and, only when the 'Show ISS orbit' chip is on, the ISS (red).
+   * Anything else is removed, so a deselect or a layer switch-off leaves no line.
+   */
+
+  function _syncOrbitPaths() {
+    const wanted = new Map();
+    if (layerState._params.showIssOrbit && layerState._catalog.has(ISS_NORAD))
+      wanted.set(ISS_NORAD, POINT_STYLES.iss.color);
+    if (
+      layerState._trackedNorad !== null &&
+      layerState._catalog.has(layerState._trackedNorad)
+    )
+      wanted.set(layerState._trackedNorad, Cesium.Color.YELLOW);
+    for (const noradId of [...layerState._orbitPaths.keys()]) {
+      if (!wanted.has(noradId)) _hideOrbitPath(noradId);
+    }
+    for (const [noradId, color] of wanted) _showOrbitPath(noradId, color);
+  }
+
+  /** Remove every orbit line (layer off, or a catalogue rebuild that re-syncs after). */
+
+  function _clearOrbitPaths() {
+    for (const noradId of [...layerState._orbitPaths.keys()])
+      _hideOrbitPath(noradId);
   }
 
   /**
@@ -310,6 +347,8 @@ export function createRendering({
   }
   return {
     _showOrbitPath,
+    _syncOrbitPaths,
+    _clearOrbitPaths,
     _updateOrbitPathRotations,
     _hideOrbitPath,
     _propagateAll,

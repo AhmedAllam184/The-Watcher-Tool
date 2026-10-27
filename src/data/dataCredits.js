@@ -134,7 +134,7 @@ export const DATA_CREDITS = [
   {
     key: 'celestrak',
     html:
-      'Satellites (TLEs): CelesTrak ' +
+      'Satellites (TLEs and catalogue records): CelesTrak ' +
       '(<a href="https://celestrak.org" target="_blank" rel="noopener">celestrak.org</a>), ' +
       'Dr. T.S. Kelso',
   },

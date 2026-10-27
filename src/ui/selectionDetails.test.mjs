@@ -505,3 +505,112 @@ test('a hidden tab stops the live refresh and returning to it refreshes at once'
   env.panel.destroy();
   assert.equal(env.documentStub.documentListenerCount(), 0);
 });
+
+/** Label → value text of the rows the panel currently shows. */
+function rowTexts(aside) {
+  const list = findByClass(aside, 'selection-details__rows');
+  const texts = {};
+  for (let i = 0; i < list.children.length; i += 2) {
+    texts[list.children[i].textContent] = list.children[i + 1].textContent;
+  }
+  return texts;
+}
+
+function satelliteRecord(overrides = {}) {
+  return {
+    id: '25544',
+    layerId: 'satellites',
+    layerName: 'Satellites',
+    source: 'CelesTrak',
+    label: 'ISS (ZARYA)',
+    latitude: 51.6,
+    longitude: -0.1,
+    properties: { name: 'ISS (ZARYA)', noradId: '25544', class: 'STATION · ISS', altitude: '420 km' },
+    ...overrides,
+  };
+}
+
+function satelliteLoader(answer) {
+  const calls = [];
+  return {
+    calls,
+    load(norad) {
+      calls.push(norad);
+      return typeof answer === 'function' ? answer(norad) : Promise.resolve(answer);
+    },
+  };
+}
+
+const SATELLITE_ANSWER = {
+  satellite: {
+    norad: 25544,
+    name: 'ISS (ZARYA)',
+    owner: { code: 'ISS', name: 'International Space Station partners' },
+    objectTypeText: 'Payload (working spacecraft)',
+    statusText: 'Operational',
+    launchDate: '1998-11-20',
+    launchSite: { code: 'TYMSC', name: 'Baikonur, Kazakhstan' },
+    intlDesignator: '1998-067A',
+    orbitClass: 'LEO',
+    apogeeKm: 420,
+    perigeeKm: 413,
+    inclinationDeg: 51.6,
+    periodMin: 92.9,
+  },
+};
+
+test('a selected satellite loads its catalogue record once and shows it when it arrives', async () => {
+  const loader = satelliteLoader(SATELLITE_ANSWER);
+  const env = setup({ satelliteInfoLoader: loader });
+  const record = satelliteRecord();
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  assert.equal(env.aside.className.includes('selection-details--satellite'), true);
+  assert.equal(findByClass(env.aside, 'selection-details__kind').textContent, 'Satellite');
+  assert.equal(rowTexts(env.aside).Catalogue, 'Loading catalogue data…');
+  await flush();
+  env.windowStub.tick();
+  env.windowStub.tick();
+  await flush();
+  assert.deepEqual(loader.calls, ['25544'], 'the one-second refresh does not refetch');
+  const rows = rowTexts(env.aside);
+  assert.equal(rows.Catalogue, undefined);
+  assert.equal(rows['Owner / country'], 'International Space Station partners');
+  assert.equal(rows.Orbit, 'LEO · 420 km × 413 km · 51.6° · 93 min');
+  assert.equal(rows.Altitude, '420 km');
+});
+
+test('a satellite whose lookup fails says so, and a rocket body is named before any answer', async () => {
+  const env = setup({ satelliteInfoLoader: satelliteLoader(() => Promise.reject(new Error('down'))) });
+  const record = satelliteRecord();
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  assert.equal(rowTexts(env.aside).Catalogue, 'Info unavailable');
+
+  const body = satelliteRecord({ id: '28228', label: 'CZ-2C R/B', properties: { name: 'CZ-2C R/B', noradId: '28228' } });
+  env.setSelected(body);
+  env.windowStub.dispatch('gev:entity-selected', body);
+  await flush();
+  assert.equal(
+    rowTexts(env.aside).Type,
+    'Rocket body — spent upper stage, not a working satellite',
+  );
+});
+
+test('a late catalogue answer for a previous satellite is ignored', async () => {
+  const releases = [];
+  const loader = satelliteLoader(() => new Promise((resolve) => { releases.push(resolve); }));
+  const env = setup({ satelliteInfoLoader: loader });
+  const first = satelliteRecord();
+  env.setSelected(first);
+  env.windowStub.dispatch('gev:entity-selected', first);
+  const second = satelliteRecord({ id: '28228', label: 'SAMPLE', properties: { name: 'SAMPLE', noradId: '28228' } });
+  env.setSelected(second);
+  env.windowStub.dispatch('gev:entity-selected', second);
+  await flush();
+  releases[0]({ satellite: SATELLITE_ANSWER.satellite });
+  await flush();
+  assert.deepEqual(loader.calls, ['25544', '28228']);
+  assert.equal(rowTexts(env.aside)['Owner / country'], undefined, 'the first answer does not land on the second satellite');
+});

@@ -5,6 +5,7 @@
  */
 import { normalizeVesselType } from '../data/vesselLabels.js';
 import { describeSquawk } from '../data/squawk.js';
+import { satcatObjectTypeText } from '../data/satcatCodes.js';
 
 const FEET_PER_METRE = 3.28084;
 const KMH_PER_KNOT = 1.852;
@@ -352,6 +353,92 @@ function buildFire(properties, latitude, longitude) {
   };
 }
 
+/** Object type a designation alone reveals ("CZ-2C R/B", "COSMOS 1408 DEB"); null when it reveals none. */
+function objectTypeFromName(name) {
+  if (/\bR\/B\b/i.test(name)) return satcatObjectTypeText('R/B');
+  if (/\bDEB\b/i.test(name)) return satcatObjectTypeText('DEB');
+  return null;
+}
+
+/** "LEO · 883 km × 870 km · 98.6° · 102 min"-style summary; unknown parts are left out. */
+function satelliteOrbitText(info) {
+  const parts = [info.orbitClass];
+  if (info.apogeeKm !== null && info.perigeeKm !== null)
+    parts.push(
+      `${formatNumber(info.apogeeKm)} km × ${formatNumber(info.perigeeKm)} km`,
+    );
+  if (info.inclinationDeg !== null)
+    parts.push(`${formatNumber(info.inclinationDeg, 1)}°`);
+  if (info.periodMin !== null)
+    parts.push(`${formatNumber(info.periodMin)} min`);
+  return parts.filter(Boolean).join(' · ');
+}
+
+/** Radar cross-section band with its square-metre value, e.g. "Small (0.05 m²)". */
+function satelliteSizeText(info) {
+  const digits = info.rcsM2 < 10 ? 2 : 0;
+  return `${capitalize(info.rcsSize || '')} (${formatNumber(info.rcsM2, digits)} m²)`;
+}
+
+/**
+ * Satellite rows: the catalogue record when it has arrived, a loading or
+ * failure line while it is pending, and the live altitude and class always.
+ * The name-based type hint shows before any data arrives.
+ */
+function buildSatellite(record, properties, satelliteInfo) {
+  const norad = satelliteNoradOf(record);
+  const name = String(properties.name || record.label || '').trim();
+  const info =
+    satelliteInfo && satelliteInfo.norad === norad ? satelliteInfo : null;
+  const data = info?.status === 'ok' ? info.satellite : null;
+  const typeHint = objectTypeFromName(name);
+  const rows = [];
+  const links = [];
+  pushRow(rows, 'NORAD ID', norad);
+  if (data) {
+    pushRow(rows, 'Owner / country', data.owner?.name);
+    pushRow(rows, 'Type', data.objectTypeText || typeHint);
+    pushRow(rows, 'Status', data.statusText || data.status);
+    const launched = [data.launchDate, data.launchSite?.name]
+      .filter(Boolean)
+      .join(' · ');
+    pushRow(rows, 'Launched', launched);
+    pushRow(rows, 'International ID', data.intlDesignator);
+    pushRow(rows, 'Orbit', satelliteOrbitText(data));
+    if (data.rcsM2 !== null) pushRow(rows, 'Size', satelliteSizeText(data));
+    pushRow(rows, 'Decayed', data.decayDate);
+    pushRow(rows, 'Data source', data.source || record.source);
+  } else {
+    pushRow(rows, 'Type', typeHint);
+    if (info?.status === 'loading')
+      pushRow(rows, 'Catalogue', 'Loading catalogue data…');
+    else if (info?.status === 'failed')
+      pushRow(rows, 'Catalogue', 'Info unavailable');
+  }
+  pushRow(rows, 'Class', properties.class);
+  pushRow(rows, 'Altitude', properties.altitude);
+  if (norad) {
+    links.push({
+      label: 'N2YO',
+      href: `https://www.n2yo.com/satellite/?s=${encodeURIComponent(norad)}`,
+    });
+    links.push({
+      label: 'CelesTrak',
+      href: `https://celestrak.org/satcat/table-satcat.php?CATNR=${encodeURIComponent(norad)}&PAYLOAD=0`,
+    });
+  }
+  return {
+    kind: 'satellite',
+    title: name,
+    subtitle:
+      data?.objectTypeText || typeHint || String(record.layerName || ''),
+    rows,
+    links,
+    alert: null,
+    satelliteNorad: norad,
+  };
+}
+
 function buildOther(record, properties) {
   const rows = [];
   for (const [key, value] of Object.entries(properties)) {
@@ -371,14 +458,30 @@ function buildOther(record, properties) {
 }
 
 /**
+ * NORAD catalogue number of a satellite record as a digit string, or null when
+ * the record is not a satellite or carries no usable number.
+ * @param {object|null} record Shared context record.
+ * @returns {string|null}
+ */
+export function satelliteNoradOf(record) {
+  if (String(record?.layerId || '') !== 'satellites') return null;
+  const id = String(record.properties?.noradId ?? record.id ?? '').trim();
+  return /^\d{1,9}$/.test(id) && Number(id) > 0 ? String(Number(id)) : null;
+}
+
+/**
  * Turn a context record into the plain-language panel model.
  * @param {object|null} record Shared context record (see src/data/contextStore.js).
- * @param {{now?: number}} [options] Clock used for relative times.
- * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, alertTone?: string, photoHex?: string|null, latitude: number|null, longitude: number|null}|null}
+ * @param {{now?: number, satelliteInfo?: {norad: string, status: 'loading'|'ok'|'failed', satellite: object|null}|null}} [options]
+ *   Clock used for relative times, and the catalogue lookup state for a satellite.
+ * @returns {{kind: string, title: string, subtitle: string, rows: Array<{label: string, value: string}>, links: Array<{label: string, href: string}>, alert: string|null, alertTone?: string, photoHex?: string|null, satelliteNorad?: string|null, latitude: number|null, longitude: number|null}|null}
  *   `alert` is set for an emergency transponder squawk (`alertTone` unset) or a
  *   gone-dark vessel (`alertTone: 'warn'`).
  */
-export function buildSelectionDetails(record, { now = Date.now() } = {}) {
+export function buildSelectionDetails(
+  record,
+  { now = Date.now(), satelliteInfo = null } = {},
+) {
   if (!record || typeof record !== 'object') return null;
   const layerId = String(record.layerId || '');
   const properties = record.properties || {};
@@ -390,6 +493,8 @@ export function buildSelectionDetails(record, { now = Date.now() } = {}) {
     details = buildFlight(record, properties);
   else if (layerId === 'ais-live-vessels')
     details = buildVessel(record, properties, now);
+  else if (layerId === 'satellites')
+    details = buildSatellite(record, properties, satelliteInfo);
   else if (record.source === 'NASA FIRMS' || layerId.includes('firms'))
     details = buildFire(properties, latitude, longitude);
   else details = buildOther(record, properties);

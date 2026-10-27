@@ -85,7 +85,7 @@ test('selected satellite params survive delayed arrival and yield to newer expli
     trackedEntity: undefined,
     scene: {
       frameState: { frameNumber: 1 },
-      primitives: { remove() {} },
+      primitives: { add: (primitive) => primitive, remove() {} },
     },
   };
   _setSatelliteLabelLifecycleStateForTest({

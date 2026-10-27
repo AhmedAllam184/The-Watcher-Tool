@@ -424,7 +424,8 @@ export function createControls({ state: layerState, services, parts, source }) {
      * Runtime params (DataLayerManager.setLayerParams path).
      * catalog: 'core' (default, ~840 sats) | 'dense' (adds the Starlink shell
      * as points-only extras on a relaxed propagation budget).
-     * @param {{ catalog?: 'core'|'dense', showPoints?: boolean, showOrbits?: boolean, selectedSatTrackingId?: number|null }} [params]
+     * showIssOrbit: draw the ISS orbit line (off by default; the tracked satellite's line is separate).
+     * @param {{ catalog?: 'core'|'dense', showPoints?: boolean, showOrbits?: boolean, showIssOrbit?: boolean, selectedSatTrackingId?: number|null }} [params]
      */
     setParams(params = {}, { origin = 'programmatic' } = {}) {
       if (
@@ -459,6 +460,11 @@ export function createControls({ state: layerState, services, parts, source }) {
             layerState._params.showOrbits,
           );
         parts.labels._syncIssOverlay();
+      }
+      if (params.showIssOrbit !== undefined) {
+        layerState._params.showIssOrbit = params.showIssOrbit === true;
+        parts.rendering._syncOrbitPaths();
+        _notifyRowControls();
       }
       if (catalogChanged && catalog === 'dense') {
         layerState._denseLoadPromise = parts.catalog._loadDenseCatalog();
@@ -504,6 +510,7 @@ export function createControls({ state: layerState, services, parts, source }) {
         catalog: layerState._params.catalog,
         showPoints: layerState._params.showPoints,
         showOrbits: layerState._params.showOrbits,
+        showIssOrbit: layerState._params.showIssOrbit === true,
         selectedSatTrackingId: layerState._trackedNorad,
       };
     },
@@ -536,6 +543,7 @@ export function createControls({ state: layerState, services, parts, source }) {
       const active =
         layerState._params.catalog === 'dense' &&
         layerState._denseStatus === 'ready';
+      const issOrbitOn = layerState._params.showIssOrbit === true;
       let title =
         'Add the full Starlink broadband shell (thousands of extra points)';
       if (loading) title = 'Loading the Starlink shell…';
@@ -561,6 +569,18 @@ export function createControls({ state: layerState, services, parts, source }) {
                   : 'idle',
             title,
             params: { catalog: active ? 'core' : 'dense' },
+          },
+          {
+            id: 'iss-orbit',
+            label: 'Show ISS orbit',
+            active: issOrbitOn,
+            busy: false,
+            disabled: false,
+            state: issOrbitOn ? 'active' : 'idle',
+            title: issOrbitOn
+              ? 'Hide the ISS orbit line'
+              : 'Draw the ISS orbit line',
+            params: { showIssOrbit: !issOrbitOn },
           },
         ],
         legend: satelliteClassLegend(_classTally()),

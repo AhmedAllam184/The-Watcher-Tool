@@ -4,15 +4,24 @@
  * the shared selection events, refreshes while visible and never deselects.
  */
 import { getContextStore } from '../data/contextStore.js';
-import { buildSelectionDetails } from './selectionDetailsModel.js';
+import {
+  buildSelectionDetails,
+  satelliteNoradOf,
+} from './selectionDetailsModel.js';
 import { createAircraftPhotoLoader } from './aircraftPhoto.js';
+import { createSatelliteInfoLoader } from '../sources/satelliteInfo.js';
 
 const REFRESH_MS = 1000;
 const KIND_LABELS = {
   flight: 'Flight',
   vessel: 'Vessel',
   fire: 'Fire',
+  satellite: 'Satellite',
   other: 'Object',
+};
+/** Badge colour per kind; the satellite violet is not in the stylesheet's kind rules. */
+const KIND_COLOURS = {
+  satellite: '#a78bfa',
 };
 
 /** The record the shared store currently holds as selected, or null. */
@@ -39,6 +48,7 @@ function writeClipboard(text) {
  * @param {() => object|null} [options.getSelected] Returns the store's selected record.
  * @param {() => number} [options.now] Clock for relative times.
  * @param {{load: (hex: string) => Promise<object|null>}} [options.photoLoader] Aircraft photo source.
+ * @param {{load: (norad: string) => Promise<{satellite: object|null}>}} [options.satelliteInfoLoader] Satellite catalogue source.
  * @returns {{show: Function, hide: Function, refresh: Function, destroy: Function}}
  */
 export function createSelectionDetailsPanel({
@@ -48,6 +58,7 @@ export function createSelectionDetailsPanel({
   getSelected = readSelectedRecord,
   now = () => Date.now(),
   photoLoader = createAircraftPhotoLoader(),
+  satelliteInfoLoader = createSatelliteInfoLoader(),
 } = {}) {
   const doc = root.ownerDocument || document;
   const win = doc.defaultView || globalThis;
@@ -60,6 +71,9 @@ export function createSelectionDetailsPanel({
   let photoHex = null;
   let photoToken = 0;
   let shownImage = null;
+  // Catalogue lookup for the selected satellite: { norad, status, satellite }.
+  let satelliteState = null;
+  let satelliteToken = 0;
 
   const el = doc.createElement('aside');
   el.id = 'selection-details';
@@ -203,14 +217,47 @@ export function createSelectionDetailsPanel({
       );
   }
 
+  /**
+   * Fetch the catalogue record when the selected satellite changes. The
+   * panel re-renders when it lands; a superseded lookup is ignored.
+   */
+  function syncSatelliteInfo(norad) {
+    if (norad === (satelliteState?.norad ?? null)) return;
+    satelliteToken += 1;
+    const token = satelliteToken;
+    satelliteState = norad
+      ? { norad, status: 'loading', satellite: null }
+      : null;
+    if (!norad) return;
+    const settle = (next) => {
+      if (destroyed || token !== satelliteToken) return;
+      satelliteState = { norad, ...next };
+      if (current && satelliteNoradOf(current.record) === norad) render();
+    };
+    Promise.resolve()
+      .then(() => satelliteInfoLoader.load(norad))
+      .then(
+        ({ satellite }) => settle({ status: 'ok', satellite }),
+        () => settle({ status: 'failed', satellite: null }),
+      );
+  }
+
   function render() {
     if (!current) return;
-    details = buildSelectionDetails(current.record, { now: now() });
+    syncSatelliteInfo(satelliteNoradOf(current.record));
+    details = buildSelectionDetails(current.record, {
+      now: now(),
+      satelliteInfo: satelliteState,
+    });
     if (!details) {
       hide();
       return;
     }
     el.className = `selection-details selection-details--${details.kind}`;
+    el.style?.setProperty?.(
+      '--selection-kind',
+      KIND_COLOURS[details.kind] || '',
+    );
     kindBadge.className = `selection-details__kind selection-details__kind--${details.kind}`;
     kindBadge.textContent = KIND_LABELS[details.kind] || KIND_LABELS.other;
     title.textContent = details.title;
@@ -286,6 +333,7 @@ export function createSelectionDetailsPanel({
     photoHex = null;
     photoToken += 1;
     clearPhoto();
+    syncSatelliteInfo(null);
     el.hidden = true;
     feedback.textContent = '';
     syncTimer();

@@ -6,6 +6,7 @@ const GROUPS = new Set([
   'galileo',
   'geo',
   'starlink',
+  'military',
 ]);
 
 /** Read catalog text from the existing group endpoint using a supplied transport. */

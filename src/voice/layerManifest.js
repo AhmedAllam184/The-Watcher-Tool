@@ -113,6 +113,24 @@ const layers = [
     },
   },
   {
+    id: 'military-satellites',
+    track: true,
+    aliases: ['military satellites', 'spy satellites', 'military sats'],
+    context: false,
+    query: {
+      fields: {
+        altitudeM: ['n', 'm'],
+        speedMps: ['n', 'm/s'],
+        name: ['t'],
+        noradId: ['t'],
+        satelliteClass: ['t'],
+        group: ['t'],
+      },
+      caveat:
+        "military status is inferred from CelesTrak's military list and programme names; distance is ground distance, not overhead",
+    },
+  },
+  {
     id: 'rocket-launches',
     aliases: [
       'rocket launches',

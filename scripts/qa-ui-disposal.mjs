@@ -61,7 +61,6 @@ try {
       '_commandDockTrayObserver',
       '_draggableResizeObserver',
       '_leftStackResizeObserver',
-      '_rightStackResizeObserver',
       '_leftStackMutationObserver',
       '_rightStackMutationObserver',
     ].filter(watchObserver);

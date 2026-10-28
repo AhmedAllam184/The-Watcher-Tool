@@ -34,7 +34,7 @@ export const CATALOG_SOURCE_CONTRACTS = Object.freeze({
     ['military-installations'],
     ['getMappedSites', 'searchNearby'],
   ),
-  satellites: contract(['satellites'], ['readGroup']),
+  satellites: contract(['satellites', 'military-satellites'], ['readGroup']),
   launches: contract(['rocket-launches'], ['getLaunches', 'getActiveTle']),
   alpr: contract(['alpr-cameras'], ['fetch']),
   firms: contract(['local-firms'], ['getSnapshot']),

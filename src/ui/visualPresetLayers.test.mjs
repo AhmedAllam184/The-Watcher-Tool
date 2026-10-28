@@ -194,7 +194,7 @@ function defaultRows() {
 test('the QUICK LAYERS chips are the overlays the owner named, Conflicts included', () => {
   assert.deepEqual(
     PRESET_LAYER_OVERLAYS.map((overlay) => overlay.id),
-    ['flights', 'ais-live-vessels', 'local-airports', 'traffic', 'weather-radar', 'local-firms', 'gps-interference', 'conflict-events'],
+    ['military', 'military-satellites', 'military-installations', 'flights', 'ais-live-vessels', 'local-airports', 'traffic', 'weather-radar', 'local-firms', 'gps-interference', 'conflict-events'],
   );
   const h = harness();
   assert.equal(h.root.children.length, PRESET_LAYER_OVERLAYS.length);

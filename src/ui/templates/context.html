@@ -1,10 +1,12 @@
   <!-- Global Context is deliberately independent from the left layer accordion. -->
-  <aside id="right-context-rail">
-    <div id="right-rail-header" class="right-rail-header" data-rail-header>
-      <span class="right-rail-label">TOOLS</span>
-      <button id="right-rail-toggle" class="right-rail-toggle" type="button" aria-expanded="true" aria-controls="right-context-rail" aria-label="Collapse tools pane" title="Collapse tools pane">
-        <span class="material-symbols-outlined" aria-hidden="true">left_panel_close</span>
-      </button>
+  <!-- TOOLS is the third card of the left column (moved into #left-panel-stack
+       at runtime, after GUIDED TOURS). Its header is the same .panel-header row
+       as DATA LAYERS and GUIDED TOURS; the sub-panels scroll inside the card. -->
+  <aside id="right-context-rail" class="panel-collapsible" data-panel-id="right-context-rail" data-scroll-card>
+    <div id="right-rail-header" class="panel-header" data-rail-header>
+      <span class="panel-title">TOOLS</span>
+      <span class="panel-divider"></span>
+      <button id="right-rail-toggle" class="panel-collapse-btn" data-collapse-target="right-context-rail" type="button" title="Expand panel">+</button>
     </div>
     <div id="weather-panel" class="panel-collapsible" data-panel-id="weather-panel" hidden>
       <div class="panel-glow"></div>

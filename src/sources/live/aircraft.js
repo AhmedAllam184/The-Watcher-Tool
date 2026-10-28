@@ -6,6 +6,13 @@ import {
   finite,
 } from './contract.js';
 import { normalizeSquawk } from '../../data/squawk.js';
+import { emitterCategoryText } from '../../data/aircraftIdentity.js';
+
+/** Build year from a feed value (text or number); null when not a plausible year. */
+function buildYearOf(value) {
+  const year = finite(value);
+  return Number.isInteger(year) && year >= 1903 && year <= 2100 ? year : null;
+}
 
 /** Normalize the OpenSky state-vector route, including its regional fallback. */
 export function normalizeOpenSkyAircraft(row) {
@@ -29,9 +36,15 @@ export function normalizeOpenSkyAircraft(row) {
     verticalRateMps: finite(row[11]),
     category: finite(row[17]),
     squawk: normalizeSquawk(row[14]),
-    typeCode: null,
+    // Optional trailing element carrying the adsb.lol identity fields (see
+    // adsbLolFallback.js); OpenSky's own rows stop at index 17.
+    typeCode: cleanText(row[18]?.typeCode) || null,
+    typeDescription: cleanText(row[18]?.typeDescription) || null,
+    buildYear: buildYearOf(row[18]?.buildYear),
+    emitterCategory: emitterCategoryText(finite(row[17])) || null,
+    dbMilitary: row[18]?.dbMilitary === true,
     registration: null,
-    operator: null,
+    operator: cleanText(row[18]?.operatorName) || null,
   };
 }
 
@@ -71,6 +84,12 @@ export function normalizeReadsbAircraft(row, snapshotTimeMs) {
     typeCode: cleanText(row.t),
     registration: cleanText(row.r),
     operator: cleanText(row.ownOp),
+    // readsb's `desc` is the type's name, e.g. "IAI Heron Drone"; `year` the
+    // build year; `dbFlags` bit 0 is the database's military flag.
+    typeDescription: cleanText(row.desc) || null,
+    buildYear: buildYearOf(row.year),
+    emitterCategory: emitterCategoryText(row.category) || null,
+    dbMilitary: ((finite(row.dbFlags) ?? 0) & 1) === 1,
   };
 }
 

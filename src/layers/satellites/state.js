@@ -1,9 +1,35 @@
 import * as Cesium from 'cesium';
 
-export function createState({ services }) {
+/**
+ * @param {object} options
+ * @param {object} options.services Application scene owners.
+ * @param {string} options.layerId Registry id this instance publishes under.
+ * @param {string} options.layerName Display name.
+ * @param {(verdict: {military: boolean}) => boolean} options.filter Which satellites this layer owns.
+ * @param {string|null} options.groupTag Class group forced onto every member, or null to keep the CelesTrak tag.
+ * @param {boolean} options.allowDense Whether the DENSE (Starlink) mode is offered.
+ * @param {boolean} options.ownsIssOverlay Whether this instance drives the shared ISS label.
+ */
+export function createState({
+  services,
+  layerId,
+  layerName,
+  filter,
+  groupTag,
+  allowDense,
+  ownsIssOverlay,
+}) {
   const { setOverlayEntries, setOverlaySourceVisible, clearOverlaySource } =
     services.overlays;
   const state = {};
+
+  state._layerId = layerId;
+  state._layerName = layerName;
+  /** @type {(verdict: {military: boolean}) => boolean} */
+  state._filter = filter;
+  state._groupTag = groupTag;
+  state._allowDense = allowDense;
+  state._ownsIssOverlay = ownsIssOverlay;
 
   state.DEFAULT_OVERLAY_HOST = Object.freeze({
     setEntries: setOverlayEntries,

@@ -17,55 +17,53 @@ const FEED_STATE_LABELS = Object.freeze({
 });
 
 // Presentation order is independent of catalog registration and startup order.
+// The most consequential layers come first. Every layer that has a panel row
+// appears exactly once (src/ui/layerPanel.test.mjs pins this).
 export const PANEL_GROUPS = [
   {
-    label: 'Movement',
+    label: 'Military & Security',
     ids: [
-      'satellites',
-      'flights',
       'military',
+      'military-satellites',
+      'military-installations',
+      'conflict-events',
       'gps-interference',
-      'local-adsb',
-      'ais-live-vessels',
-      'traffic',
-      'transit',
-      'bikeshare',
     ],
   },
   {
-    label: 'Cameras',
-    ids: ['cctv', 'recent-imagery', 'street-level'],
+    label: 'Air & Sea',
+    ids: [
+      'flights',
+      'ais-live-vessels',
+      'local-airports',
+      'satellites',
+      'rocket-launches',
+    ],
+  },
+  {
+    label: 'Hazards',
+    ids: ['earthquakes', 'local-firms', 'fire-perimeters', 'weather-cyclones'],
+  },
+  {
+    label: 'Weather',
+    ids: ['weather-radar', 'weather-satellite', 'weather-lightning', 'wind'],
   },
   {
     label: 'Infrastructure',
     ids: [
-      'local-airports',
-      'alpr-cameras',
-      'military-installations',
-      'local-datacenters',
       'telegeography-submarine-cables',
+      'local-datacenters',
       'local-dams',
+      'alpr-cameras',
     ],
   },
   {
-    label: 'Events',
-    ids: [
-      'rocket-launches',
-      'earthquakes',
-      'local-firms',
-      'fire-perimeters',
-      'conflict-events',
-    ],
+    label: 'Cameras & Imagery',
+    ids: ['recent-imagery', 'cctv', 'street-level'],
   },
   {
-    label: 'Weather',
-    ids: [
-      'wind',
-      'weather-radar',
-      'weather-satellite',
-      'weather-lightning',
-      'weather-cyclones',
-    ],
+    label: 'City & Transport',
+    ids: ['traffic', 'transit', 'bikeshare', 'local-adsb'],
   },
   {
     label: 'Utilities',
@@ -86,6 +84,7 @@ const PANEL_LABELS = {
   'alpr-cameras': 'Mapped ALPR Cameras',
   'local-datacenters': 'Data Centers',
   'local-firms': 'Active Fires',
+  'military-installations': 'Military Bases',
 };
 
 function panelLabel(layer) {

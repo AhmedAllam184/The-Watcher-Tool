@@ -116,6 +116,13 @@ export function createQueries({
       // descriptor instead of reaching back into `_flightData`.
       registration: _toCleanText(info?.registration) || null,
       squawk: info?.squawk ?? null,
+      // Feed identity (see src/data/aircraftIdentity.js). A TR-3B conversion
+      // reports its converted label as the type and no airframe facts.
+      typeCode: tr3bTypeLabel(icao24, info?.type ?? null),
+      typeDescription: tr3bTypeLabel(icao24, info?.typeDescription ?? null),
+      buildYear: _identityOf(icao24, info?.buildYear ?? null),
+      emitterCategory: _identityOf(icao24, info?.emitterCategory || null),
+      operatorName: _identityOf(icao24, info?.operator || null),
       position: Cesium.Cartesian3.clone(basePos),
       latitude: Cesium.Math.toDegrees(carto.latitude),
       longitude: Cesium.Math.toDegrees(carto.longitude),
@@ -135,6 +142,14 @@ export function createQueries({
         flightState.feed._backoff,
       ),
     };
+  }
+
+  /**
+   * Feed identity text, blanked for a TR-3B conversion: the conversion replaces
+   * the airframe, so the real type's facts must not be shown for it.
+   */
+  function _identityOf(icao24, value) {
+    return tr3bTypeLabel(icao24, null) === null ? (value ?? null) : null;
   }
 
   function _normalizeTrackedIcao(candidate) {

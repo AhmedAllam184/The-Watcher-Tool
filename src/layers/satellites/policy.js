@@ -4,7 +4,8 @@ import { satelliteClassColor } from '../../data/satelliteClass.js';
 /**
  * Satellite Orbits — Real-time positions via CelesTrak TLE + SGP4 propagation.
  *
- * Loads six CelesTrak groups (~840 sats): stations, visual, GPS, GLONASS,
+ * Loads six CelesTrak groups (~840 sats) plus the military list, which each
+ * layer filters by membership: stations, visual, GPS, GLONASS,
  * Galileo, and the geosynchronous belt. Optional dense mode (setParams
  * catalog:'dense') adds the Starlink shell as points-only extras.
  * Renders positions via PointPrimitiveCollection, orbital paths as polylines.
@@ -51,6 +52,9 @@ export const CATALOG_GROUPS = [
   { tag: 'glonass', path: 'glo-ops' },
   { tag: 'galileo', path: 'galileo' },
   { tag: 'geo', path: 'geo' },
+  // Military list, last: a NORAD id already in a civil group keeps that tag,
+  // and the filter decides by membership (see src/data/militarySatellites.js).
+  { tag: 'military', path: 'military' },
 ];
 
 // Dense-catalog mode (setParams({ catalog: 'dense' })): Starlink shell as
@@ -147,6 +151,14 @@ export const POINT_STYLES = {
   geo: {
     pixelSize: 5,
     color: _classColor('geo'),
+    outlineColor: POINT_OUTLINE,
+    outlineWidth: 0,
+  },
+  // Military Satellites layer: the same point size as the GEO belt, in the
+  // military class colour.
+  military: {
+    pixelSize: 6,
+    color: _classColor('military'),
     outlineColor: POINT_OUTLINE,
     outlineWidth: 0,
   },

@@ -165,23 +165,12 @@
     overflow-y: auto;
   }
 
+  /* TOOLS is a card of the left column at every width; the column owns its
+     position and the card scrolls inside it. */
   #right-context-rail {
-    top: calc(50vh + 8px);
-    right: 16px;
-    /* The rail sits above the bottom footer, which carries the required
-       Google/Cesium attribution. Its floor follows the footer's height so the
-       notice is never drawn over; the rail already scrolls (overflow-y below). */
-    bottom: calc(2vh + var(--hud-footer-h) + 7.5rem);
-    left: 16px;
-    width: auto;
+    width: 100%;
     max-height: none;
     overflow-y: auto;
-  }
-
-  /* The collapsed tab keeps its place at the right edge, above the footer. */
-  #right-context-rail.right-rail-collapsed {
-    left: auto;
-    width: 40px;
   }
 
   /* Both stacks are scroll containers at this width (overflow-y above), which

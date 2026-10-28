@@ -269,7 +269,7 @@ test('recording restores the original HUD after repeated entry and revokes retai
   }
 });
 
-test('weather rail orders between CCTV and Context, resets positions, observes and syncs chrome', (t) => {
+test('weather rail orders between CCTV and Context, resets positions and syncs chrome', (t) => {
   const f = fixture();
   const observed = new Set();
   const previousResizeObserver = globalThis.ResizeObserver;
@@ -287,6 +287,11 @@ test('weather rail orders between CCTV and Context, resets positions, observes a
   });
   try {
     const stack = f.nodes.get('right-context-rail');
+    // TOOLS joins the left column (moved there by the layout controller).
+    const column = f.nodes.get('left-panel-stack');
+    column.append = (panel) => {
+      panel.parentElement = column;
+    };
     stack.children = [];
     stack.insertBefore = (panel, before) => {
       stack.children = stack.children.filter((child) => child !== panel);
@@ -347,7 +352,6 @@ test('weather rail orders between CCTV and Context, resets positions, observes a
       ['pp-toggles', 'cctv-panel', 'weather-panel', 'global-context-panel'],
     );
     assert.ok(synced.includes('weather-panel'));
-    assert.ok(observed.has(weather));
     assert.equal(weather.style.positions.size, 0);
     assert.equal(weather.classList.contains('panel-draggable'), false);
     assert.equal(weather.classList.contains('panel-dragging'), false);

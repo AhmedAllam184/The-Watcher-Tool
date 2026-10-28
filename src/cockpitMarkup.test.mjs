@@ -579,9 +579,9 @@ test('Cockpit Radio station changes preserve first-person camera ownership', () 
 test('Cockpit panel corridors reserve the owned topline readouts', () => {
   const layout = fs.readFileSync(new URL('./ui/panelLayoutController.js', import.meta.url), 'utf8');
   const leftObstacles = layout.match(/const LEFT_STACK_OBSTACLE_SELECTOR = \[([\s\S]*?)\]\.join/);
-  // TOOLS now shares the left column, so its obstacle list is the same one.
+  // TOOLS is a card of the left column: no separate obstacle lane is kept.
   assert.ok(leftObstacles, 'responsive panel obstacle selectors are missing');
-  assert.match(layout, /const RIGHT_STACK_OBSTACLE_SELECTOR = LEFT_STACK_OBSTACLE_SELECTOR;/);
+  assert.doesNotMatch(layout, /TOOLS_LANE_RESERVE_VH|RIGHT_STACK_OBSTACLE_SELECTOR/);
   assert.match(leftObstacles[1], /#cockpit-hud \.cockpit-topline/);
   assert.match(leftObstacles[1], /#cockpit-hud \.cockpit-topline > div/);
   const leftLayout = fs.readFileSync(new URL('./ui/leftPanelRail.js', import.meta.url), 'utf8');

@@ -57,6 +57,14 @@ export const SATELLITE_CLASSES = Object.freeze({
     color: '#9fb3c4',
     blurb: 'Brightest naked-eye objects — CelesTrak visual group',
   }),
+  military: Object.freeze({
+    label: 'MILITARY',
+    // Red, the app's warning hue (GPS jamming high uses the same value). Only
+    // the Military Satellites layer draws it, so it never competes with NAV.
+    color: '#f87171',
+    blurb:
+      'Military and intelligence satellites (CelesTrak military list and programme names, inferred)',
+  }),
   comms: Object.freeze({
     label: 'COMMS',
     // Dim slate — thousands of these appear in DENSE mode. They must read as
@@ -75,6 +83,7 @@ export const SATELLITE_CLASS_ORDER = Object.freeze([
   'geo',
   'visual',
   'comms',
+  'military',
 ]);
 
 /**
@@ -90,6 +99,8 @@ const GROUP_CLASS = Object.freeze({
   galileo: Object.freeze({ klass: 'nav', subtype: 'GALILEO' }),
   geo: Object.freeze({ klass: 'geo', subtype: null }),
   dense: Object.freeze({ klass: 'comms', subtype: 'STARLINK' }),
+  // Military Satellites layer: every member is military by construction.
+  military: Object.freeze({ klass: 'military', subtype: null }),
 });
 
 /** Unknown groups fall back to the neutral bucket rather than vanishing. */

@@ -44,6 +44,10 @@ function titleBarFloor(stack, stackRect, getComputedStyle) {
  * Measure and place the left panel rail for one synchronous layout pass.
  * The caller owns scheduling, obstacle selection, disclosure preferences and
  * persistence. Auto-collapse is presentation only and reports through callbacks.
+ *
+ * A card marked `data-scroll-card` (TOOLS) scrolls its own body. It takes its
+ * share of the column like any card, and while it is open no card is
+ * auto-collapsed: every card in the column scrolls inside its share.
  * @param {object} options Live DOM and caller policy.
  * @param {HTMLElement} options.stack Rail element.
  * @param {Iterable<HTMLElement>} options.obstacles Caller-selected obstacle nodes.
@@ -54,10 +58,6 @@ function titleBarFloor(stack, stackRect, getComputedStyle) {
  * @param {Function} options.onRetry Request another pass after automatic collapse.
  * @param {Function} [options.getComputedStyle] Optional DOM style reader override.
  * @param {Map<string, number>} options.collapsedHeights Caller-owned measurement cache.
- * @param {Function} options.onAligned Notify the caller after the left rail moves.
- * @param {number} [options.reserveBottomPx=0] Lane space kept free at the foot
- *   of the viewport for the TOOLS pane, which sits in the same column below
- *   these panels. The rail never grows into that space.
  */
 export function layoutLeftPanelRail({
   stack,
@@ -68,8 +68,6 @@ export function layoutLeftPanelRail({
   onCollapse,
   onRetry,
   collapsedHeights,
-  onAligned,
-  reserveBottomPx = 0,
   getComputedStyle = (element) => windowRef.getComputedStyle(element),
 }) {
   if (!stack) return;
@@ -146,15 +144,20 @@ export function layoutLeftPanelRail({
     obstacles: bottomObstacles,
     safeGap,
   });
-  // The TOOLS pane shares this column. Leave it the reserved floor so the
-  // two panes split one lane instead of the data panels taking all of it.
-  const reserved = Math.max(0, Number(reserveBottomPx) || 0);
-  const sharesColumn = reserved > 0;
-  if (sharesColumn)
-    safeBottom = Math.max(
-      safeTop,
-      Math.min(safeBottom, viewportHeight - reserved),
-    );
+  // A theme that pins the column's own edges declares `--left-stack-pinned: 1`
+  // (Cyber's compact lane). Its CSS then wins over the engine's variables, so
+  // the cards share the column box that is actually rendered.
+  const pinnedColumn =
+    getComputedStyle(stack).getPropertyValue('--left-stack-pinned').trim() ===
+    '1';
+  if (pinnedColumn) {
+    const box = stack.getBoundingClientRect();
+    if (box.height > 0) {
+      safeTop = Math.max(safeTop, box.top);
+      obstacleSafeTop = Math.max(obstacleSafeTop, box.top);
+      safeBottom = Math.min(safeBottom, box.bottom);
+    }
+  }
 
   const obstacleSafeBottom = safeBottom;
 
@@ -162,17 +165,14 @@ export function layoutLeftPanelRail({
   // useful. During live viewport-height changes, retain the aligned lane
   // instead of extending a tiny midpoint corridor through a lower obstacle.
   const minimumLaneHeight = viewportHeight * 0.16;
-  // With the TOOLS pane below, the column keeps its top anchor: centering it
-  // would pull the pane up under the middle of the screen and starve it.
-  if (!sharesColumn)
-    ({ safeTop, safeBottom } = resolvePanelStackCorridor({
-      viewportHeight,
-      safeTop,
-      safeBottom,
-      obstacleSafeTop,
-      obstacleSafeBottom,
-      minimumHeight: minimumLaneHeight,
-    }));
+  ({ safeTop, safeBottom } = resolvePanelStackCorridor({
+    viewportHeight,
+    safeTop,
+    safeBottom,
+    obstacleSafeTop,
+    obstacleSafeBottom,
+    minimumHeight: minimumLaneHeight,
+  }));
   const viewportMidpoint = viewportHeight * 0.5;
   for (const panel of panels) {
     const rect = panel.getBoundingClientRect();
@@ -251,7 +251,6 @@ export function layoutLeftPanelRail({
   const tailAvailableHeight = Math.max(0, obstacleSafeBottom - obstacleSafeTop);
   const tailTolerance = wasTail ? stabilityBand : -stabilityBand;
   const shouldTail =
-    !sharesColumn &&
     expandedPanels.length > 0 &&
     tailLayoutTop >= obstacleSafeTop - tailTolerance &&
     tailLayoutBottom <= obstacleSafeBottom + tailTolerance;
@@ -273,25 +272,51 @@ export function layoutLeftPanelRail({
   const bottomPct = ((viewportHeight - layoutBottom) / viewportHeight) * 100;
   const topValue = `${topPct.toFixed(3)}vh`;
   const bottomValue = `${bottomPct.toFixed(3)}vh`;
+  // Focus mode hides collapsed cards, except a collapsed scroll card (TOOLS),
+  // which keeps its header row. Its height and gap come off the expanded share.
+  const pinnedCollapsedHeight = shouldFocus
+    ? panels.reduce((total, panel) => {
+        if (
+          !panel.hasAttribute('data-scroll-card') ||
+          !panel.classList.contains('collapsed')
+        )
+          return total;
+        return (
+          total +
+          (collapsedHeights.get(panel.id) ||
+            panel.getBoundingClientRect().height ||
+            0) +
+          rowGap
+        );
+      }, 0)
+    : 0;
   const expandedAvailableHeight = shouldFocus
     ? Math.max(
         0,
         layoutBottom -
           layoutTop -
-          rowGap * Math.max(0, expandedPanels.length - 1),
+          rowGap * Math.max(0, expandedPanels.length - 1) -
+          pinnedCollapsedHeight,
       )
     : naturalExpandedHeight;
   const allocatedExpandedHeights = allocatePanelStackHeights({
     naturalHeights: naturalExpandedHeights,
     availableHeight: expandedAvailableHeight,
   });
-  const autoCollapseIndices = hud.visible
-    ? panelStackAutoCollapseIndices({
-        naturalHeights: naturalExpandedHeights,
-        allocatedHeights: allocatedExpandedHeights,
-        collapseLaterPanels: shouldFocus && hud.variant === 'tactical',
-      })
-    : [];
+  // Cards that scroll their own body (TOOLS) share the column with the others
+  // through allocation. While one is open, no card is auto-collapsed to make
+  // room: DATA LAYERS and GUIDED TOURS scroll inside their shares too.
+  const sharesColumnByScrolling = expandedPanels.some((panel) =>
+    panel.hasAttribute('data-scroll-card'),
+  );
+  const autoCollapseIndices =
+    hud.visible && !sharesColumnByScrolling
+      ? panelStackAutoCollapseIndices({
+          naturalHeights: naturalExpandedHeights,
+          allocatedHeights: allocatedExpandedHeights,
+          collapseLaterPanels: shouldFocus && hud.variant === 'tactical',
+        })
+      : [];
   if (autoCollapseIndices.length) {
     for (const index of autoCollapseIndices) {
       const panel = expandedPanels[index];
@@ -348,11 +373,12 @@ export function layoutLeftPanelRail({
   // CockpitView.syncSignalLayout() owns `--cockpit-utility-top` instead.
 
   for (const panel of panels) {
-    const hiddenSibling = shouldFocus && panel.classList.contains('collapsed');
+    // A collapsed scroll card (TOOLS) keeps its header row in focus mode.
+    const hiddenSibling =
+      shouldFocus &&
+      panel.classList.contains('collapsed') &&
+      !panel.hasAttribute('data-scroll-card');
     if (hiddenSibling) panel.setAttribute('aria-hidden', 'true');
     else panel.removeAttribute('aria-hidden');
   }
-  // The right controls share this top baseline; update them after the left
-  // accordion commits an HUD-variant or obstacle-driven position change.
-  onAligned();
 }

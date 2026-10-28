@@ -206,6 +206,69 @@
   overflow-wrap: anywhere;
 }
 
+/* "What is it?": the kind of object, checkable facts and the Wikipedia summary. */
+.selection-details__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--selection-kind, #9aa3ad);
+  border-radius: var(--btn-radius);
+  background: rgba(255, 255, 255, 0.03);
+}
+.selection-details__identity[hidden] {
+  display: none;
+}
+.selection-details__identity-heading {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.selection-details__identity-kind {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.selection-details__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.selection-details__chip {
+  padding: 2px 8px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.selection-details__identity-source {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.selection-details__summary {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.selection-details__wiki {
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: none;
+}
+.selection-details__wiki:hover {
+  text-decoration: underline;
+}
+
 /* Narrow screens: a bottom sheet instead of a floating column. */
 @media (max-width: 639px) {
   .selection-details {

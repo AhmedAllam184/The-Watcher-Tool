@@ -132,6 +132,13 @@ export const DATA_CREDITS = [
       '(licence varies per image; each links to its article)',
   },
   {
+    key: 'wikipedia-identify',
+    html:
+      'Aircraft and satellite summaries and images: ' +
+      '<a href="https://en.wikipedia.org" target="_blank" rel="noopener">Wikipedia</a> ' +
+      '(text CC BY-SA 4.0; each image carries its own licence, linked to its article)',
+  },
+  {
     key: 'aisstream',
     html:
       'Live vessels (AIS): ' +
@@ -140,7 +147,7 @@ export const DATA_CREDITS = [
   {
     key: 'celestrak',
     html:
-      'Satellites (TLEs and catalogue records): CelesTrak ' +
+      'Satellites (TLEs and catalogue records, plus the military list behind the Military Satellites layer): CelesTrak ' +
       '(<a href="https://celestrak.org" target="_blank" rel="noopener">celestrak.org</a>), ' +
       'Dr. T.S. Kelso',
   },

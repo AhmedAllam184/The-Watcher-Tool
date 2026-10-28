@@ -8,6 +8,11 @@ const SEARCHABLE_FAMILIES = Object.freeze([
   { layerId: 'military', kind: 'aircraft', name: 'Military Flights' },
   { layerId: 'ais-live-vessels', kind: 'vessel', name: 'Live AIS Vessels' },
   { layerId: 'satellites', kind: 'satellite', name: 'Satellites' },
+  {
+    layerId: 'military-satellites',
+    kind: 'satellite',
+    name: 'Military Satellites',
+  },
 ]);
 
 const MIN_QUERY_LENGTH = 2;

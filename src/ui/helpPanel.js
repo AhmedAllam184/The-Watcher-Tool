@@ -232,6 +232,11 @@ export function createHelpPanel({
   );
   makeSwatchItem(
     otherList,
+    SATELLITE_CLASSES.military.color,
+    'Satellite (military, inferred)',
+  );
+  makeSwatchItem(
+    otherList,
     GPS_JAM_STYLE.medium.swatch,
     'GPS interference, 2–10% (inferred)',
   );

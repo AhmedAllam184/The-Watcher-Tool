@@ -11,6 +11,9 @@ const KEY_STATUS_REFRESH_MS = 30000;
 
 /** Overlay chips: each id is a registered Data Layers layer. */
 export const PRESET_LAYER_OVERLAYS = Object.freeze([
+  { id: 'military', label: 'Military' },
+  { id: 'military-satellites', label: 'Mil. sats' },
+  { id: 'military-installations', label: 'Bases' },
   { id: 'flights', label: 'Flights' },
   { id: 'ais-live-vessels', label: 'Ships' },
   { id: 'local-airports', label: 'Airports' },

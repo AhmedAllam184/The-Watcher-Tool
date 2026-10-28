@@ -7,11 +7,7 @@ import {
   collapsePanelOnEscape,
   createHoverDisclosure,
 } from './panelDisclosure.js';
-import {
-  applyRightRailCollapsed,
-  readRightRailCollapsed,
-  writeRightRailCollapsed,
-} from './rightRailCollapse.js';
+import { takeLegacyRightRailCollapsed } from './rightRailCollapse.js';
 const SHARE_PANEL_STATE_SPECS = Object.freeze([
   { id: 'control-panel', pinnable: true },
   { id: 'location-bar', pinnable: true },
@@ -151,37 +147,25 @@ export class PanelChrome {
     });
     this._initCommandDockPins();
     this._initCommandDockTrayMetrics();
-    this._initRightRailToggle();
+    this._migrateRightRailCollapsedPreference();
     this._maybeNotifyLayoutReset();
     this._panelPosition._initPanelDrag();
   }
 
-  /** Bind the TOOLS pane toggle and restore the viewer's last choice. */
-  _initRightRailToggle() {
-    const button = document.getElementById('right-rail-toggle');
-    if (!button || !this._rightPanelStack) return;
-    this._lifetime.listen(button, 'click', () =>
-      this._setRightRailCollapsed(
-        !this._rightPanelStack.classList.contains('right-rail-collapsed'),
-      ),
-    );
-    this._setRightRailCollapsed(readRightRailCollapsed(), { persist: false });
-  }
-
   /**
-   * Collapse the whole tools pane to its tab, or expand it. The rail layout
-   * takes its panels out of layout while collapsed; their own state is kept.
+   * TOOLS is a card of the left column and collapses like DATA LAYERS, through
+   * the same disclosure key. A choice saved by the old tab-style pane moves
+   * there once, unless the card already has its own saved choice.
    */
-  _setRightRailCollapsed(collapsed, { persist = true } = {}) {
-    const next = applyRightRailCollapsed({
-      rail: this._rightPanelStack,
-      button: document.getElementById('right-rail-toggle'),
-      collapsed,
-    });
-    if (persist) writeRightRailCollapsed(next);
-    // The TOOLS pane sits in the left column, so its reserve moves with it.
-    this._scheduleLeftPanelLayout();
-    this._scheduleRightPanelLayout();
+  _migrateRightRailCollapsedPreference() {
+    const card = this._rightPanelStack;
+    const legacy = takeLegacyRightRailCollapsed();
+    if (!card || legacy === null) return;
+    if (legacy && card.dataset.collapsedPreference === 'default')
+      this.setPanelCollapsed(card.id, true, {
+        restore: true,
+        syncShare: false,
+      });
   }
 
   _collapsePanelOnEscape(event, panelId) {
@@ -447,6 +431,22 @@ export class PanelChrome {
     const wasAutoCollapsed =
       panelEl.classList.contains('layout-auto-collapsed') ||
       panelEl.classList.contains('cyber-accordion-collapsed');
+    // A sub-panel that the user or a flow opens reveals its TOOLS card first.
+    const toolsCard = this._rightPanelStack;
+    if (
+      explicit &&
+      !restore &&
+      !nextCollapsed &&
+      toolsCard &&
+      panelEl.parentElement === toolsCard &&
+      toolsCard.classList.contains('collapsed')
+    ) {
+      this.setPanelCollapsed(toolsCard.id, false, {
+        explicit,
+        persist,
+        syncShare: false,
+      });
+    }
     // A user opening a right-rail panel owns the whole accordion in every
     // theme: each expanded peer is closed as the user's own preference, so it
     // stays closed. Peers that were only presentation-collapsed (automatic
@@ -475,9 +475,8 @@ export class PanelChrome {
         }
       }
     }
-    const leftOwnerPanel = this._leftPanelStack?.contains(panelEl)
-      ? panelEl
-      : null;
+    const leftOwnerPanel =
+      panelEl.parentElement === this._leftPanelStack ? panelEl : null;
     const rightOwnerPanel =
       panelId === 'radio-panel'
         ? document.getElementById('global-context-panel')

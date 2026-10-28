@@ -41,7 +41,8 @@ test('the complete Realtime tool payload pins the manifest-generated layer relea
     // Airports layer adds one layer enum value.
     // GPS Interference layer adds one layer enum value.
     // Conflict Events layer adds one layer enum value.
-    '62ee9a6737fa05cae9862b3f7a656593c11df8f3b900ede78a55e13b8db0e306',
+    // Military Satellites layer adds one layer enum value.
+    'f58b931be286ac27842812baac61a310ca8f0996dfb5c42543b68f6d014cb944',
   );
 });
 

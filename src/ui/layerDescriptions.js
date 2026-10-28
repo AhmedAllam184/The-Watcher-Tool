@@ -31,7 +31,9 @@ export const LAYER_DESCRIPTIONS = Object.freeze({
   'alpr-cameras':
     'License-plate reader cameras mapped in OpenStreetMap (US and Canada). Locations only.',
   'military-installations':
-    'Military sites mapped in OpenStreetMap, such as bases and installations.',
+    'Military bases, airfields, naval bases and ranges mapped in OpenStreetMap.',
+  'military-satellites':
+    'Military and intelligence satellites (CelesTrak list + programme names). Inferred.',
   'local-datacenters':
     'Data center sites from a bundled OpenStreetMap dataset.',
   'telegeography-submarine-cables':

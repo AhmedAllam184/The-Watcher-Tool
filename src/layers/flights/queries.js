@@ -169,6 +169,15 @@ export function createQueries({
       ),
       airline: info?.airline ?? null,
       squawk: info?.squawk ?? null,
+      // Feed identity (see src/data/aircraftIdentity.js). A TR-3B conversion
+      // reports its converted label as the type and no airframe facts.
+      typeDescription: tr3bTypeLabel(icao24, info?.typeDescription ?? null),
+      buildYear: _identityOf(icao24, info?.buildYear ?? null),
+      emitterCategory: _identityOf(icao24, info?.emitterCategory || null),
+      militaryFlag: _identityOf(
+        icao24,
+        info?.dbMilitary === true ? true : null,
+      ),
       // CLASS label follows the TR-3B conversion so every downstream card
       // (cockpit, Contacts, analyst) agrees with the triangle on screen.
       typeName: tr3bTypeLabel(icao24, info?.typeName ?? null),
@@ -196,6 +205,14 @@ export function createQueries({
             }
           : null,
     };
+  }
+
+  /**
+   * Feed identity text, blanked for a TR-3B conversion: the conversion replaces
+   * the airframe, so the real type's facts must not be shown for it.
+   */
+  function _identityOf(icao24, value) {
+    return tr3bTypeLabel(icao24, null) === null ? (value ?? null) : null;
   }
 
   function _normalizeTrackedIcao(candidate) {

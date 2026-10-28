@@ -25,6 +25,7 @@ const LAYER_NOUNS = Object.freeze({
   military: 'military aircraft',
   'ais-live-vessels': 'ships',
   satellites: 'satellites',
+  'military-satellites': 'military satellites',
 });
 
 /** Feed states that change what a spoken answer means. */

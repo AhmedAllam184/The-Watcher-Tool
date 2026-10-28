@@ -4,6 +4,7 @@ import {
   pickRenderAltitudeM,
 } from '../../data/renderAltitude.js';
 import { classifyAircraft } from '../../data/aircraftClass.js';
+import { emitterCategoryText } from '../../data/aircraftIdentity.js';
 import { normalizeSquawk } from '../../data/squawk.js';
 import {
   approxDistanceKm,
@@ -241,8 +242,18 @@ export class FlightRecords {
         null,
       ),
       // adsbdb enrichment — written by the enrichment callbacks, carried across polls:
-      typeCode: prevMeta?.typeCode ?? null,
+      typeCode: prevMeta?.typeCode ?? observation.typeCode ?? null,
       typeName: prevMeta?.typeName ?? null,
+      // Feed identity (adsb.lol desc / year / category / dbFlags), sticky like callsign.
+      typeDescription: stickyText(
+        observation.typeDescription,
+        prevMeta?.typeDescription,
+      ),
+      buildYear: observation.buildYear ?? prevMeta?.buildYear ?? null,
+      emitterCategory: emitterCategoryText(cat) || '',
+      operatorName: stickyText(observation.operator, prevMeta?.operatorName),
+      dbMilitary:
+        observation.dbMilitary === true || prevMeta?.dbMilitary === true,
       registration: prevMeta?.registration ?? null,
       airline: prevMeta?.airline ?? null,
       route: prevMeta?.route ?? null,

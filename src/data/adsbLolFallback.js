@@ -31,6 +31,24 @@ function emitterCategory(value) {
 }
 
 /**
+ * The adsb.lol identity fields the OpenSky shape has no slot for, as a trailing
+ * element (index 18). Null when the record carries none of them.
+ */
+function identityExtra(aircraft) {
+  const text = (value) => String(value ?? '').trim();
+  const extra = {
+    typeCode: text(aircraft?.t).toUpperCase() || null,
+    typeDescription: text(aircraft?.desc) || null,
+    operatorName: text(aircraft?.ownOp) || null,
+    buildYear: aircraft?.year ?? null,
+    dbMilitary: ((finiteNumber(aircraft?.dbFlags) ?? 0) & 1) === 1,
+  };
+  return Object.values(extra).some((value) => value !== null && value !== false)
+    ? extra
+    : null;
+}
+
+/**
  * Convert one adsb.lol v2 aircraft record into the OpenSky state-vector shape
  * consumed by the existing Flights renderer.
  * @param {object} aircraft adsb.lol aircraft record.
@@ -58,7 +76,7 @@ export function normalizeAdsbLolAircraftState(aircraft, nowSeconds) {
     finiteNumber(aircraft?.baro_rate) ?? finiteNumber(aircraft?.geom_rate);
   const track = finiteNumber(aircraft?.track);
 
-  return [
+  const state = [
     hex,
     String(aircraft?.flight || aircraft?.r || '').trim() || null,
     null,
@@ -78,6 +96,9 @@ export function normalizeAdsbLolAircraftState(aircraft, nowSeconds) {
     0,
     emitterCategory(aircraft?.category),
   ];
+  const extra = identityExtra(aircraft);
+  if (extra) state.push(extra);
+  return state;
 }
 
 /**

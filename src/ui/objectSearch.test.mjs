@@ -142,6 +142,7 @@ test('lists the searchable layers that are currently disabled, in search order',
   assert.deepEqual(searchableDisabledLayers(data), [
     'flights',
     'ais-live-vessels',
+    'military-satellites',
   ]);
   assert.deepEqual(searchableDisabledLayers(null), []);
 });

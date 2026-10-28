@@ -1633,7 +1633,8 @@ export class StyleManager extends ShellFacade {
       if (this._cctvPanel.parentElement?.id === 'right-context-rail') {
         this._cctvPanel.style.maxHeight = '';
         if (inner) inner.style.maxHeight = '';
-        this._scheduleRightPanelLayout();
+        // TOOLS is a card of the left column: its allocation follows CCTV.
+        this._scheduleLeftPanelLayout();
         return;
       }
       const rect = this._cctvPanel.getBoundingClientRect();

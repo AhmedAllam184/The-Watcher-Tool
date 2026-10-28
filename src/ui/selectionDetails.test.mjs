@@ -615,46 +615,239 @@ test('a late catalogue answer for a previous satellite is ignored', async () => 
   assert.equal(rowTexts(env.aside)['Owner / country'], undefined, 'the first answer does not land on the second satellite');
 });
 
-test('a flight with no airframe photo shows a labelled type photo linked to its article', async () => {
+/** Identity loader stub: answers by query text; records every call. */
+function identityStub(answers = {}) {
   const calls = [];
-  const photoLoader = {
-    load(hex, options = {}) {
-      calls.push({ hex, type: options.type ?? null });
-      return Promise.resolve({
-        src: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c17.jpg',
-        link: 'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
-        photographer: null,
-        source: 'Wikipedia',
-        kind: 'type',
-        title: 'Boeing C-17 Globemaster III',
-      });
+  return {
+    calls,
+    load(kind, query) {
+      calls.push({ kind, query });
+      return Promise.resolve(answers[query] ?? null);
     },
   };
-  const env = setup({ photoLoader });
+}
+
+const C17_ARTICLE = {
+  title: 'Boeing C-17 Globemaster III',
+  summary:
+    'The Boeing C-17 Globemaster III is a large military transport aircraft. It was built for the United States Air Force. It is flown by several air forces.',
+  image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c17.jpg',
+  link: 'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
+};
+
+test('a flight with no airframe photo shows the Wikipedia image of its type, captioned as not this aircraft', async () => {
+  const photoCalls = [];
+  const photoLoader = {
+    load(hex, options = {}) {
+      photoCalls.push({ hex, type: options.type ?? null });
+      return Promise.resolve(null);
+    },
+  };
+  const identify = identityStub({ 'C-17 Globemaster III aircraft': C17_ARTICLE });
+  const env = setup({ photoLoader, identifyLoader: identify });
   const record = flightRecord({
     id: 'ae0001',
-    properties: { icao24: 'ae0001', type: 'C17' },
+    layerId: 'military',
+    properties: { icao24: 'ae0001', type: 'C17', typeCode: 'C17' },
   });
   env.setSelected(record);
   env.windowStub.dispatch('gev:entity-selected', record);
   await flush();
-  assert.deepEqual(calls, [{ hex: 'ae0001', type: 'C17' }]);
+  assert.deepEqual(photoCalls, [{ hex: 'ae0001', type: null }]);
+  assert.deepEqual(identify.calls, [
+    { kind: 'aircraft', query: 'C-17 Globemaster III aircraft' },
+  ]);
   const figure = findByClass(env.aside, 'selection-details__photo');
   assert.equal(figure.hidden, false);
   const credit = findByClass(figure, 'selection-details__photo-credit');
   const link = findAll(credit, (node) => node.tagName === 'A')[0];
   assert.equal(
     link.textContent,
-    'Type photo: Boeing C-17 Globemaster III (Wikipedia) — not this exact aircraft',
+    'Photo of the type (Wikipedia) — not this exact aircraft',
   );
-  assert.equal(
-    link.href,
-    'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III',
-  );
+  assert.equal(link.href, 'https://en.wikipedia.org/wiki/Boeing_C-17_Globemaster_III');
   assert.equal(link.rel, 'noopener noreferrer');
   const image = findAll(figure, (node) => node.tagName === 'IMG')[0];
+  assert.equal(image.attributes.src, C17_ARTICLE.image);
+});
+
+test('an airframe photo is shown first, and the type image is not drawn over it', async () => {
+  const identify = identityStub({ 'C-17 Globemaster III aircraft': C17_ARTICLE });
+  const env = setup({
+    photoLoader: photoStub(PHOTO),
+    identifyLoader: identify,
+  });
+  const record = flightRecord({
+    id: 'ae0002',
+    layerId: 'military',
+    properties: { icao24: 'ae0002', type: 'C17', typeCode: 'C17' },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  const image = findAll(figure, (node) => node.tagName === 'IMG')[0];
+  assert.equal(image.attributes.src, PHOTO.src);
+  assert.equal(image.attributes.alt, 'Photo of BAW117');
   assert.equal(
-    image.attributes.alt,
-    'Photo of a Boeing C-17 Globemaster III, not this aircraft',
+    findByClass(figure, 'selection-details__photo-credit').textContent,
+    '© Jane Spotter · Planespotters.net',
   );
+});
+
+test('the What is it block shows the kind, facts chips, the article summary and a Wikipedia link', async () => {
+  const identify = identityStub({ 'C-17 Globemaster III aircraft': C17_ARTICLE });
+  const env = setup({ photoLoader: photoStub(null), identifyLoader: identify });
+  const record = flightRecord({
+    id: 'ae0003',
+    layerId: 'military',
+    properties: {
+      icao24: 'ae0003',
+      type: 'C-17 Globemaster III',
+      typeCode: 'C17',
+      emitterCategory: 'A5',
+      buildYear: '2008',
+    },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const block = findByClass(env.aside, 'selection-details__identity');
+  assert.equal(block.hidden, false);
+  assert.equal(
+    findByClass(block, 'selection-details__identity-kind').textContent,
+    'Military transport',
+  );
+  const chips = findAll(block, (node) => node.className === 'selection-details__chip').map(
+    (node) => node.textContent,
+  );
+  assert.deepEqual(chips, [
+    '4 jet engines',
+    'Heavy (over 136 t)',
+    'Heavy wake turbulence',
+    'Built 2008',
+  ]);
+  assert.equal(
+    findByClass(block, 'selection-details__summary').textContent,
+    C17_ARTICLE.summary,
+  );
+  const more = findByClass(block, 'selection-details__wiki');
+  assert.equal(more.textContent, 'Read more on Wikipedia');
+  assert.equal(more.href, C17_ARTICLE.link);
+  // The Aircraft row names the type and keeps its designator.
+  assert.equal(
+    findAll(env.aside, (node) => node.tagName === 'DD').find(
+      (node) => node.textContent === 'C-17 Globemaster III (C17)',
+    )?.textContent,
+    'C-17 Globemaster III (C17)',
+  );
+});
+
+test('a Heron drone resolves its name from the feed, and the lookup is for that name', async () => {
+  const identify = identityStub({
+    'IAI Heron Drone aircraft': {
+      title: 'IAI Heron',
+      summary: 'The IAI Heron is an Israeli medium-altitude drone.',
+      image: null,
+      link: 'https://en.wikipedia.org/wiki/IAI_Heron',
+    },
+  });
+  const env = setup({ photoLoader: photoStub(null), identifyLoader: identify });
+  const record = flightRecord({
+    id: '738be8',
+    layerId: 'military',
+    properties: {
+      icao24: '738be8',
+      type: 'IAI Heron Drone',
+      typeCode: 'HRON',
+      typeDescription: 'IAI Heron Drone',
+      emitterCategory: 'B6',
+    },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  assert.deepEqual(identify.calls, [{ kind: 'aircraft', query: 'IAI Heron Drone aircraft' }]);
+  const block = findByClass(env.aside, 'selection-details__identity');
+  assert.equal(
+    findByClass(block, 'selection-details__identity-kind').textContent,
+    'Military surveillance drone',
+  );
+  const aircraftRow = findAll(env.aside, (node) => node.tagName === 'DD').map(
+    (node) => node.textContent,
+  );
+  assert.ok(aircraftRow.includes('IAI Heron Drone (HRON)'));
+});
+
+test('a failed article lookup leaves the kind and facts, with no summary and no image', async () => {
+  const identify = { load: () => Promise.resolve(null) };
+  const env = setup({ photoLoader: photoStub(null), identifyLoader: identify });
+  const record = flightRecord({
+    id: 'a00777',
+    properties: { icao24: 'a00777', type: 'Cessna 172', typeCode: 'C172', emitterCategory: 'A1' },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const block = findByClass(env.aside, 'selection-details__identity');
+  assert.equal(
+    findByClass(block, 'selection-details__identity-kind').textContent,
+    'Light private aircraft',
+  );
+  assert.equal(findAll(block, (node) => node.className === 'selection-details__summary').length, 0);
+  assert.equal(findAll(block, (node) => node.className === 'selection-details__wiki').length, 0);
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, true);
+});
+
+test('a satellite shows its programme image, captioned as an illustration of the programme', async () => {
+  const identify = identityStub({
+    Starlink: {
+      title: 'Starlink',
+      summary: 'Starlink is a satellite internet constellation.',
+      image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/starlink.jpg',
+      link: 'https://en.wikipedia.org/wiki/Starlink',
+    },
+  });
+  const env = setup({ identifyLoader: identify, satelliteInfoLoader: satelliteLoader({ satellite: null }) });
+  const record = satelliteRecord({
+    id: '44714',
+    label: 'STARLINK-1007',
+    properties: { name: 'STARLINK-1007', noradId: '44714', class: 'COMMS · STARLINK' },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  assert.deepEqual(identify.calls, [{ kind: 'satellite', query: 'Starlink' }]);
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  assert.equal(figure.hidden, false);
+  const credit = findByClass(figure, 'selection-details__photo-credit');
+  const creditLink = findAll(credit, (node) => node.tagName === 'A')[0];
+  assert.equal(creditLink.textContent, 'Illustration/photo of Starlink (Wikipedia)');
+  assert.equal(creditLink.href, 'https://en.wikipedia.org/wiki/Starlink');
+  const block = findByClass(env.aside, 'selection-details__identity');
+  assert.equal(
+    findByClass(block, 'selection-details__identity-kind').textContent,
+    'Starlink internet satellite',
+  );
+});
+
+test('a repeated refresh does not look the article up or re-create the photo again', async () => {
+  const identify = identityStub({ 'C-17 Globemaster III aircraft': C17_ARTICLE });
+  const env = setup({ photoLoader: photoStub(null), identifyLoader: identify });
+  const record = flightRecord({
+    id: 'ae0004',
+    layerId: 'military',
+    properties: { icao24: 'ae0004', type: 'C17', typeCode: 'C17' },
+  });
+  env.setSelected(record);
+  env.windowStub.dispatch('gev:entity-selected', record);
+  await flush();
+  const figure = findByClass(env.aside, 'selection-details__photo');
+  const image = findAll(figure, (node) => node.tagName === 'IMG')[0];
+  env.windowStub.tick();
+  env.windowStub.tick();
+  await flush();
+  assert.equal(identify.calls.length, 1);
+  assert.equal(findAll(figure, (node) => node.tagName === 'IMG')[0], image);
 });

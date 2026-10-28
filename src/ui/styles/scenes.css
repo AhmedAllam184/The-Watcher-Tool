@@ -11,6 +11,12 @@
   max-height: calc(100vh - 24px);
 }
 
+/* Every card of the column (DATA LAYERS, GUIDED TOURS, TOOLS) takes the column
+   width, expanded or collapsed, so their header rows line up. */
+#left-panel-stack > [data-panel-id] {
+  width: 100%;
+}
+
 #left-panel-stack > #data-panel,
 #left-panel-stack > #cctv-panel,
 #left-panel-stack > #global-context-panel,
@@ -44,7 +50,8 @@
  * panel's measured natural height plus sibling labels cannot fit inside the
  * live HUD/attribution-safe corridor.
  */
-#left-panel-stack.layout-focus > [data-panel-id].collapsed {
+#left-panel-stack.layout-focus
+  > [data-panel-id].collapsed:not([data-scroll-card]) {
   display: none;
 }
 
@@ -439,7 +446,7 @@
 #data-panel.collapsed,
 #cctv-panel.collapsed,
 #scene-panel.collapsed {
-  width: var(--left-collapsed-width);
+  width: 100%;
 }
 
 #global-context-panel #radio-panel.collapsed {

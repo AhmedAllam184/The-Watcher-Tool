@@ -73,7 +73,8 @@ export function createInteraction({
       // viewer.trackedEntity, which that sibling may have JUST set) alone (H2).
       if (picked) {
         const pickedId = resolvePickId(picked);
-        if (pickedId && isOwnedByOtherLayer('satellites', pickedId)) return;
+        if (pickedId && isOwnedByOtherLayer(layerState._layerId, pickedId))
+          return;
       }
 
       // Clicked empty space — deselect

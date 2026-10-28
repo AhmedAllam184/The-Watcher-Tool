@@ -27,7 +27,8 @@ function fixture(theme = 'tactical') {
     nodes.set(id, value);
     return value;
   };
-  const rail = node('rail');
+  // TOOLS is an expanded card of the left column; its sub-panels sit inside it.
+  const rail = node('rail', false);
   const display = node('pp-toggles');
   const context = node('global-context-panel');
   const cctv = node('cctv-panel');
@@ -164,4 +165,16 @@ test('a user opening RADIO reveals CONTEXT as a user choice and closes DISPLAY',
       assert.equal(f.display.classList.contains('collapsed'), true, `${theme}: DISPLAY closes`);
     });
   }
+});
+
+test('a flow that opens a TOOLS sub-panel reveals its collapsed card; a restore does not', () => {
+  const f = fixture();
+  f.owner._rightPanelStack.classList.add('collapsed');
+  withDocument(f, () => {
+    f.owner.setPanelCollapsed('cctv-panel', false, { restore: true, persist: false });
+    assert.equal(f.owner._rightPanelStack.classList.contains('collapsed'), true, 'restore keeps the card');
+    f.owner.setPanelCollapsed('cctv-panel', false, { explicit: true });
+    assert.equal(f.owner._rightPanelStack.classList.contains('collapsed'), false, 'the opened card is revealed');
+    assert.equal(f.cctv.classList.contains('collapsed'), false);
+  });
 });

@@ -1,6 +1,10 @@
 import { twoline2satrec } from 'satellite.js';
 import * as Cesium from 'cesium';
 import { CATALOG_GROUPS } from './policy.js';
+import {
+  classifyMilitarySatellite,
+  MILITARY_GROUP_TAG,
+} from '../../data/militarySatellites.js';
 
 export function createIngestion({
   state: layerState,
@@ -101,7 +105,17 @@ export function createIngestion({
           for (const e of r.entries) allEntries.push({ ...e, group: r.tag });
         }
 
-        // Deduplicate by NORAD ID — first (most specific) group tag wins
+        // NORAD ids on CelesTrak's military list. TLE line 1 columns 3-7 hold
+        // the catalogue number.
+        const militaryNoradIds = new Set(
+          (results.find((r) => r.tag === MILITARY_GROUP_TAG)?.entries ?? [])
+            .map((e) => Number(String(e.line1).substring(2, 7)))
+            .filter(Number.isFinite),
+        );
+
+        // Deduplicate by NORAD ID — first (most specific) group tag wins. The
+        // military decision is taken after dedupe, so a satellite that appears in
+        // a civil group and on the military list has one verdict, not two.
         const seen = new Set();
 
         for (const entry of allEntries) {
@@ -112,11 +126,21 @@ export function createIngestion({
           if (seen.has(noradId)) continue;
           seen.add(noradId);
 
+          // Keep only the members this layer owns (civil or military).
+          const verdict = classifyMilitarySatellite({
+            noradId,
+            name: entry.name,
+            militaryNoradIds,
+          });
+          if (!layerState._filter(verdict)) continue;
+          const group = layerState._groupTag ?? entry.group;
+
           // Store in catalog
           layerState._catalog.set(noradId, {
             name: entry.name,
             satrec,
-            group: entry.group,
+            group,
+            militaryRule: verdict.rule,
           });
 
           // Propagate initial position
@@ -130,7 +154,7 @@ export function createIngestion({
           );
 
           // Add point primitive (styling from the shared table, WS-D3)
-          const style = parts.controls._pointStyleFor(noradId, entry.group);
+          const style = parts.controls._pointStyleFor(noradId, group);
           const point = layerState._pointCollection.add({
             position: cartesian,
             pixelSize: style.pixelSize,

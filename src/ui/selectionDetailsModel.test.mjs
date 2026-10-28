@@ -633,3 +633,137 @@ test('satelliteNoradOf reads only satellite records with a usable catalogue numb
   assert.equal(satelliteNoradOf({ layerId: 'flights', id: '25544' }), null);
   assert.equal(satelliteNoradOf(null), null);
 });
+
+test('military satellites carry a Military row that says why, and civil ones do not', () => {
+  const military = buildSelectionDetails(
+    {
+      ...SATELLITE_RECORD,
+      layerId: 'military-satellites',
+      layerName: 'Military Satellites',
+      id: '50002',
+      label: 'USA 270',
+      properties: {
+        name: 'USA 270',
+        noradId: '50002',
+        class: 'MILITARY',
+        altitude: '600 km',
+        militaryRule: 'CelesTrak military list',
+      },
+    },
+    { now: NOW },
+  );
+  assert.equal(military.kind, 'satellite');
+  assert.equal(military.satelliteNorad, '50002');
+  assert.equal(rowValue(military, 'Military'), 'yes — CelesTrak military list');
+  assert.equal(
+    buildSelectionDetails(SATELLITE_RECORD, { now: NOW }).rows.some(
+      (row) => row.label === 'Military',
+    ),
+    false,
+  );
+  assert.equal(satelliteNoradOf({ layerId: 'military-satellites', id: '50002' }), '50002');
+  assert.equal(satelliteNoradOf({ layerId: 'military-satellites', id: 'SAT-1' }), null);
+});
+
+test('the Aircraft row names the type and keeps its designator, from the feed description first', () => {
+  const named = buildSelectionDetails(
+    flightRecord({ typeCode: 'HRON', typeDescription: 'IAI Heron Drone', type: 'IAI Heron Drone' }, { layerId: 'military' }),
+    { now: NOW },
+  );
+  assert.equal(rowValue(named, 'Aircraft'), 'IAI Heron Drone (HRON)');
+  const mapped = buildSelectionDetails(
+    flightRecord({ typeCode: 'C17', type: 'C-17 Globemaster III' }, { layerId: 'military' }),
+    { now: NOW },
+  );
+  assert.equal(rowValue(mapped, 'Aircraft'), 'C-17 Globemaster III (C17)');
+  const designatorOnly = buildSelectionDetails(flightRecord({ type: 'ZZDR' }), { now: NOW });
+  assert.equal(rowValue(designatorOnly, 'Aircraft'), 'ZZDR');
+});
+
+test('a flight carries a What is it identity with its kind, facts and article query', () => {
+  const details = buildSelectionDetails(
+    flightRecord({ typeCode: 'A320', type: 'Airbus A320', emitterCategory: 'A3', buildYear: '2011' }),
+    { now: NOW },
+  );
+  assert.equal(details.identity.kindLabel, 'Airliner');
+  assert.deepEqual(details.identity.facts, ['Large (34 to 136 t)', 'Built 2011']);
+  assert.equal(details.identity.wikiKind, 'aircraft');
+  assert.equal(details.identity.wikiQuery, 'Airbus A320 aircraft');
+});
+
+test('a military flight is named as military from its layer, and a civil flag from the feed counts too', () => {
+  const military = buildSelectionDetails(
+    flightRecord({ typeCode: 'HRON', typeDescription: 'IAI Heron Drone', emitterCategory: 'B6' }, { layerId: 'military' }),
+    { now: NOW },
+  );
+  assert.equal(military.identity.kindLabel, 'Military surveillance drone');
+  const flagged = buildSelectionDetails(
+    flightRecord({ typeCode: 'HRON', typeDescription: 'IAI Heron Drone', militaryFlag: 'yes' }),
+    { now: NOW },
+  );
+  assert.equal(flagged.identity.kindLabel, 'Military surveillance drone');
+});
+
+test('an unnamed aircraft gets a kind but no article query', () => {
+  const details = buildSelectionDetails(flightRecord({ type: 'ZZDR' }), { now: NOW });
+  assert.equal(details.identity.wikiQuery, null);
+  assert.equal(details.identity.kindLabel, 'Aircraft (type not identified)');
+});
+
+test('a converted TR-3B contact has no identity, so no kind or article is shown for it', () => {
+  const details = buildSelectionDetails(
+    flightRecord({ typeCode: 'TR-3B', type: 'TR-3B', typeDescription: 'TR-3B' }, { layerId: 'military' }),
+    { now: NOW },
+  );
+  assert.equal(details.identity, null);
+  assert.equal(rowValue(details, 'Aircraft'), 'TR-3B');
+});
+
+test('a satellite identity is available before the catalogue record loads, and uses the catalogue owner once it has', () => {
+  const pending = buildSelectionDetails(
+    satelliteRecordFor({ name: 'STARLINK-1007', noradId: '44714', class: 'COMMS · STARLINK' }),
+    { now: NOW, satelliteInfo: { norad: '44714', status: 'loading', satellite: null } },
+  );
+  assert.equal(pending.identity.kindLabel, 'Starlink internet satellite');
+  assert.equal(pending.identity.wikiKind, 'satellite');
+  assert.equal(pending.identity.wikiQuery, 'Starlink');
+  assert.equal(pending.identity.programme, 'Starlink');
+  const loaded = buildSelectionDetails(
+    satelliteRecordFor({ name: 'STARLINK-1007', noradId: '44714', class: 'COMMS · STARLINK' }),
+    {
+      now: NOW,
+      satelliteInfo: {
+        norad: '44714',
+        status: 'ok',
+        satellite: { objectType: 'PAY', owner: { code: 'US', name: 'SpaceX' } },
+      },
+    },
+  );
+  assert.ok(loaded.identity.facts.includes('Operated by SpaceX'));
+});
+
+test('a military satellite identity keeps its Military row and its programme kind', () => {
+  const details = buildSelectionDetails(
+    satelliteRecordFor({ name: 'YAOGAN-30 02', noradId: '44000', class: 'MILITARY', militaryRule: 'name: Yaogan (Chinese military remote sensing)' }),
+    { now: NOW },
+  );
+  assert.equal(rowValue(details, 'Military'), 'yes — name: Yaogan (Chinese military remote sensing)');
+  assert.equal(details.identity.kindLabel, 'Yaogan Chinese military reconnaissance satellite');
+});
+
+test('vessels, fires and other objects carry no identity block', () => {
+  assert.equal(buildSelectionDetails(vesselRecord(), { now: NOW }).identity, undefined);
+});
+
+function satelliteRecordFor(properties) {
+  return {
+    id: properties.noradId,
+    layerId: properties.militaryRule ? 'military-satellites' : 'satellites',
+    layerName: 'Satellites',
+    source: 'CelesTrak',
+    label: properties.name,
+    latitude: 1,
+    longitude: 2,
+    properties: { ...properties, altitude: '550 km' },
+  };
+}

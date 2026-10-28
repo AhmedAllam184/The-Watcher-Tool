@@ -17,7 +17,10 @@ import { createApplicationDirections } from './layers/directions.js';
 import { createApplicationRecentImagery } from './layers/recentImagery.js';
 import { createApplicationTransit } from './layers/transit.js';
 import { createApplicationInstallations } from './layers/militaryInstallations.js';
-import { createApplicationSatellites } from './layers/satellites.js';
+import {
+  createApplicationMilitarySatellites,
+  createApplicationSatellites,
+} from './layers/satellites.js';
 import { createApplicationLaunches } from './layers/rocketLaunches.js';
 import { createApplicationAlpr } from './layers/alprCameras.js';
 import { createApplicationLocalAdsb } from './layers/localAdsb.js';
@@ -105,6 +108,9 @@ export function createApplicationCatalog({
     const satellites = createApplicationSatellites({
       source: sources.satellites,
     });
+    const militarySatellites = createApplicationMilitarySatellites({
+      source: sources.satellites,
+    });
     const catalog = createLayerCatalog(
       [
         createBhoteKoshiEventLayer(),
@@ -130,6 +136,7 @@ export function createApplicationCatalog({
           providers: streetLevelProviders,
         }),
         satellites,
+        militarySatellites,
         createApplicationLaunches({ source: sources.launches, satellites }),
         createApplicationTraffic({ source: sources.traffic, surface }),
         createApplicationCctv({ surface, source: sources.cctv }),

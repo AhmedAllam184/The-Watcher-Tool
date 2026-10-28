@@ -738,13 +738,15 @@ test('the voice TOOL SCHEMA matches the pinned contract — the mission mapping 
   // Airports layer adds one layer enum value.
   // GPS Interference layer adds one layer enum value.
   // Conflict Events layer adds one layer enum value.
-  assert.equal(block.length, 30146, 'serialized tool schema length drifted');
+  // Military Satellites layer adds one layer enum value.
+  assert.equal(block.length, 30304, 'serialized tool schema length drifted');
   assert.equal(
     crypto.createHash('sha256').update(block).digest('hex'),
     // Airports layer adds one layer enum value.
     // GPS Interference layer adds one layer enum value.
     // Conflict Events layer adds one layer enum value.
-    'b1b01ecd50381c696d558e8fdf1c5ff1af22ded3427b012f006552424c657497',
+    // Military Satellites layer adds one layer enum value.
+    '588318deeb1e06430208e2efdf89e08e28690bd6881bdd8931d56fb1fa66e38e',
     'the first-run missions must ride EXISTING tools: no schema edit, no cache bust',
   );
   const instructions = fs.readFileSync(new URL('../server/providers/openai/instructions.js', import.meta.url), 'utf8');

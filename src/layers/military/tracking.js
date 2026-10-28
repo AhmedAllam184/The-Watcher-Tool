@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { resolveAircraftName } from '../../data/aircraftIdentity.js';
 import { nextCockpitNearContacts } from '../../data/cockpitAirLod.js';
 import { aircraftIcon, TRACKED_ICON_PX } from '../../data/aircraftIcons.js';
 import { trackedModelZoomActive } from '../../data/trackedModelRegime.js';
@@ -108,12 +109,17 @@ export function createTracking({
         operator: parts.queries._toCleanText(info?.operator) || '',
         callsign: described.callsign || '',
         registration: described.registration || '',
-        // Converted contacts report their class as TR-3B — the same override
-        // the readout and Contacts card show.
-        type: tr3bTypeLabel(
-          icao24,
-          parts.queries._toCleanText(info?.type) || '',
-        ),
+        // The name a person would recognise: the feed's description, then the
+        // mapped or raw designator. A converted contact reports TR-3B.
+        type:
+          resolveAircraftName({
+            typeDescription: described.typeDescription,
+            typeCode: described.typeCode,
+          }).name || '',
+        typeCode: described.typeCode || '',
+        typeDescription: described.typeDescription || '',
+        buildYear: described.buildYear ? String(described.buildYear) : '',
+        emitterCategory: described.emitterCategory || '',
         altitude: described.onGround
           ? 'on ground'
           : parts.queries._formatAltitude(info?.altitudeFt),

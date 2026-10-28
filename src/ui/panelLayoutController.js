@@ -1,7 +1,6 @@
 /** Own rail measurement, layout scheduling and dock tray observation. */
 import { layoutLeftPanelRail, layoutRightPanelRail } from './panelRails.js';
 import { syncRadioPanelPlacement } from './radioPanelPlacement.js';
-import { RIGHT_RAIL_COLLAPSED_CLASS } from './rightRailCollapse.js';
 const COCKPIT_LAYOUT_SETTLE_MS = 240;
 /**
  * Fixed UI regions that can occupy the left accordion's vertical lane.
@@ -30,17 +29,6 @@ const LEFT_STACK_OBSTACLE_SELECTOR = [
   '#command-dock',
   '#gev-voice-control',
 ].join(', ');
-/**
- * Share of the viewport height the TOOLS pane keeps free at the foot of the
- * left column, so DATA LAYERS and GUIDED TOURS cannot take the whole lane.
- */
-const TOOLS_LANE_RESERVE_VH = 0.4;
-/**
- * Fixed UI regions that can occupy the TOOLS pane's lane. The pane now shares
- * the left column with DATA LAYERS and GUIDED TOURS, so it takes the same
- * obstacles: the one column is the one lane.
- */
-const RIGHT_STACK_OBSTACLE_SELECTOR = LEFT_STACK_OBSTACLE_SELECTOR;
 export class PanelLayoutController {
   constructor({
     readHud,
@@ -68,7 +56,6 @@ export class PanelLayoutController {
     this._rightStackMutationObserver = null;
     this._rightStackPreferredPanelId = null;
     this._rightStackReconsiderAutoCollapse = false;
-    this._rightStackResizeObserver = null;
     this._cockpitLayoutFrame = null;
     this._cockpitLayoutTimer = null;
     this._leftPanelStack = document.getElementById('left-panel-stack');
@@ -168,6 +155,7 @@ export class PanelLayoutController {
     if (this.destroyed) return;
     const stack = this._rightPanelStack;
     if (!stack || !this._ppToggles) return;
+    this._mountToolsPane();
 
     this._ppToggles.style.removeProperty('top');
     this._ppToggles.style.removeProperty('right');
@@ -204,29 +192,6 @@ export class PanelLayoutController {
       if (detectionGroup) detectionGroup.after(this._sliderPanel);
       else this._ppToggles.append(this._sliderPanel);
     }
-    if (typeof ResizeObserver !== 'undefined') {
-      this._rightStackResizeObserver = new ResizeObserver(() => {
-        this._scheduleRightPanelLayout();
-      });
-      this._rightStackResizeObserver.observe(stack);
-      for (const panel of [
-        this._ppToggles,
-        this._cctvPanel,
-        this._weatherPanel,
-        this._recentImageryPanel,
-        this._streetLevelPanel,
-        globalContextPanel,
-        document.getElementById('radio-panel'),
-      ]) {
-        if (panel) this._rightStackResizeObserver.observe(panel);
-      }
-      document
-        .querySelectorAll(RIGHT_STACK_OBSTACLE_SELECTOR)
-        .forEach((element) => {
-          this._rightStackResizeObserver.observe(element);
-        });
-    }
-
     if (typeof MutationObserver !== 'undefined') {
       this._rightStackMutationObserver = new MutationObserver(() => {
         this._scheduleRightPanelLayout();
@@ -292,26 +257,32 @@ export class PanelLayoutController {
     syncRadioPanelPlacement(document);
     layoutRightPanelRail({
       stack: this._rightPanelStack,
-      obstacles: document.querySelectorAll(RIGHT_STACK_OBSTACLE_SELECTOR),
       windowRef: window,
       hud: this.readHud(),
       preferredPanelId: this._rightStackPreferredPanelId,
       onCollapse: (panel) => this._syncPanelCollapseButton(panel),
-      onRetry: () => this._scheduleRightPanelLayout(),
-      leftStack: this._leftPanelStack,
       displayPanel: this._ppToggles,
       readDisplayScrollTop: this.readDisplayScrollTop,
-      collapsedRail:
-        this._rightPanelStack?.classList.contains(
-          RIGHT_RAIL_COLLAPSED_CLASS,
-        ) === true,
     });
+  }
+
+  /**
+   * TOOLS is the third card of the left column. Move its element to the end
+   * of #left-panel-stack (after GUIDED TOURS) so the left engine allocates
+   * DATA LAYERS, GUIDED TOURS and TOOLS from one column. Idempotent.
+   */
+  _mountToolsPane() {
+    const rail = this._rightPanelStack;
+    const column = this._leftPanelStack;
+    if (!rail || !column || rail.parentElement === column) return;
+    column.append(rail);
   }
 
   _initLeftPanelAdaptiveLayout() {
     if (this.destroyed) return;
     const stack = this._leftPanelStack;
     if (!stack) return;
+    this._mountToolsPane();
 
     if (typeof ResizeObserver !== 'undefined') {
       this._leftStackResizeObserver = new ResizeObserver(() => {
@@ -324,6 +295,11 @@ export class PanelLayoutController {
           (child) => !child.classList.contains('panel-glow'),
         );
         if (inner) this._leftStackResizeObserver.observe(inner);
+        // The TOOLS card's natural height follows its sub-panels.
+        if (panel.hasAttribute('data-scroll-card'))
+          panel
+            .querySelectorAll(':scope > [data-panel-id]')
+            .forEach((child) => this._leftStackResizeObserver.observe(child));
       });
       document
         .querySelectorAll(LEFT_STACK_OBSTACLE_SELECTOR)
@@ -437,20 +413,7 @@ export class PanelLayoutController {
       onCollapse: (panel) => this._syncPanelCollapseButton(panel),
       onRetry: () => this._scheduleLeftPanelLayout(),
       collapsedHeights: this._leftStackCollapsedHeights,
-      onAligned: () => this._scheduleRightPanelLayout(),
-      reserveBottomPx: this._toolsLaneReservePx(),
     });
-  }
-
-  /**
-   * Lane the left column must leave for the TOOLS pane below it: none while
-   * the pane is collapsed to its tab, hidden (Cockpit) or absent.
-   */
-  _toolsLaneReservePx() {
-    const rail = this._rightPanelStack;
-    if (!rail || rail.classList.contains(RIGHT_RAIL_COLLAPSED_CLASS)) return 0;
-    if (!rail.getClientRects().length) return 0;
-    return Math.round(window.innerHeight * TOOLS_LANE_RESERVE_VH);
   }
   destroy() {
     if (this.destroyed) return;
@@ -470,7 +433,6 @@ export class PanelLayoutController {
       '_commandDockTrayObserver',
       '_leftStackResizeObserver',
       '_leftStackMutationObserver',
-      '_rightStackResizeObserver',
       '_rightStackMutationObserver',
     ]) {
       this[field]?.disconnect();

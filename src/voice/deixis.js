@@ -25,6 +25,7 @@ const TRACKABLE_LAYERS = new Set([
   'military',
   'ais-live-vessels',
   'satellites',
+  'military-satellites',
 ]);
 
 const DEFAULT_POINTER_RADIUS_KM = 50;

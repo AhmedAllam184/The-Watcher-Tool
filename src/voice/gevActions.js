@@ -250,6 +250,7 @@ const TRACKABLE_FAMILIES = [
   { layerId: 'military', kind: 'aircraft' },
   { layerId: 'ais-live-vessels', kind: 'vessel' },
   { layerId: 'satellites', kind: 'satellite' },
+  { layerId: 'military-satellites', kind: 'satellite' },
 ];
 
 const FRAME_TARGETS = new Map([
@@ -4618,6 +4619,7 @@ function layerTitle(layerId) {
   if (layerId === 'local-dams') return 'Dam';
   if (layerId === 'local-airports') return 'Airport';
   if (layerId === 'gps-interference') return 'GPS interference';
+  if (layerId === 'military-satellites') return 'Military satellite';
   if (layerId === 'conflict-events') return 'Conflict event';
   if (layerId === 'telegeography-submarine-cables') return 'Submarine Cable';
   if (layerId === 'local-firms') return 'Active Fire';

@@ -612,6 +612,11 @@
   content: '◎';
 }
 :root[data-ui-theme='cyber']
+  .data-toggle-row[data-layer-id='military-satellites']
+  .data-icon::before {
+  content: '⊛';
+}
+:root[data-ui-theme='cyber']
   .data-toggle-row[data-layer-id='flights']
   .data-icon::before {
   content: '△';
@@ -1605,6 +1610,7 @@
      and attribution-safe floor while its panel bodies take over scrolling. */
   :root[data-ui-theme='cyber'] #left-panel-stack {
     bottom: calc(2vh + var(--hud-footer-h) + 13rem);
+    --left-stack-pinned: 1;
   }
 }
 
@@ -1630,11 +1636,17 @@
     width: 300px;
     padding-left: 10px;
     border-left: 1px solid rgba(196, 84, 84, 0.72);
+    /* This lane pins the column's edges; the layout engine budgets the cards
+       against the rendered box (see leftPanelRail.js). */
+    --left-stack-pinned: 1;
   }
 
+  /* Open cards fill the lane while TOOLS is collapsed. With TOOLS open, the
+     layout engine shares the lane between the cards, so they keep their
+     allocations and scroll inside them. */
   :root[data-ui-theme='cyber']
     body:not(.cockpit-mode)
-    #left-panel-stack:has(> [data-panel-id]:not(.collapsed))
+    #left-panel-stack:has(> [data-panel-id]:not(.collapsed)):not(:has(> #right-context-rail:not(.collapsed)))
     > :is(#data-panel, #cctv-panel, #scene-panel):not(.collapsed) {
     flex: 1 1 auto;
     height: auto;
@@ -1648,17 +1660,19 @@
     flex: 0 0 auto;
   }
 
+  /* DATA LAYERS, GUIDED TOURS and TOOLS are one column: every card takes the
+     column width, expanded or collapsed. */
   :root[data-ui-theme='cyber']
     #left-panel-stack
     > :is(#data-panel, #scene-panel) {
     --panel-expanded-width: var(--cyber-panel-width);
-    width: var(--panel-expanded-width);
+    width: 100%;
   }
 
   :root[data-ui-theme='cyber']
     #left-panel-stack
     > :is(#data-panel, #scene-panel).collapsed {
-    width: var(--cyber-panel-collapsed-width);
+    width: 100%;
   }
 
   :root[data-ui-theme='cyber']
@@ -1699,11 +1713,9 @@
   }
 
   :root[data-ui-theme='cyber'] #right-context-rail {
-    --right-display-collapsed-width: var(--cyber-panel-collapsed-width);
-    --right-context-collapsed-width: var(--cyber-panel-collapsed-width);
-    left: var(--left-stack-x);
-    right: auto;
-    width: 312px;
+    --right-display-collapsed-width: 100%;
+    --right-context-collapsed-width: 100%;
+    width: 100%;
   }
 
   /* The map rails now use one visible expanded width. Keeping the rail itself
@@ -1719,11 +1731,11 @@
       #street-level-panel,
       #global-context-panel
     ):not(.collapsed) {
-    width: var(--cyber-right-panel-width);
+    width: 100%;
   }
 
   :root[data-ui-theme='cyber'] #right-context-rail > #pp-toggles {
-    --pp-expanded-width: var(--cyber-right-panel-width);
+    --pp-expanded-width: 100%;
   }
 
   :root[data-ui-theme='cyber'] #global-context-panel #radio-panel.collapsed {
@@ -2818,8 +2830,3 @@
   }
 }
 
-/* The collapsed tools pane is a slim tab in Cyber too, overriding its wider
-   rail width. */
-:root[data-ui-theme='cyber'] #right-context-rail.right-rail-collapsed {
-  width: 40px;
-}

@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { resolveAircraftName } from '../../data/aircraftIdentity.js';
 import { nextCockpitNearContacts } from '../../data/cockpitAirLod.js';
 import { trackedModelZoomActive } from '../../data/trackedModelRegime.js';
 import {
@@ -132,7 +133,19 @@ export function createTracking({
         operator: described.airline || '',
         callsign: described.callsign || '',
         registration: described.registration || '',
-        type: described.typeName || described.typeCode || '',
+        // The name a person would recognise: the feed's description, then the
+        // adsbdb type name, then the mapped or raw designator.
+        type:
+          resolveAircraftName({
+            typeDescription: described.typeDescription,
+            typeName: described.typeName,
+            typeCode: described.typeCode,
+          }).name || '',
+        typeCode: described.typeCode || '',
+        typeDescription: described.typeDescription || '',
+        buildYear: described.buildYear ? String(described.buildYear) : '',
+        emitterCategory: described.emitterCategory || '',
+        militaryFlag: described.militaryFlag ? 'yes' : '',
         altitude: described.onGround
           ? 'on ground'
           : `${altFt.toLocaleString('en-US')} ft`,

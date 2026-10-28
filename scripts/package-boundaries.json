@@ -63,6 +63,7 @@
       "src/data/aisStreamAdapter.js",
       "src/data/aisWatchdog.js",
       "src/data/militaryTypeNames.js",
+      "server/providers/identify.js",
       "src/sources/httpBody.js"
     ],
     "external": ["ws"]
@@ -576,6 +577,12 @@
       "src/data/conflictLabels.js",
       "src/data/airportStatusLabels.js",
       "src/data/satelliteClass.js",
+      "src/data/militarySatellites.js",
+      "src/sources/identifyInfo.js",
+      "src/data/aircraftIdentity.js",
+      "src/data/satelliteIdentity.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/tr3bRegistry.js",
       "src/data/installationFeedback.js",
       "src/data/idSwitches.js",
       "src/data/layerState.js",
@@ -832,7 +839,9 @@
       "src/sources/live/contract.js",
       "src/sources/live/index.js",
       "src/sources/live/standalone.js",
-      "src/sources/live/vessels.js"
+      "src/sources/live/vessels.js",
+      "src/data/aircraftIdentity.js",
+      "src/data/militaryTypeNames.js"
     ],
     "external": []
   },
@@ -881,7 +890,9 @@
       "src/data/tripSummary.js",
       "src/data/holdingDetection.js",
       "src/data/inputOwnership.js",
-      "src/data/modelEligibility.js"
+      "src/data/modelEligibility.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/aircraftIdentity.js"
     ],
     "external": ["cesium"]
   },
@@ -927,7 +938,9 @@
       "src/data/tripSummary.js",
       "src/data/holdingDetection.js",
       "src/data/inputOwnership.js",
-      "src/data/modelEligibility.js"
+      "src/data/modelEligibility.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/aircraftIdentity.js"
     ],
     "external": ["cesium"]
   },
@@ -1036,6 +1049,7 @@
     "modules": [
       "src/data/issPass.js",
       "src/data/satelliteClass.js",
+      "src/data/militarySatellites.js",
       "src/data/satellitePass.js",
       "src/sources/tle.js",
       "src/layers/satellites/catalog.js",
@@ -1647,6 +1661,11 @@
       "src/data/rocketLaunches.js",
       "src/data/routePlausible.js",
       "src/data/satelliteClass.js",
+      "src/data/militarySatellites.js",
+      "src/sources/identifyInfo.js",
+      "src/data/aircraftIdentity.js",
+      "src/data/satelliteIdentity.js",
+      "src/data/militaryTypeNames.js",
       "src/data/satellitePass.js",
       "src/data/satellites.js",
       "src/data/scenePick.js",
@@ -2422,6 +2441,7 @@
       "src/data/retryableLoad.js",
       "src/data/routePlausible.js",
       "src/data/satelliteClass.js",
+      "src/data/militarySatellites.js",
       "src/data/scenePick.js",
       "src/data/spriteOrder.js",
       "src/data/tomtomTiles.js",
@@ -2842,7 +2862,9 @@
       "src/data/local_data/osm_military_names/names.json",
       "src/layers/installations/namedMarkers.js",
       "src/data/infrastructureOverlayEntry.js",
-      "src/sources/infrastructureData.js"
+      "src/sources/infrastructureData.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/aircraftIdentity.js"
     ],
     "external": [
       "hls.js",
@@ -3005,7 +3027,9 @@
       "src/layers/flights/recordPolicy.js",
       "src/data/aircraftMeta.js",
       "src/data/renderAltitude.js",
-      "src/data/aircraftClass.js"
+      "src/data/aircraftClass.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/aircraftIdentity.js"
     ],
     "external": []
   },
@@ -3026,7 +3050,9 @@
       "src/layers/military/recordPolicy.js",
       "src/data/aircraftMeta.js",
       "src/data/renderAltitude.js",
-      "src/data/aircraftClass.js"
+      "src/data/aircraftClass.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/aircraftIdentity.js"
     ],
     "external": []
   },
@@ -3579,7 +3605,9 @@
       "src/layers/alpr/records.js",
       "src/layers/alpr/tileRecords.js",
       "src/sources/infrastructureData.js",
-      "src/sources/eventPacks.js"
+      "src/sources/eventPacks.js",
+      "src/data/militaryTypeNames.js",
+      "src/data/aircraftIdentity.js"
     ],
     "external": ["@mapbox/vector-tile", "pbf"]
   },

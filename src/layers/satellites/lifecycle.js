@@ -16,7 +16,7 @@ export function createLifecycle({
 
     async init(viewer) {
       parts.catalog._abortActiveUpdates();
-      clearFocusTarget('satellites');
+      clearFocusTarget(layerState._layerId);
       layerState._viewer = viewer;
       layerState._catalog = new Map();
       layerState._points = new Map();
@@ -33,8 +33,10 @@ export function createLifecycle({
       layerState._lastFocusUpdate = 0;
       layerState._activeFocusCount = 0;
       layerState._enabled = false;
-      layerState._overlayHost.clearSource(ISS_OVERLAY_SOURCE_ID);
-      layerState._overlayHost.setVisible(ISS_OVERLAY_SOURCE_ID, false);
+      if (layerState._ownsIssOverlay) {
+        layerState._overlayHost.clearSource(ISS_OVERLAY_SOURCE_ID);
+        layerState._overlayHost.setVisible(ISS_OVERLAY_SOURCE_ID, false);
+      }
       // Dense extras rebuild via update() when _params.catalog === 'dense'
       // (the catalog-mode preference itself is sticky across init/destroy).
       layerState._denseIds = [];
@@ -62,7 +64,7 @@ export function createLifecycle({
 
     enable(viewer) {
       layerState._enabled = true;
-      holdContinuousRender('satellites'); // per-frame animator (perf wave 2)
+      holdContinuousRender(layerState._layerId); // per-frame animator (perf wave 2)
       if (layerState._pointCollection)
         layerState._pointCollection.show =
           parts.controls.satelliteVisualsVisible(
@@ -76,7 +78,7 @@ export function createLifecycle({
       parts.interaction._installClickHandler(viewer);
       // Pick-ownership (H2): satellite dot ids are numeric NORAD catalog numbers;
       // the registry hands predicates String()-coerced ids, so match via Number().
-      registerPickOwner('satellites', (pickedId) => {
+      registerPickOwner(layerState._layerId, (pickedId) => {
         const norad = Number(pickedId);
         return Number.isFinite(norad) && layerState._points.has(norad);
       });
@@ -92,7 +94,7 @@ export function createLifecycle({
       parts.catalog._abortActiveUpdates();
       parts.tracking._cancelPendingTrackingRestore();
       layerState._enabled = false;
-      releaseContinuousRender('satellites');
+      releaseContinuousRender(layerState._layerId);
       if (layerState._pointCollection) layerState._pointCollection.show = false;
       // Layer off: no orbit line survives. Enable re-draws what the selection needs.
       parts.rendering._clearOrbitPaths();
@@ -108,7 +110,7 @@ export function createLifecycle({
         layerState._trackedEntityChangedRemove = null;
       }
       document.removeEventListener('keydown', parts.interaction._onKeyDown);
-      unregisterPickOwner('satellites');
+      unregisterPickOwner(layerState._layerId);
       if (layerState._preRenderListener) {
         layerState._preRenderListener();
         layerState._preRenderListener = null;
@@ -117,7 +119,7 @@ export function createLifecycle({
 
     destroy(viewer) {
       parts.catalog._abortActiveUpdates();
-      releaseContinuousRender('satellites'); // direct-destroy path (perf wave 2 fix)
+      releaseContinuousRender(layerState._layerId); // direct-destroy path (perf wave 2 fix)
       layerState._enabled = false;
       parts.tracking._clearTracking();
       parts.tracking._cancelPendingTrackingRestore();
@@ -130,13 +132,15 @@ export function createLifecycle({
         layerState._trackedEntityChangedRemove = null;
       }
       document.removeEventListener('keydown', parts.interaction._onKeyDown);
-      unregisterPickOwner('satellites');
+      unregisterPickOwner(layerState._layerId);
       if (layerState._preRenderListener) {
         layerState._preRenderListener();
         layerState._preRenderListener = null;
       }
-      layerState._overlayHost.clearSource(ISS_OVERLAY_SOURCE_ID);
-      layerState._overlayHost.setVisible(ISS_OVERLAY_SOURCE_ID, false);
+      if (layerState._ownsIssOverlay) {
+        layerState._overlayHost.clearSource(ISS_OVERLAY_SOURCE_ID);
+        layerState._overlayHost.setVisible(ISS_OVERLAY_SOURCE_ID, false);
+      }
       if (layerState._pointCollection) {
         viewer.scene.primitives.remove(layerState._pointCollection);
         layerState._pointCollection = null;

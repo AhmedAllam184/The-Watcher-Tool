@@ -5,7 +5,7 @@
   bottom: var(--left-stack-safe-bottom, 4vh);
   left: var(--left-stack-x);
   z-index: 100;
-  width: 360px;
+  width: 320px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -142,23 +142,45 @@
   max-width: 100%;
   min-height: 0;
 }
+/* TOOLS is the third card of #left-panel-stack, not a separate column. The
+   left engine allocates its height with DATA LAYERS and GUIDED TOURS, and its
+   body scrolls inside that height, so the three cards cannot overlap. */
 #right-context-rail {
   --right-display-collapsed-width: var(--left-collapsed-width);
   --right-context-collapsed-width: var(--left-collapsed-width);
-  position: fixed;
-  z-index: 110;
-  top: var(--right-stack-safe-top, 26vh);
-  left: var(--left-stack-x);
-  width: 330px;
-  max-height: var(--right-stack-max-height, 70vh);
+  position: relative;
+  inset: auto;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: none;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  pointer-events: none;
-  transition:
-    top var(--transition-fast),
-    max-height var(--transition-fast);
+  padding: 0 12px 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.5) rgba(255, 255, 255, 0.04);
+  pointer-events: auto;
+}
+/* Third card of the column: after DATA LAYERS (order 1) and GUIDED TOURS (4). */
+#left-panel-stack > #right-context-rail {
+  order: 5;
+}
+#left-panel-stack > #right-context-rail:not(.collapsed) {
+  flex: 0 1 var(--left-panel-allocated-height, auto);
+  height: var(--left-panel-allocated-height, auto);
+  max-height: var(--left-panel-allocated-height, 100%);
 }
 #right-context-rail > #pp-toggles,
 #right-context-rail > #cctv-panel:not(.panel-floating),
@@ -1489,74 +1511,43 @@ body.recording-mode #right-context-rail > [data-panel-id] {
   display: none;
 }
 
-/* TOOLS header: the first flex item of the column, above every panel. */
-#right-context-rail > .right-rail-header {
+/* TOOLS header: the same .panel-header row as DATA LAYERS and GUIDED TOURS.
+   It is the card's first item and stays pinned while the body scrolls. The
+   header is a card row, so its width is set to the card's own padding box. */
+#left-panel-stack > #right-context-rail > .panel-header {
   order: -1;
+  position: sticky;
+  top: 0;
+  z-index: 3;
   flex: 0 0 auto;
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  padding: 0 8px 0 14px;
-  pointer-events: auto;
+  width: calc(100% + 24px);
+  margin: 0 -12px 8px;
+  padding: 14px 16px 10px;
+  background: var(--glass-bg);
 }
-#right-context-rail > .right-rail-header .right-rail-label {
-  flex: 1 1 auto;
-  font-family: var(--font-mono);
-  font-size: 11px;
+/* Sub-panel headers scroll with their body; only the TOOLS header pins. */
+#left-panel-stack > #right-context-rail [data-panel-id] .panel-header {
+  position: static;
+  z-index: auto;
+}
+/* Same title as DATA LAYERS and GUIDED TOURS, not the rail's sub-panel size. */
+#left-panel-stack > #right-context-rail > .panel-header .panel-title {
+  font-size: 9px;
   letter-spacing: 3px;
-  color: rgba(255, 255, 255, 0.85);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-#right-context-rail .right-rail-toggle {
-  display: grid;
-  place-items: center;
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
   color: var(--text-dim);
-  cursor: pointer;
-}
-#right-context-rail .right-rail-toggle .material-symbols-outlined {
-  font-size: 16px;
-  line-height: 1;
-}
-#right-context-rail .right-rail-toggle:hover {
-  color: var(--text-primary);
-  border-color: var(--glass-border-hover);
-}
-#right-context-rail .right-rail-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
-/* Collapsed pane: a slim vertical tab reading TOOLS. Every panel is out of
-   layout (the rail layout also treats them as absent). */
-#right-context-rail.right-rail-collapsed {
-  width: 40px;
+/* Collapsed TOOLS is its header row alone, like a collapsed DATA LAYERS card.
+   Its sub-panels leave layout while their own disclosure state is kept. */
+#left-panel-stack > #right-context-rail.collapsed {
+  padding-bottom: 0;
+  overflow: hidden;
 }
-#right-context-rail.right-rail-collapsed > .right-rail-header {
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  min-height: 0;
-  padding: 12px 0;
+#left-panel-stack > #right-context-rail.collapsed > .panel-header {
+  margin-bottom: 0;
+  padding-bottom: 12px;
 }
-#right-context-rail.right-rail-collapsed
-  > .right-rail-header
-  .right-rail-label {
-  flex: 0 0 auto;
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  letter-spacing: 3px;
-}
-#right-context-rail.right-rail-collapsed > [data-panel-id] {
+#right-context-rail.collapsed > [data-panel-id] {
   display: none !important;
 }

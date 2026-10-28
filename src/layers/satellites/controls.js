@@ -114,9 +114,9 @@ export function createControls({ state: layerState, services, parts, source }) {
     );
   }
   const methods = {
-    id: 'satellites',
+    id: layerState._layerId,
 
-    name: 'Satellites',
+    name: layerState._layerName,
 
     icon: '🛰️',
 
@@ -437,6 +437,8 @@ export function createControls({ state: layerState, services, parts, source }) {
       const catalog = params.catalog;
       if (catalog !== undefined && catalog !== 'core' && catalog !== 'dense')
         return false;
+      // The military layer has no DENSE mode: its catalogue is the military list.
+      if (catalog === 'dense' && !layerState._allowDense) return false;
       const catalogChanged = satelliteCatalogModeChanged(
         layerState._params.catalog,
         catalog,
@@ -552,37 +554,39 @@ export function createControls({ state: layerState, services, parts, source }) {
       else if (active)
         title =
           'Showing the full Starlink shell — click for the core catalog only';
+      const chips = [];
+      if (layerState._allowDense)
+        chips.push({
+          id: 'catalog',
+          label: loading ? 'DENSE ···' : failed ? 'DENSE ✕' : 'DENSE',
+          active,
+          busy: loading,
+          disabled: loading,
+          state: loading
+            ? 'loading'
+            : failed
+              ? 'error'
+              : active
+                ? 'active'
+                : 'idle',
+          title,
+          params: { catalog: active ? 'core' : 'dense' },
+        });
+      if (layerState._ownsIssOverlay)
+        chips.push({
+          id: 'iss-orbit',
+          label: 'Show ISS orbit',
+          active: issOrbitOn,
+          busy: false,
+          disabled: false,
+          state: issOrbitOn ? 'active' : 'idle',
+          title: issOrbitOn
+            ? 'Hide the ISS orbit line'
+            : 'Draw the ISS orbit line',
+          params: { showIssOrbit: !issOrbitOn },
+        });
       return {
-        chips: [
-          {
-            id: 'catalog',
-            label: loading ? 'DENSE ···' : failed ? 'DENSE ✕' : 'DENSE',
-            active,
-            busy: loading,
-            disabled: loading,
-            state: loading
-              ? 'loading'
-              : failed
-                ? 'error'
-                : active
-                  ? 'active'
-                  : 'idle',
-            title,
-            params: { catalog: active ? 'core' : 'dense' },
-          },
-          {
-            id: 'iss-orbit',
-            label: 'Show ISS orbit',
-            active: issOrbitOn,
-            busy: false,
-            disabled: false,
-            state: issOrbitOn ? 'active' : 'idle',
-            title: issOrbitOn
-              ? 'Hide the ISS orbit line'
-              : 'Draw the ISS orbit line',
-            params: { showIssOrbit: !issOrbitOn },
-          },
-        ],
+        chips,
         legend: satelliteClassLegend(_classTally()),
       };
     },

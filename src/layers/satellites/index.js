@@ -10,12 +10,34 @@ import { createLifecycle } from './lifecycle.js';
 import { createIngestion } from './ingestion.js';
 import { createRecords } from './records.js';
 import { createState } from './state.js';
+import { isCivil } from '../../data/militarySatellites.js';
 
-/** Construct one layer with its own scene state and supplied application services. */
-export function createSatellitesLayer({ services, source }) {
+/**
+ * Construct one layer with its own scene state and supplied application services.
+ * The defaults are the civil Satellites layer; the Military Satellites layer
+ * passes its own id, filter and group tag and turns off DENSE and the ISS label.
+ */
+export function createSatellitesLayer({
+  services,
+  source,
+  id = 'satellites',
+  name = 'Satellites',
+  filter = isCivil,
+  groupTag = null,
+  allowDense = true,
+  ownsIssOverlay = true,
+}) {
   if (typeof source?.readGroup !== 'function')
     throw new TypeError('A satellites source is required');
-  const state = createState({ services });
+  const state = createState({
+    services,
+    layerId: id,
+    layerName: name,
+    filter,
+    groupTag,
+    allowDense,
+    ownsIssOverlay,
+  });
   const parts = {};
   const context = { state, services, parts, source };
   parts.controls = createControls(context);

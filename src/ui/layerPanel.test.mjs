@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
-test('panel presentation places Transit between Street Traffic and Bike Share in Movement', () => {
+test('panel presentation groups layers by theme, most important first', () => {
   const source = readFileSync(
     new URL('./layerPanel.js', import.meta.url),
     'utf8',
@@ -12,24 +12,74 @@ test('panel presentation places Transit between Street Traffic and Bike Share in
     source.indexOf('const PANEL_GROUPS ='),
     source.indexOf('const PANEL_POSITIONS ='),
   );
-  const order = JSON.parse(
-    runInNewContext(`${declarations}\nJSON.stringify(PANEL_ORDER)`),
+  const groups = JSON.parse(
+    runInNewContext(`${declarations}\nJSON.stringify(PANEL_GROUPS)`),
   );
   assert.deepEqual(
-    order.filter(({ label }) => label === 'Movement').map(({ id }) => id),
+    groups.map(({ label }) => label),
     [
-      'satellites',
-      'flights',
+      'Military & Security',
+      'Air & Sea',
+      'Hazards',
+      'Weather',
+      'Infrastructure',
+      'Cameras & Imagery',
+      'City & Transport',
+      'Utilities',
+    ],
+  );
+  const order = groups.flatMap(({ label, ids }) =>
+    ids.map((id) => ({ id, label })),
+  );
+  assert.deepEqual(
+    order
+      .filter(({ label }) => label === 'City & Transport')
+      .map(({ id }) => id),
+    ['traffic', 'transit', 'bikeshare', 'local-adsb'],
+  );
+  assert.deepEqual(
+    order
+      .filter(({ label }) => label === 'Military & Security')
+      .map(({ id }) => id),
+    [
       'military',
+      'military-satellites',
+      'military-installations',
+      'conflict-events',
       'gps-interference',
-      'local-adsb',
-      'ais-live-vessels',
-      'traffic',
-      'transit',
-      'bikeshare',
     ],
   );
   assert.equal(order.filter(({ id }) => id === 'transit').length, 1);
+});
+
+test('every layer with a panel row appears in exactly one group', async () => {
+  const source = readFileSync(
+    new URL('./layerPanel.js', import.meta.url),
+    'utf8',
+  );
+  const declarations = source.slice(
+    source.indexOf('const PANEL_GROUPS ='),
+    source.indexOf('const PANEL_POSITIONS ='),
+  );
+  const ids = JSON.parse(
+    runInNewContext(
+      `${declarations}\nJSON.stringify(PANEL_GROUPS.flatMap(({ ids }) => ids))`,
+    ),
+  );
+  assert.equal(new Set(ids).size, ids.length, 'a layer is listed twice');
+  // Registered layers with no panel row by design: the awareness overlay and
+  // the Bhote Koshi event and locator layers (showInTogglePanel: false).
+  const hiddenFromPanel = new Set([
+    'military-awareness',
+    'bhote-koshi-2026',
+    'bhote-koshi-locator',
+  ]);
+  const { REGISTERED_LAYER_IDS } = await import('../data/layerState.js');
+  const expected = [
+    ...REGISTERED_LAYER_IDS.filter((id) => !hiddenFromPanel.has(id)),
+    'local-adsb',
+  ].sort();
+  assert.deepEqual([...ids].sort(), expected);
 });
 
 test('partial feed controls distinguish incomplete records from stale data and outages', async () => {

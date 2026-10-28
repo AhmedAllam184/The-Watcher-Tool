@@ -6,6 +6,12 @@
 import { normalizeVesselType } from '../data/vesselLabels.js';
 import { describeSquawk } from '../data/squawk.js';
 import { satcatObjectTypeText } from '../data/satcatCodes.js';
+import {
+  describeAircraft,
+  resolveAircraftName,
+} from '../data/aircraftIdentity.js';
+import { describeSatellite } from '../data/satelliteIdentity.js';
+import { TR3B_TYPE_LABEL } from '../data/tr3bRegistry.js';
 
 const FEET_PER_METRE = 3.28084;
 const KMH_PER_KNOT = 1.852;
@@ -188,6 +194,66 @@ function coordinateText(latitude, longitude) {
   return `${lat}, ${lon}`;
 }
 
+/** Upper-case designator with no spaces, or '' when there is none. */
+function designatorOf(value) {
+  return String(value ?? '')
+    .replace(/\s+/g, '')
+    .toUpperCase();
+}
+
+/**
+ * The aircraft's resolved name from the context properties: the feed's
+ * description, then the adsbdb or mapped name, then the raw designator. A
+ * type text that is only the designator is not a name, so it is not used as one.
+ */
+function aircraftNaming(properties) {
+  const typeText = String(properties.type || '').trim();
+  const code =
+    designatorOf(properties.typeCode) ||
+    (/^[A-Za-z0-9]{3,5}$/.test(typeText) ? designatorOf(typeText) : '') ||
+    null;
+  const namedText =
+    typeText && designatorOf(typeText) !== code ? typeText : null;
+  return resolveAircraftName({
+    typeDescription: String(properties.typeDescription || '').trim() || null,
+    typeName: namedText,
+    typeCode: code,
+  });
+}
+
+/** "IAI Heron (HRON)" for a named type, the designator alone otherwise. */
+function aircraftLabelOf(naming) {
+  if (!naming.named) return naming.code || '';
+  const sameAsCode = naming.code === designatorOf(naming.name);
+  return naming.code && !sameAsCode
+    ? `${naming.name} (${naming.code})`
+    : naming.name;
+}
+
+/**
+ * The "What is it?" block for an aircraft: its kind, checkable facts, and the
+ * Wikipedia query for its article. Null for a converted TR-3B contact, whose
+ * label is a deliberate override rather than an identity.
+ */
+function aircraftIdentityOf(record, properties, naming) {
+  if (naming.name === TR3B_TYPE_LABEL) return null;
+  const described = describeAircraft({
+    typeCode: naming.code,
+    typeDescription: naming.named ? naming.name : null,
+    emitterCategory: properties.emitterCategory || null,
+    buildYear: leadingNumber(properties.buildYear),
+    military:
+      record.layerId === 'military' || properties.militaryFlag === 'yes',
+  });
+  return {
+    kindLabel: described.kindLabel,
+    facts: described.facts,
+    wikiKind: 'aircraft',
+    wikiQuery: naming.named ? `${naming.name} aircraft` : null,
+    programme: null,
+  };
+}
+
 function buildFlight(record, properties) {
   const callsign = String(properties.callsign || '').trim();
   const icao24 = String(properties.icao24 || '').trim();
@@ -212,7 +278,8 @@ function buildFlight(record, properties) {
       `Not published for ${callsign || icao24.toUpperCase()}`,
     );
   else pushRow(rows, 'Route', properties.route);
-  pushRow(rows, 'Aircraft', properties.type);
+  const naming = aircraftNaming(properties);
+  pushRow(rows, 'Aircraft', aircraftLabelOf(naming));
   pushRow(rows, 'Registration', properties.registration);
   pushRow(rows, 'Airborne since', properties.airborneSince);
   if (/on ground/i.test(altitude)) pushRow(rows, 'Altitude', 'On the ground');
@@ -261,6 +328,7 @@ function buildFlight(record, properties) {
     // Type text for the photo's type fallback (a name, or a military code).
     photoType:
       String(properties.typeName || properties.type || '').trim() || null,
+    identity: aircraftIdentityOf(record, properties, naming),
   };
 }
 
@@ -395,6 +463,13 @@ function buildSatellite(record, properties, satelliteInfo) {
     satelliteInfo && satelliteInfo.norad === norad ? satelliteInfo : null;
   const data = info?.status === 'ok' ? info.satellite : null;
   const typeHint = objectTypeFromName(name);
+  const identity = describeSatellite({
+    name,
+    objectType: data?.objectType ?? null,
+    owner: data?.owner ?? null,
+    classLabel: String(properties.class || ''),
+    militaryRule: String(properties.militaryRule || ''),
+  });
   const rows = [];
   const links = [];
   pushRow(rows, 'NORAD ID', norad);
@@ -419,6 +494,8 @@ function buildSatellite(record, properties, satelliteInfo) {
       pushRow(rows, 'Catalogue', 'Info unavailable');
   }
   pushRow(rows, 'Class', properties.class);
+  const militaryRule = String(properties.militaryRule || '').trim();
+  if (militaryRule) pushRow(rows, 'Military', `yes — ${militaryRule}`);
   pushRow(rows, 'Altitude', properties.altitude);
   if (norad) {
     links.push({
@@ -439,6 +516,13 @@ function buildSatellite(record, properties, satelliteInfo) {
     links,
     alert: null,
     satelliteNorad: norad,
+    identity: {
+      kindLabel: identity.kindLabel,
+      facts: identity.facts,
+      wikiKind: 'satellite',
+      wikiQuery: identity.wikiQuery,
+      programme: identity.programme,
+    },
   };
 }
 
@@ -467,7 +551,9 @@ function buildOther(record, properties) {
  * @returns {string|null}
  */
 export function satelliteNoradOf(record) {
-  if (String(record?.layerId || '') !== 'satellites') return null;
+  const layerId = String(record?.layerId || '');
+  if (layerId !== 'satellites' && layerId !== 'military-satellites')
+    return null;
   const id = String(record.properties?.noradId ?? record.id ?? '').trim();
   return /^\d{1,9}$/.test(id) && Number(id) > 0 ? String(Number(id)) : null;
 }
@@ -496,7 +582,7 @@ export function buildSelectionDetails(
     details = buildFlight(record, properties);
   else if (layerId === 'ais-live-vessels')
     details = buildVessel(record, properties, now);
-  else if (layerId === 'satellites')
+  else if (layerId === 'satellites' || layerId === 'military-satellites')
     details = buildSatellite(record, properties, satelliteInfo);
   else if (record.source === 'NASA FIRMS' || layerId.includes('firms'))
     details = buildFire(properties, latitude, longitude);

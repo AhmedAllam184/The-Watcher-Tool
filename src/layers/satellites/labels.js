@@ -93,6 +93,9 @@ export function createLabels({ state: layerState, services, parts, source }) {
   /** Keep persistent ISS text mutually exclusive with the tracked host card. */
 
   function _syncIssOverlay() {
+    // The ISS label belongs to the civil layer; the military layer must never
+    // clear or repaint the shared overlay source.
+    if (!layerState._ownsIssOverlay) return;
     // Hidden when ISS is the tracked subject, and equally when ISS is DOCKED to
     // whatever is tracked: its ambient label would otherwise sit underneath the
     // tracked card at the same position.

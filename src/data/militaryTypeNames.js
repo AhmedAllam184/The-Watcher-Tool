@@ -32,4 +32,5 @@ export const MILITARY_TYPE_NAMES = Object.freeze({
   MQ9: 'MQ-9 Reaper',
   RQ4: 'RQ-4 Global Hawk',
   P3: 'P-3 Orion',
+  HRON: 'IAI Heron',
 });

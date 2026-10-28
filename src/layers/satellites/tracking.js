@@ -77,12 +77,12 @@ export function createTracking({ state: layerState, services, parts, source }) {
     layerState._dockedCompanions = new Set();
     layerState._lastDockedScanMs = Number.NEGATIVE_INFINITY;
     if (!layerState._trackedNorad) {
-      clearFocusTarget('satellites');
+      clearFocusTarget(layerState._layerId);
       parts.labels._syncIssOverlay();
       return;
     }
     const clearedNorad = layerState._trackedNorad;
-    clearFocusTarget('satellites', layerState._trackedNorad);
+    clearFocusTarget(layerState._layerId, layerState._trackedNorad);
 
     const lastPos = layerState._points.get(layerState._trackedNorad);
 
@@ -115,10 +115,10 @@ export function createTracking({ state: layerState, services, parts, source }) {
     // Drops the tracked line; the ISS line stays only while its chip is on.
     parts.rendering._syncOrbitPaths();
     parts.labels._syncIssOverlay();
-    clearTrackedSubjectContext('satellites');
+    clearTrackedSubjectContext(layerState._layerId);
     layerState._contextRefreshedAtMs = 0;
     _emitAwarenessEvent('gev:awareness-subject-cleared', {
-      layerId: 'satellites',
+      layerId: layerState._layerId,
       id: clearedNorad,
       origin,
     });
@@ -183,7 +183,7 @@ export function createTracking({ state: layerState, services, parts, source }) {
       // Exact SGP4 frame cache only: dot, host readout, camera, and focus rectangle all
       // share one epoch, avoiding a second propagation phase and its old jitter.
       publishFocusTargetFromCachedPosition({
-        ownerLayer: 'satellites',
+        ownerLayer: layerState._layerId,
         id: layerState._trackedNorad,
         scene: layerState._viewer?.scene,
         camera: layerState._viewer?.camera,
@@ -225,8 +225,8 @@ export function createTracking({ state: layerState, services, parts, source }) {
       : null;
     return {
       id: String(noradId),
-      layerId: 'satellites',
-      layerName: 'Satellites',
+      layerId: layerState._layerId,
+      layerName: layerState._layerName,
       source: 'CelesTrak',
       label: name,
       latitude: pos.latitude,
@@ -237,6 +237,8 @@ export function createTracking({ state: layerState, services, parts, source }) {
         name,
         operator: '',
         noradId: String(noradId),
+        // Why a military-layer satellite is military; empty for civil satellites.
+        militaryRule: sat.militaryRule || '',
         class: satelliteClassLabel(sat.group, { isIss: noradId === ISS_NORAD }),
         altitude:
           altitudeKm === null ? '' : `${altitudeKm.toLocaleString('en-US')} km`,
@@ -322,7 +324,7 @@ export function createTracking({ state: layerState, services, parts, source }) {
     // erased. Re-reading it would skip this guard on exactly the runs that need
     // it and delete a subject the dense catalog might have carried.
     if (denseSettlement && layerState._denseStatus !== 'ready') return;
-    clearTrackedSubjectContext('satellites');
+    clearTrackedSubjectContext(layerState._layerId);
     layerState._contextRefreshedAtMs = 0;
   }
 
@@ -443,12 +445,12 @@ export function createTracking({ state: layerState, services, parts, source }) {
       },
     });
     layerState._trackedEntity.gevSelectionOrigin = origin;
-    layerState._trackedEntity.gevTrackedId = `satellites:${noradId}`;
+    layerState._trackedEntity.gevTrackedId = `${layerState._layerId}:${noradId}`;
     layerState._trackedEntity.gevDisplayPosition = _trackedDisplayCached;
     _updateTrackedSatelliteLabelModel(initialPos?.altitude ?? null);
 
     _emitAwarenessEvent('gev:awareness-subject-selected', {
-      layerId: 'satellites',
+      layerId: layerState._layerId,
       id: noradId,
       label: name,
       position: Cesium.Cartesian3.clone(point.position),

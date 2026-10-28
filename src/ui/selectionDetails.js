@@ -10,6 +10,7 @@ import {
 } from './selectionDetailsModel.js';
 import { createAircraftPhotoLoader } from './aircraftPhoto.js';
 import { createSatelliteInfoLoader } from '../sources/satelliteInfo.js';
+import { createIdentifyLoader } from '../sources/identifyInfo.js';
 
 const REFRESH_MS = 1000;
 const KIND_LABELS = {
@@ -40,6 +41,26 @@ function writeClipboard(text) {
 }
 
 /**
+ * The photo box's view of a Wikipedia image: the caption says whose photo it is.
+ * An aircraft type's image is not this airframe; a satellite's shows its programme.
+ */
+function articlePhoto(article, identity) {
+  const isSatellite = identity.wikiKind === 'satellite';
+  const caption = isSatellite
+    ? `Illustration/photo of ${identity.programme || article.title} (Wikipedia)`
+    : 'Photo of the type (Wikipedia) — not this exact aircraft';
+  return {
+    src: article.image,
+    link: article.link,
+    photographer: null,
+    source: 'Wikipedia',
+    kind: 'article',
+    title: article.title,
+    caption,
+  };
+}
+
+/**
  * Create the selection details panel and attach it to `root`.
  * @param {object} [options]
  * @param {HTMLElement} [options.root=document.body] Element that receives the panel.
@@ -49,6 +70,7 @@ function writeClipboard(text) {
  * @param {() => number} [options.now] Clock for relative times.
  * @param {{load: (hex: string, options?: {type?: string|null}) => Promise<object|null>}} [options.photoLoader] Aircraft photo source.
  * @param {{load: (norad: string) => Promise<{satellite: object|null}>}} [options.satelliteInfoLoader] Satellite catalogue source.
+ * @param {{load: (kind: string, query: string) => Promise<object|null>}} [options.identifyLoader] Wikipedia article source.
  * @returns {{show: Function, hide: Function, refresh: Function, destroy: Function}}
  */
 export function createSelectionDetailsPanel({
@@ -59,6 +81,7 @@ export function createSelectionDetailsPanel({
   now = () => Date.now(),
   photoLoader = createAircraftPhotoLoader(),
   satelliteInfoLoader = createSatelliteInfoLoader(),
+  identifyLoader = createIdentifyLoader(),
 } = {}) {
   const doc = root.ownerDocument || document;
   const win = doc.defaultView || globalThis;
@@ -68,9 +91,20 @@ export function createSelectionDetailsPanel({
   let timer = null;
   let token = 0;
   let destroyed = false;
+  // Airframe photo of the selected hex: null until its lookup settles.
   let photoHex = null;
-  let photoType = null;
   let photoToken = 0;
+  let airframePhoto = null;
+  let airframeLoaded = false;
+  // Wikipedia article for the selected identity: its key, token and article.
+  let identityKey = null;
+  let identityToken = 0;
+  let identityArticle = null;
+  let identityLoaded = false;
+  let currentIdentity = null;
+  let currentTitle = '';
+  // What the photo box shows now, so a one-second re-render never re-creates it.
+  let shownPhotoKey = null;
   let shownImage = null;
   // Catalogue lookup for the selected satellite: { norad, status, satellite }.
   let satelliteState = null;
@@ -107,6 +141,11 @@ export function createSelectionDetailsPanel({
   photoBox.className = 'selection-details__photo';
   photoBox.hidden = true;
 
+  // "What is it?": the kind, checkable facts and the Wikipedia summary.
+  const identityBox = doc.createElement('section');
+  identityBox.className = 'selection-details__identity';
+  identityBox.hidden = true;
+
   const alertLine = doc.createElement('p');
   alertLine.className = 'selection-details__alert';
   alertLine.setAttribute('role', 'alert');
@@ -137,7 +176,16 @@ export function createSelectionDetailsPanel({
   feedback.className = 'selection-details__feedback';
   feedback.setAttribute('role', 'status');
 
-  el.append(header, photoBox, alertLine, noticeLine, list, actions, feedback);
+  el.append(
+    header,
+    identityBox,
+    photoBox,
+    alertLine,
+    noticeLine,
+    list,
+    actions,
+    feedback,
+  );
   root.appendChild(el);
 
   function hasCoordinates() {
@@ -148,6 +196,7 @@ export function createSelectionDetailsPanel({
 
   function clearPhoto() {
     shownImage = null;
+    shownPhotoKey = null;
     photoBox.textContent = '';
     photoBox.hidden = true;
   }
@@ -166,12 +215,15 @@ export function createSelectionDetailsPanel({
     const image = doc.createElement('img');
     image.className = 'selection-details__photo-image';
     image.setAttribute('src', photo.src);
-    const isTypePhoto = photo.kind === 'type';
+    const isArticlePhoto = photo.kind === 'article';
+    const isTypePhoto = photo.kind === 'type' || isArticlePhoto;
     image.setAttribute(
       'alt',
-      isTypePhoto
-        ? `Photo of a ${photo.title || 'similar aircraft'}, not this aircraft`
-        : `Photo of ${subjectTitle || 'aircraft'}`,
+      isArticlePhoto
+        ? photo.caption
+        : isTypePhoto
+          ? `Photo of a ${photo.title || 'similar aircraft'}, not this aircraft`
+          : `Photo of ${subjectTitle || 'aircraft'}`,
     );
     image.setAttribute('loading', 'lazy');
     image.setAttribute('referrerpolicy', 'no-referrer');
@@ -193,8 +245,11 @@ export function createSelectionDetailsPanel({
     const credit = doc.createElement('figcaption');
     credit.className = 'selection-details__photo-credit';
     if (isTypePhoto) {
-      // Another airframe of the same type: say so, and link the article.
-      const label = `Type photo: ${photo.title || 'aircraft type'} (Wikipedia) — not this exact aircraft`;
+      // An image from a Wikipedia article: say what it shows, and link the article.
+      const label =
+        photo.kind === 'article'
+          ? photo.caption
+          : `Type photo: ${photo.title || 'aircraft type'} (Wikipedia) — not this exact aircraft`;
       if (photo.link) {
         const anchor = doc.createElement('a');
         anchor.href = photo.link;
@@ -214,28 +269,156 @@ export function createSelectionDetailsPanel({
     photoBox.hidden = false;
   }
 
-  /** Load the photo when the selected aircraft changes; no-op otherwise. */
-  function syncPhoto(hex, type, subjectTitle) {
-    if (hex === photoHex && type === photoType) return;
+  /**
+   * The photo box shows the airframe's own photo when there is one, else the
+   * Wikipedia image of the type or programme. Re-rendering with the same choice
+   * changes nothing, so the image is not re-created every second.
+   */
+  function renderPhotoBlock() {
+    if (photoHex && !airframeLoaded) {
+      if (shownPhotoKey !== 'loading') {
+        showPhotoStatus('Loading aircraft photo…');
+        shownPhotoKey = 'loading';
+      }
+      return;
+    }
+    if (airframePhoto) {
+      const key = `airframe|${airframePhoto.src}`;
+      if (key !== shownPhotoKey) {
+        shownPhotoKey = key;
+        renderPhoto(airframePhoto, currentTitle);
+      }
+      return;
+    }
+    if (identityArticle?.image && currentIdentity) {
+      const key = `article|${identityArticle.image}`;
+      if (key !== shownPhotoKey) {
+        shownPhotoKey = key;
+        renderPhoto(
+          articlePhoto(identityArticle, currentIdentity),
+          currentTitle,
+        );
+      }
+      return;
+    }
+    if (identityKey && !identityLoaded) {
+      if (shownPhotoKey !== 'loading') {
+        showPhotoStatus('Loading photo…');
+        shownPhotoKey = 'loading';
+      }
+      return;
+    }
+    clearPhoto();
+  }
+
+  /** Load the selected aircraft's airframe photo when the hex changes; no-op otherwise. */
+  function syncPhoto(hex) {
+    if (hex === photoHex) return;
     photoHex = hex;
-    photoType = type;
     photoToken += 1;
     const token = photoToken;
-    clearPhoto();
+    airframePhoto = null;
+    airframeLoaded = !hex;
     if (!hex) return;
-    showPhotoStatus('Loading aircraft photo…');
     Promise.resolve()
-      .then(() => photoLoader.load(hex, { type }))
+      .then(() => photoLoader.load(hex))
       .then(
         (photo) => {
           if (destroyed || token !== photoToken) return;
-          if (photo) renderPhoto(photo, subjectTitle);
-          else clearPhoto();
+          airframePhoto = photo || null;
+          airframeLoaded = true;
+          renderPhotoBlock();
         },
         () => {
-          if (token === photoToken) clearPhoto();
+          if (destroyed || token !== photoToken) return;
+          airframePhoto = null;
+          airframeLoaded = true;
+          renderPhotoBlock();
         },
       );
+  }
+
+  /** Load the Wikipedia article when the identity's query changes; no-op otherwise. */
+  function syncIdentity(identity) {
+    const key = identity?.wikiQuery
+      ? `${identity.wikiKind}|${identity.wikiQuery.toLowerCase()}`
+      : null;
+    if (key === identityKey) return;
+    identityKey = key;
+    identityToken += 1;
+    const token = identityToken;
+    identityArticle = null;
+    identityLoaded = !key;
+    if (!key) return;
+    Promise.resolve()
+      .then(() => identifyLoader.load(identity.wikiKind, identity.wikiQuery))
+      .then(
+        (article) => settle(token, article),
+        () => settle(token, null),
+      );
+  }
+
+  function settle(token, article) {
+    if (destroyed || token !== identityToken) return;
+    identityArticle = article;
+    identityLoaded = true;
+    renderIdentity();
+    renderPhotoBlock();
+  }
+
+  /** The "What is it?" block: kind, facts, then the article summary and link. */
+  function renderIdentity() {
+    identityBox.textContent = '';
+    const identity = currentIdentity;
+    if (!identity) {
+      identityBox.hidden = true;
+      return;
+    }
+    const heading = doc.createElement('p');
+    heading.className = 'selection-details__identity-heading';
+    heading.textContent = 'What is it?';
+    const kind = doc.createElement('strong');
+    kind.className = 'selection-details__identity-kind';
+    kind.textContent = identity.kindLabel;
+    identityBox.append(heading, kind);
+    if (identity.facts.length) {
+      const chips = doc.createElement('ul');
+      chips.className = 'selection-details__chips';
+      for (const fact of identity.facts) {
+        const chip = doc.createElement('li');
+        chip.className = 'selection-details__chip';
+        chip.textContent = fact;
+        chips.append(chip);
+      }
+      identityBox.append(chips);
+    }
+    if (identityArticle) {
+      const from = doc.createElement('p');
+      from.className = 'selection-details__identity-source';
+      from.textContent = `From the Wikipedia article “${identityArticle.title}”`;
+      identityBox.append(from);
+      if (identityArticle.summary) {
+        const summary = doc.createElement('p');
+        summary.className = 'selection-details__summary';
+        summary.textContent = identityArticle.summary;
+        identityBox.append(summary);
+      }
+      if (identityArticle.link) {
+        const more = doc.createElement('a');
+        more.className = 'selection-details__wiki';
+        more.href = identityArticle.link;
+        more.target = '_blank';
+        more.rel = 'noopener noreferrer';
+        more.textContent = 'Read more on Wikipedia';
+        identityBox.append(more);
+      }
+    } else if (identityKey && !identityLoaded) {
+      const status = doc.createElement('p');
+      status.className = 'selection-details__photo-status';
+      status.textContent = 'Looking up the article…';
+      identityBox.append(status);
+    }
+    identityBox.hidden = false;
   }
 
   /**
@@ -284,11 +467,12 @@ export function createSelectionDetailsPanel({
     title.textContent = details.title;
     subtitle.textContent = details.subtitle;
     subtitle.hidden = !details.subtitle;
-    syncPhoto(
-      details.photoHex || null,
-      details.photoType || null,
-      details.title,
-    );
+    currentTitle = details.title;
+    currentIdentity = details.identity || null;
+    syncPhoto(details.photoHex || null);
+    syncIdentity(currentIdentity);
+    renderIdentity();
+    renderPhotoBlock();
 
     // Set only on change: the panel re-renders every second and a repeated
     // role=alert text would be announced again.
@@ -356,9 +540,16 @@ export function createSelectionDetailsPanel({
     current = null;
     details = null;
     photoHex = null;
-    photoType = null;
     photoToken += 1;
+    airframePhoto = null;
+    airframeLoaded = false;
+    identityKey = null;
+    identityToken += 1;
+    identityArticle = null;
+    identityLoaded = false;
+    currentIdentity = null;
     clearPhoto();
+    renderIdentity();
     syncSatelliteInfo(null);
     el.hidden = true;
     feedback.textContent = '';

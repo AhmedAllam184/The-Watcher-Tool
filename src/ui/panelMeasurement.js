@@ -6,6 +6,15 @@
  * @returns {number} Natural height in CSS pixels.
  */
 export function measurePanelNaturalHeight(panel, getComputedStyle) {
+  // A self-scrolling card (TOOLS) has no inner wrapper: its whole content,
+  // header included, is the scroll height once its allocation is cleared.
+  if (panel.hasAttribute('data-scroll-card')) {
+    const style = getComputedStyle(panel);
+    const borders =
+      (parseFloat(style.borderTopWidth) || 0) +
+      (parseFloat(style.borderBottomWidth) || 0);
+    return Math.ceil((panel.scrollHeight || 0) + borders);
+  }
   const inner = [...panel.children].find(
     (child) => !child.classList.contains('panel-glow'),
   );

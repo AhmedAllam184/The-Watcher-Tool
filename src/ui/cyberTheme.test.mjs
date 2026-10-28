@@ -493,7 +493,7 @@ test('Cyber side panels share one width and one framed surface material', () => 
   );
   assert.match(
     cyberStyles,
-    /#left-panel-stack\s*> :is\(#data-panel, #scene-panel\)\.collapsed \{\s*width: var\(--cyber-panel-collapsed-width\);/,
+    /#left-panel-stack\s*> :is\(#data-panel, #scene-panel\)\.collapsed \{\s*width: 100%;/,
   );
   assert.match(
     cyberStyles,
@@ -599,7 +599,7 @@ test('Cyber visual defaults update the style, thermal palette and render state',
 test('the Display selector, voice schema and final stylesheet expose Cyber', () => {
   const display = read('./templates/display-controls.html');
   const stylesheet = read('../../style.css');
-  const rightRail = read('./rightPanelRail.js');
+  const panelLayoutController = read('./panelLayoutController.js');
   const hud = read('../hud.js');
   const detection = read('../data/detection.js');
   const civilRendering = read('../layers/flights/rendering.js');
@@ -699,12 +699,13 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
     /\.hud-left-edge \{\s*top: calc\(var\(--cyber-left-rail-top\) - 18px\);\s*left: 14px;/,
   );
   assert.match(
-    rightRail,
-    /const columnBottom = settledLeftColumnBottom\([\s\S]*?const alignedTop = Number\.isFinite\(columnBottom\)[\s\S]*?baseTop: alignedTop,/,
+    panelLayoutController,
+    /_mountToolsPane\(\) \{[\s\S]*?column\.append\(rail\);/,
+    'TOOLS is a card of the left column in every theme',
   );
   assert.match(
     cyberStyles,
-    /--right-display-collapsed-width: var\(--cyber-panel-collapsed-width\);/,
+    /--right-display-collapsed-width: 100%;/,
   );
   assert.match(
     cyberStyles,
@@ -724,10 +725,13 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
   assert.match(cyberStyles, /flex: 1 1 auto;/);
   assert.match(cyberStyles, /#left-panel-stack:has/);
   assert.match(cyberStyles, /left: 54px;/);
-  assert.match(cyberStyles, /left: var\(--left-stack-x\);\s*right: auto;/);
+  assert.match(cyberStyles, /--left-stack-pinned: 1;/, 'Cyber pins the column edges for the layout engine');
+  assert.match(cyberStyles, /:not\(:has\(> #right-context-rail:not\(\.collapsed\)\)\)/, 'open cards follow their allocation while TOOLS is open');
+  assert.match(cyberStyles, /#right-context-rail \{\s*--right-display-collapsed-width: 100%;[\s\S]*?width: 100%;/, 'TOOLS fills the Cyber column');
   assert.match(cyberStyles, /bottom: calc\(2vh \+ (?:var\(--hud-footer-h\) \+ )?13rem\);/);
   assert.doesNotMatch(cyberStyles, /NAV 01  \/\/  COMMAND BUS  \/\/  VIS 03/);
   assert.match(cyberStyles, /data-layer-id='satellites'/);
+  assert.match(cyberStyles, /data-layer-id='military-satellites'/);
   assert.match(cyberStyles, /#search-toggle::before/);
   assert.match(cyberStyles, /VISUAL MATRIX  \/\/  03/);
   assert.match(cyberStyles, /body\.cockpit-mode #cockpit-hud/);

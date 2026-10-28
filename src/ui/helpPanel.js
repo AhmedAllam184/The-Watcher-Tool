@@ -28,8 +28,12 @@ export const HELP_SHORTCUTS = Object.freeze([
   { keys: ['F'], action: 'Open or close the data layers panel' },
   { keys: ['D'], action: 'Cycle detection mode' },
   { keys: ['C'], action: 'Toggle CCTV' },
+  { keys: ['N'], action: 'Leave the selected object: straight-down map view' },
   { keys: ['?'], action: 'Show this help' },
-  { keys: ['Esc'], action: 'Close search or the open panel' },
+  {
+    keys: ['Esc'],
+    action: 'Close search or the open panel, or leave the selected object',
+  },
 ]);
 
 /**

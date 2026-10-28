@@ -7,6 +7,7 @@ scene playback and voice. It delegates; new behavior belongs with its owner.
 | Owner | Responsibility |
 | --- | --- |
 | `navigationController.js` | Navigation generation, tracking release and camera authority |
+| `focusReturn.js` | Pure policy for the straight-down return when an object focus ends; `navigationController.js` remembers the view and flies the return |
 | `locationNavigation.js` | Destination lookup/selection, orbit, world jumps and globe-reset completion |
 | `objectSearch.js` | Pure live-object lookup (flights, ships, satellites) behind the place search box |
 | `liveObjectFocus.js` | Follows or selects a live object found by the search, through the shell's navigation authority |

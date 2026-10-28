@@ -65,6 +65,7 @@ function articlePhoto(article, identity) {
  * @param {object} [options]
  * @param {HTMLElement} [options.root=document.body] Element that receives the panel.
  * @param {(lat: number, lon: number) => void} [options.flyTo] Camera action for "Fly to".
+ * @param {() => void} [options.onClose] Called when the operator closes the panel.
  * @param {(text: string) => Promise<void>} [options.copyText] Clipboard writer.
  * @param {() => object|null} [options.getSelected] Returns the store's selected record.
  * @param {() => number} [options.now] Clock for relative times.
@@ -76,6 +77,7 @@ function articlePhoto(article, identity) {
 export function createSelectionDetailsPanel({
   root = document.body,
   flyTo = null,
+  onClose = null,
   copyText = writeClipboard,
   getSelected = readSelectedRecord,
   now = () => Date.now(),
@@ -659,7 +661,10 @@ export function createSelectionDetailsPanel({
   };
   doc.addEventListener?.('visibilitychange', onVisibilityChange);
 
-  closeButton.addEventListener('click', hide);
+  closeButton.addEventListener('click', () => {
+    hide();
+    onClose?.();
+  });
   el.addEventListener('keydown', onKeyDown);
   flyButton.addEventListener('click', () => {
     if (!flyButton.disabled) flyTo?.(details.latitude, details.longitude);

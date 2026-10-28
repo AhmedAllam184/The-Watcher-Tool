@@ -72,6 +72,8 @@ export class DisplayBindings {
             this._locationSearch.blur();
           }
         },
+        exitFocus: () => this._noteFocusExit?.(),
+        returnToStraightDown: () => this._returnToStraightDownView?.(),
         toggleHud: () => {
           this.shareLinkManager?.claimRestoreLane?.('visual');
           this.hud.toggle();

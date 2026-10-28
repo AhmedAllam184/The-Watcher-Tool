@@ -674,6 +674,7 @@
       "src/maps/mapStackMemory.js",
       "src/maps/stackIds.js",
       "src/ui/navigationController.js",
+      "src/ui/focusReturn.js",
       "src/ui/panelChrome.js",
       "src/ui/panelDisclosure.js",
       "src/ui/panelLayoutController.js",
@@ -2045,6 +2046,7 @@
       "src/maps/mapStackMemory.js",
       "src/maps/stackIds.js",
       "src/ui/navigationController.js",
+      "src/ui/focusReturn.js",
       "src/ui/panelChrome.js",
       "src/ui/panelDisclosure.js",
       "src/ui/panelLayoutController.js",
@@ -2950,6 +2952,7 @@
     "modules": [
       "src/navigationPolicy.js",
       "src/ui/navigationController.js",
+      "src/ui/focusReturn.js",
       "src/app/stateChannel.js",
       "src/data/cameraArrival.js"
     ],

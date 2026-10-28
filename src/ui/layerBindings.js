@@ -9,6 +9,7 @@ import {
   routeWorldFocusRequest,
 } from '../worldFocus.js';
 import { registerNavigationAuthorityListener } from '../navigationPolicy.js';
+import { isFocusAuthorityReason } from './focusReturn.js';
 /** Own manager subscriptions and the camera-entry events that outlive controls. */
 export class LayerBindings {
   constructor({
@@ -44,6 +45,7 @@ export class LayerBindings {
     this._navigationOwnerChangedRemover = null;
     this._awarenessSelectedHandler = null;
     this._awarenessClearedHandler = null;
+    this._entitySelectionClearedHandler = null;
   }
   get hud() {
     return this.readControls().hud;
@@ -81,14 +83,23 @@ export class LayerBindings {
     );
     this._navigationOwnerChangedRemover =
       this.viewer.trackedEntityChanged.addEventListener((entity) => {
-        if (entity && !this._disposed)
-          this._stampNavigation({ cancelPendingSelection: false });
+        if (this._disposed) return;
+        // The follow camera starts or stops here for aircraft and satellites;
+        // the navigation owner remembers and restores the straight-down view.
+        if (!entity) {
+          this._noteFocusEnded?.();
+          return;
+        }
+        this._noteFocusBegin?.();
+        this._stampNavigation({ cancelPendingSelection: false });
       });
     // Vessel/installation focus flies without ever assigning a tracked entity,
     // so it cannot reach the listener above. It announces instead.
     this._removeNavigationAuthorityListener =
       registerNavigationAuthorityListener(window, (event) => {
         if (this._disposed) return;
+        if (isFocusAuthorityReason(event?.detail?.reason))
+          this._noteFocusBegin?.();
         this._stampNavigation({
           cancelPendingSelection:
             event?.detail?.cancelPendingSelection !== false,
@@ -285,8 +296,16 @@ export class LayerBindings {
     if (!this._awarenessSelectedHandler) {
       this._awarenessSelectedHandler = (event) =>
         this._persistAwarenessSelection(event, false);
-      this._awarenessClearedHandler = (event) =>
+      this._awarenessClearedHandler = (event) => {
         this._persistAwarenessSelection(event, true);
+        this._noteFocusEnded?.();
+      };
+      // Ships and listed objects end their focus by dropping the selection.
+      this._entitySelectionClearedHandler = () => this._noteFocusEnded?.();
+      window.addEventListener(
+        'gev:entity-selection-cleared',
+        this._entitySelectionClearedHandler,
+      );
       window.addEventListener(
         'gev:awareness-subject-selected',
         this._awarenessSelectedHandler,
@@ -314,6 +333,13 @@ export class LayerBindings {
         this._awarenessClearedHandler,
       );
       this._awarenessClearedHandler = null;
+    }
+    if (this._entitySelectionClearedHandler) {
+      window.removeEventListener(
+        'gev:entity-selection-cleared',
+        this._entitySelectionClearedHandler,
+      );
+      this._entitySelectionClearedHandler = null;
     }
 
     this._removeCctvRequestFocusListener?.();

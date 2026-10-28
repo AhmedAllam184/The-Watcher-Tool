@@ -26,7 +26,11 @@ import {
 } from './objectSearch.js';
 import { focusLiveObject } from './liveObjectFocus.js';
 import { bindClearLayersControl } from './layers.js';
-import { bindCameraOrientationControls } from './cameraOrientationControls.js';
+import {
+  bindCameraOrientationControls,
+  pickViewTarget,
+} from './cameraOrientationControls.js';
+import { getSelectedEntityContext } from '../data/contextStore.js';
 import { createSelectionDetailsPanel } from './selectionDetails.js';
 import { createSquawkAlerts } from './squawkAlerts.js';
 import { createHelpPanel } from './helpPanel.js';
@@ -155,6 +159,9 @@ export class StyleManager extends ShellFacade {
       stopOrbit: () => this._stopOrbit(),
       cancelOrientation: () => this._cameraOrientationControls?.cancel(),
       showToast: (text) => this._showToast(text),
+      readViewTarget: (target) => pickViewTarget(target),
+      readSelectedContext: () =>
+        getSelectedEntityContext({ dataManager: this._dataManager }),
     });
     this._shareRestoration = new ShareRestoration({
       viewer,
@@ -286,6 +293,8 @@ export class StyleManager extends ShellFacade {
         _syncContextModeButtons: (...args) =>
           this._syncContextModeButtons(...args),
         _stampNavigation: (...args) => this._stampNavigation(...args),
+        _noteFocusBegin: () => this._navigation.noteFocusBegin(),
+        _noteFocusEnded: (options) => this._navigation.noteFocusEnded(options),
         _runExplicitCctvFocus: (...args) => this._runExplicitCctvFocus(...args),
         _runExplicitWorldFocus: (...args) =>
           this._runExplicitWorldFocus(...args),
@@ -556,6 +565,12 @@ export class StyleManager extends ShellFacade {
         toggleCleanView: (...args) => this.toggleCleanView(...args),
         _toggleCctvEnabled: (...args) => this._toggleCctvEnabled(...args),
         _toggleHelpPanel: (...args) => this._toggleHelpPanel(...args),
+        _noteFocusExit: () =>
+          this._navigation.noteFocusEnded({ explicit: true }),
+        _returnToStraightDownView: () => {
+          if (this._navigation.returnToStraightDownView())
+            this._showToast('Straight-down view');
+        },
         _setBloomEnabled: (...args) => this._setBloomEnabled(...args),
         _setBloomIntensity: (...args) => this._setBloomIntensity(...args),
         _setSharpenEnabled: (...args) => this._setSharpenEnabled(...args),
@@ -1472,6 +1487,7 @@ export class StyleManager extends ShellFacade {
    * @returns {boolean} Whether a Contact subject remains selected.
    */
   beginLocationNavigation() {
+    this._navigation.cancelFocusReturn();
     this._stampNavigation();
     this.cockpitView?.exit({ restoreTracking: false });
     return this._releaseFollowCamera({ preserveVesselSelection: false });
@@ -1512,6 +1528,7 @@ export class StyleManager extends ShellFacade {
             destination: Cesium.Cartesian3.fromDegrees(lon, lat, 25000),
           }),
         ),
+      onClose: () => this._navigation.exitFocus(),
     });
   }
 

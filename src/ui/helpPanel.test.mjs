@@ -454,7 +454,7 @@ test('the shortcut list mirrors the bindings in applicationShortcuts.js', () => 
     new URL('./applicationShortcuts.js', import.meta.url),
     'utf8',
   );
-  for (const letter of ['h', 'o', 'v', 'f', 'd', 'c']) {
+  for (const letter of ['h', 'o', 'v', 'f', 'd', 'c', 'n']) {
     assert.match(source, new RegExp(`key === '${letter}'`));
   }
   for (const digit of ['1', '2', '3', '4', '5', '6', '7']) {
@@ -466,7 +466,7 @@ test('the shortcut list mirrors the bindings in applicationShortcuts.js', () => 
   const listed = HELP_SHORTCUTS.flatMap((shortcut) => shortcut.keys);
   assert.deepEqual(
     listed.sort(),
-    ['/', '1–7', '?', 'C', 'D', 'Esc', 'F', 'H', 'O', 'V'].sort(),
+    ['/', '1–7', '?', 'C', 'D', 'Esc', 'F', 'H', 'N', 'O', 'V'].sort(),
   );
 });
 

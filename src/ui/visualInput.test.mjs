@@ -59,6 +59,8 @@ function shortcuts() {
     'toggleLayers',
     'cycleDetection',
     'toggleCctv',
+    'exitFocus',
+    'returnToStraightDown',
   ];
   const actions = Object.fromEntries(
     names.map((name) => [name, (...args) => calls.push([name, ...args])]),
@@ -111,6 +113,30 @@ for (const tag of ['INPUT', 'SELECT', 'TEXTAREA']) {
     assert.deepEqual(f.calls, [['dismissSearch']]);
   });
 }
+
+test('N returns to the straight-down view and Escape on the map leaves the focus', () => {
+  const f = shortcuts();
+  f.press('n');
+  f.press('N');
+  f.press('Escape');
+  assert.deepEqual(f.calls, [
+    ['returnToStraightDown'],
+    ['returnToStraightDown'],
+    ['dismissSearch'],
+    ['exitFocus'],
+  ]);
+  // Typing an n in a field stays typing.
+  f.calls.length = 0;
+  f.press('n', new Element('INPUT'));
+  assert.deepEqual(f.calls, []);
+});
+
+test('Escape that closes a dialog does not also leave the focus', () => {
+  const f = shortcuts();
+  f.documentRef.querySelector = () => ({ id: 'first-run-launcher' });
+  f.press('Escape');
+  assert.deepEqual(f.calls, [['dismissSearch']]);
+});
 
 test('the supplied search target retains editing even without form markup', () => {
   const f = shortcuts();

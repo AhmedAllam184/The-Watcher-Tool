@@ -69,7 +69,12 @@ export function bindApplicationShortcuts({
     }
 
     if (STYLE_KEYS[event.key]) actions.setStyle(STYLE_KEYS[event.key]);
-    if (event.key === 'Escape') actions.dismissSearch();
+    if (event.key === 'Escape') {
+      actions.dismissSearch();
+      // Escape out of a followed or flown-to object returns the map view;
+      // typing in a field or closing a dialog is not that exit.
+      if (!isFormControl && !hasOpenDialog(documentRef)) actions.exitFocus?.();
+    }
     const key = event.key.toLowerCase();
     if (key === 'h') actions.toggleHud();
     if (key === 'o') actions.toggleOrbit();
@@ -77,6 +82,7 @@ export function bindApplicationShortcuts({
     if (key === 'f') actions.toggleLayers();
     if (key === 'd') actions.cycleDetection();
     if (key === 'c') actions.toggleCctv();
+    if (key === 'n') actions.returnToStraightDown?.();
   };
   documentRef.addEventListener('keydown', onKeyDown);
   return {

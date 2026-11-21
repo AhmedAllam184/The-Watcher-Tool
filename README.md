@@ -222,6 +222,8 @@ Choose a first-run mission, or try these in order. The GIFs show Google Photorea
 7. **Talk to it** _(needs an OpenAI key)_: _"Take me to LAX and select the nearest airborne aircraft."_
 8. **Come home.** Hit **Reset Globe** — or just say _"zoom out to a globe view."_
 
+**Use it online from your phone:** see [docs/HOSTING.md](docs/HOSTING.md) for a free, password-protected Hugging Face deployment with spending limits on your keys.
+
 **Keyboard:** `1`–`7` visual styles · `H` HUD · `D` detection · `C` CCTV · `N` leave the selected object and return to the straight-down map · `/` search places, flights, ships (exact callsign, ship name or MMSI; `ship:`, `flight:` or `sat:` for partial names) · `` ` `` frame rate · `?` help & legend · `Esc` out. Trackpad pinch zooms the globe.
 
 ---

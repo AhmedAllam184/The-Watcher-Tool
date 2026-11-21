@@ -1,4 +1,28 @@
 import { admitSameSiteRequest } from '../../../src/localRequestGate.mjs';
+import { isHostedMode } from '../../hosted/mode.js';
+
+/**
+ * Hosted mode sits behind its host's HTTPS proxy, which always adds
+ * forwarding headers and terminates TLS. Those headers are expected there,
+ * and every request has already passed the sign-in gate.
+ */
+function requestFacts(req) {
+  const headers = req.headers || {};
+  if (isHostedMode()) {
+    const forwardedProto = String(headers['x-forwarded-proto'] || '')
+      .split(',')[0]
+      .trim()
+      .toLowerCase();
+    return {
+      protocol: forwardedProto === 'http' ? 'http:' : 'https:',
+      proxyHeaders: {},
+    };
+  }
+  return {
+    protocol: req.socket?.encrypted ? 'https:' : 'http:',
+    proxyHeaders: headers,
+  };
+}
 
 /**
  * Cross-site request gate for cost-bearing and log endpoints. Feeds the
@@ -13,12 +37,13 @@ import { admitSameSiteRequest } from '../../../src/localRequestGate.mjs';
  * @returns {boolean} True when a 403 was sent.
  */
 export function admitSameSite(req, res) {
+  const { protocol, proxyHeaders } = requestFacts(req);
   const verdict = admitSameSiteRequest({
     hostHeader: req.headers?.host,
-    protocol: req.socket?.encrypted ? 'https:' : 'http:',
+    protocol,
     origin: req.headers?.origin,
     secFetchSite: req.headers?.['sec-fetch-site'],
-    proxyHeaders: req.headers || {},
+    proxyHeaders,
   });
   if (verdict.ok) return false;
   res.statusCode = verdict.status;

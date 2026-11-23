@@ -69,8 +69,10 @@ test('hosted mode is opt-in and refuses to start without a strong login', () => 
     }),
     { user: 'me', password: 'long enough pw' },
   );
-  // The plugin validates at config time, so a bad login stops startup.
-  assert.throws(() => hostedAuthPlugin({ env: { GEV_HOSTED: '1' } }));
+  // Builds need no credentials; only starting a server validates the login.
+  const plugin = hostedAuthPlugin({ env: { GEV_HOSTED: '1' } });
+  assert.throws(() => plugin.configureServer({}), /GEV_LOGIN_USER/);
+  assert.throws(() => plugin.configurePreviewServer({}), /GEV_LOGIN_USER/);
   assert.doesNotThrow(() => hostedAuthPlugin({ env: {} }));
 });
 

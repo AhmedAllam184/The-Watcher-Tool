@@ -1,85 +1,59 @@
-# Hosting The Watcher online (free, private, sign-in required)
+# Hosting The Watcher on Render
 
-This runs The Watcher on a free **Hugging Face Space** so you can open it from
-any phone or computer without your laptop running. Everything (the page, every
-script and every `/api` route that uses your keys) sits behind a username and
-password that only you know.
+GitHub Actions builds the image; Render runs it. No API keys or login details
+are in the repository, image, or built browser files. Render reads them at
+startup. Browser keys reach only signed-in browsers; server keys stay on the server.
+The host never builds at startup. Hugging Face Docker Spaces became paid in November 2026.
 
-How it works:
+## 1. Build the image on GitHub
 
-- The Space builds a container from `deploy/huggingface/Dockerfile`. The
-  container downloads this repository's code from GitHub; your keys are **not**
-  in the image or the repository.
-- Your keys and login are saved as **Space secrets**. They are read only when
-  the app starts. The browser keys (Google Maps, Cesium) are built into the page
-  at start-up, and the page is only sent to someone who has signed in.
-- The server runs in **hosted mode** (`GEV_HOSTED=1`, see
-  `server/hosted/auth.js`): it shows a sign-in page and refuses to start at all
-  if the login is missing or the password is shorter than 12 characters.
-- Each restart pulls the newest version pushed to the branch, so **Restart =
-  update**.
+1. Push the approved changes to `claude/upbeat-volta-volh6b`, or open the
+   repository's **Actions -> Deploy image -> Run workflow** on the desired branch.
+2. Wait for the workflow to finish. It publishes
+   `ghcr.io/ahmedallam184/the-watcher:latest` and a `sha-<short>` version.
+3. After the first run, open your GitHub profile's **Packages -> the-watcher ->
+   Package settings -> Change visibility -> Public**. The image contains no keys.
+   Alternatively, keep it private and give Render a registry credential with package-read access.
 
-Free tier behaviour to expect: the Space goes to sleep after a period with no
-visitors (Hugging Face sets this; it has been about 48 hours on free hardware).
-The first visit after that wakes it, and it takes **a minute or two** to build
-and start before the sign-in page appears.
+## 2. Create the free service
 
-## 1. Create the Space
+1. Sign up at <https://render.com> using GitHub sign-in; choose the free option,
+   with no card.
+2. Choose **New -> Web Service -> Existing image** and enter
+   `ghcr.io/ahmedallam184/the-watcher:latest`.
+3. Select the **Free** instance. Leave the image's start command unchanged.
+   Render sets `PORT`; the image defaults to 10000.
+4. In **Environment**, add `GEV_LOGIN_USER` (your username) and
+   `GEV_LOGIN_PASSWORD` (at least 12 characters). Without these the server refuses
+   to start. Changing the password signs every device out.
+5. Add the three browser keys you use: `GOOGLE_MAPS_API_KEY`, `CESIUM_ION_TOKEN`,
+   `MAPILLARY_CLIENT_TOKEN`. Add each server setting that has a value in your
+   PC's `.env`, using exactly the same names:
+   `GOOGLE_MAPS_SERVER_API_KEY`, `OPENAI_API_KEY`, `OPENSKY_CLIENT_ID`,
+   `OPENSKY_CLIENT_SECRET`, `AISSTREAM_API_KEY`, `FIRMS_MAP_KEY`, `ACLED_EMAIL`,
+   `ACLED_KEY`, `TOMTOM_API_KEY`, `LL2_API_TOKEN`.
+   Optional providers can remain blank. Never put values in GitHub files or build arguments.
+6. Create the service. Open `https://<service-name>.onrender.com` and sign in.
+   On your phone, use **Add to Home screen**. Sessions last 30 days.
+   Sign out at `https://<service-name>.onrender.com/__watcher/logout`.
 
-1. Sign up or sign in at <https://huggingface.co> (free; no card needed for
-   free CPU hardware).
-2. **New → Space.** Name it (for example `the-watcher`), choose **Docker** as
-   the SDK and the **Blank** template, and the free **CPU basic** hardware.
-3. Visibility: **Public** is fine and is the simplest. The sign-in protects the
-   app, and the Space itself contains only the Dockerfile and a short README.
-   **Private** adds a second wall (only your Hugging Face account can reach
-   it), but then every browser you use, phone included, must also be signed in
-   to Hugging Face. If you try Private and the phone shows a Hugging Face error
-   instead of The Watcher's sign-in page, switch the Space to Public.
-4. In the Space's **Files** tab, replace `README.md` with the contents of
-   `deploy/huggingface/README.md` and add a file named `Dockerfile` with the
-   contents of `deploy/huggingface/Dockerfile` (both from this repository).
-   Do this **after** step 2 below, so the first start already has a login.
+Render supplies its public hostname automatically. A custom domain also needs
+`GEV_PUBLIC_HOST` set to that hostname (without `https://`).
 
-## 2. Add your login and keys as secrets
+The free service sleeps after about 15 minutes idle and takes about a minute
+to wake. Check [Render's current free-plan page](https://render.com/docs/free)
+for current limits. These plan details were supplied for this migration and
+were not checked online during the offline implementation.
 
-In the Space: **Settings → Variables and secrets → New secret**. Use **secret**
-(not variable) for every entry below. Names must match exactly.
+## 3. Connect automatic updates
 
-Required, or the app will refuse to start:
-
-| Secret | Value |
-| --- | --- |
-| `GEV_LOGIN_USER` | Your username |
-| `GEV_LOGIN_PASSWORD` | A long password, **at least 12 characters**. A password manager's generated password is ideal. Changing it later signs every device out. |
-
-Your API keys: add the same ones you have in your PC's `.env` file, with the
-same names (only the ones you use):
-
-`GOOGLE_MAPS_API_KEY`, `GOOGLE_MAPS_SERVER_API_KEY`, `CESIUM_ION_TOKEN`,
-`OPENAI_API_KEY`, `MAPILLARY_CLIENT_TOKEN`, `OPENSKY_CLIENT_ID`,
-`OPENSKY_CLIENT_SECRET`, `AISSTREAM_API_KEY`, `FIRMS_MAP_KEY`, `ACLED_EMAIL`,
-`ACLED_KEY`, `TOMTOM_API_KEY`, `LL2_API_TOKEN`.
-
-Never paste keys into the Dockerfile, the README, GitHub, or a chat.
-
-## 3. Start it and sign in
-
-After the Dockerfile is saved the Space builds (a few minutes the first time).
-When the status shows **Running**, open the app at its direct address:
-
-`https://<your-hf-username>-<space-name>.hf.space`
-
-(The Space's **⋮ → Embed this Space** menu shows the exact "Direct URL".)
-Use the direct address, not the huggingface.co page: The Watcher refuses to be
-shown inside another site's frame.
-
-On the phone, open the same address, sign in, and use the browser's
-**Add to Home screen** for a one-tap icon. You stay signed in for 30 days per
-device. To sign out: `https://<direct-url>/__watcher/logout`.
-
-To update after new changes are pushed: Space **Settings → Restart this Space**.
-If the Space's build ever gets stuck on an old version, use **Factory rebuild**.
+In Render's service settings, copy the **Deploy Hook URL**. In the GitHub
+repository open **Settings -> Secrets and variables -> Actions -> New repository
+secret**, name it `RENDER_DEPLOY_HOOK_URL`, and paste the URL as its value.
+After an image publishes successfully, Actions calls the hook. Without the
+secret it quietly skips this step; you can deploy manually from Render.
+A restart uses the existing image; publish and redeploy to update the code.
+Use a `sha-<short>` image tag in Render to pin or roll back a version.
 
 ## 4. Put limits on every key that can cost money
 
@@ -100,7 +74,7 @@ the real caps.
 2. **Settings → Limits** (or the project's limits): set a monthly budget and
    an email alert below it.
 3. Best practice: create a separate **project** called "The Watcher (hosted)"
-   and a new API key in it for the Space, so you can revoke it without
+   and a new API key in it for Render, so you can revoke it without
    touching anything else.
 
 ### Google Maps Platform (3D tiles, place search, Street View) — hard cap
@@ -112,13 +86,13 @@ it.
 1. <https://console.cloud.google.com> → **APIs & Services → Credentials**.
 2. Browser key (`GOOGLE_MAPS_API_KEY`):
    - **Application restrictions → Websites**: add
-     `https://<your-direct-url>/*` and, if you also run it on your PC,
+     `https://<service-name>.onrender.com/*` and, if you also run it on your PC,
      `http://localhost:4173/*` and `http://127.0.0.1:4173/*`.
    - **API restrictions → Restrict key**: tick only **Map Tiles API** and
      **Geocoding API**.
 3. Server key (`GOOGLE_MAPS_SERVER_API_KEY`, optional but recommended):
    **API restrictions** to **Places API (New)** and **Street View Static API**.
-   (It cannot be restricted by IP address because Hugging Face's addresses
+   (It cannot be restricted by IP address because Render's outbound addresses
    change, so the quotas in the next step matter most for it.)
 4. **APIs & Services → Enabled APIs**, open each of Map Tiles API, Places API
    (New), Geocoding API and Street View Static API → **Quotas** → set
@@ -140,19 +114,20 @@ the app keeps TomTom under a daily ceiling by default), Launch Library and
 Mapillary. If one of them is abused it simply stops answering until its limit
 resets; you will not be charged.
 
-## 5. What is protected, and the limits of that
+## 5. What is protected
 
-- Nothing is served without the sign-in: the page and its scripts get a
-  redirect to the sign-in page, and API routes get `401`.
-- The session is a signed, `HttpOnly`, `Secure` cookie valid for 30 days;
-  changing `GEV_LOGIN_PASSWORD` signs every device out.
-- Wrong passwords are slowed down, and after 20 failures in 15 minutes all
-  sign-ins pause for the rest of that window (from everywhere, so someone
-  guessing can also keep you waiting for a few minutes; a long password makes
-  guessing hopeless either way).
-- The page tells search engines not to index it.
-- The MCP endpoint and the key-setup panel stay local-only and are refused on
-  the hosted site.
-- Anyone who can sign in to your Hugging Face account can read the secrets,
-  so turn on two-factor authentication there
-  (**Settings → Authentication**), and on Google, OpenAI and GitHub too.
+Every provider route and static file passes the sign-in gate. Unauthenticated
+page navigation redirects to the login form; other requests receive 401.
+Runtime browser keys are inserted as escaped, inert JSON into authenticated
+HTML and marked `no-store`. They remain visible to anyone you allow to sign in,
+so keep provider restrictions and quotas enabled. Local desktop builds still
+use their existing build-time browser keys.
+
+Sessions use signed Secure, HttpOnly, SameSite cookies. Wrong passwords are
+slowed; 20 failures in 15 minutes pause sign-ins globally for that window.
+The site asks search engines not to index it. MCP and key setup remain local-only.
+Enable two-factor authentication on Render, GitHub and provider accounts;
+anyone with access to the service's settings can read its environment values.
+
+The runtime has a 384 MB V8 heap limit, not a total-memory limit. Render's
+512 MB memory and 0.1 CPU free instance still needs live workload validation.

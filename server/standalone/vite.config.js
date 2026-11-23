@@ -16,9 +16,9 @@ export default defineConfig(({ command, mode }) => {
   for (const [key, value] of Object.entries(loaded)) {
     if (process.env[key] === undefined) process.env[key] = value;
   }
-  // Hosted mode answers its host's public name (Hugging Face sets SPACE_HOST).
+  // Render supplies the service's public hostname at runtime.
   const hostedNames = isHostedMode()
-    ? [process.env.SPACE_HOST, process.env.GEV_PUBLIC_HOST]
+    ? [process.env.RENDER_EXTERNAL_HOSTNAME, process.env.GEV_PUBLIC_HOST]
     : [];
   return createBrowserViteConfig({
     plugins: [
@@ -28,9 +28,9 @@ export default defineConfig(({ command, mode }) => {
       localMcpPlugin(),
       apiNotFoundPlugin(),
     ],
-    googleApiKey: process.env.GOOGLE_MAPS_API_KEY,
-    cesiumToken: process.env.CESIUM_ION_TOKEN,
-    mapillaryToken: process.env.MAPILLARY_CLIENT_TOKEN,
+    googleApiKey: isHostedMode() ? '' : process.env.GOOGLE_MAPS_API_KEY,
+    cesiumToken: isHostedMode() ? '' : process.env.CESIUM_ION_TOKEN,
+    mapillaryToken: isHostedMode() ? '' : process.env.MAPILLARY_CLIENT_TOKEN,
     host: process.env.HOST,
     port: process.env.PORT,
     allowedHosts: resolveAllowedHosts(

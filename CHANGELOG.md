@@ -1,5 +1,9 @@
 # Changelog
 
+- Replace Hugging Face startup builds with GitHub Actions images and Render
+  preview hosting; inject browser keys only into signed-in HTML, keep hosted
+  builds secret-free and validate login settings at server startup.
+
 - Treat explicitly current, complete empty vessel coverage as a successful update,
   clearing obsolete contacts while retaining stale or incomplete snapshots.
 

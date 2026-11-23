@@ -83,7 +83,7 @@ The dev server is a **key broker**: every server-side key above is spendable by 
 
 - **Local-only by default.** `./scripts/dev-fresh.sh` (and the Vite config itself) bind to `localhost`, so only your machine can reach the server — and only local names are accepted (`allowedHosts` stays restricted, which also blunts DNS-rebinding tricks). Binding to all interfaces keeps that restriction: IP addresses and `localhost` work, and LAN hostnames must be listed in `GEV_ALLOWED_HOSTS` (for example `GEV_ALLOWED_HOSTS=globe.lan`); suffix and wildcard entries are ignored.
 - **LAN exposure is an explicit opt-in**: `HOST=0.0.0.0 ./scripts/dev-fresh.sh`. The launcher prints a prominent warning plus your LAN URL. Understand what opting in means: **every device on that network can drive the proxies and spend your OpenAI / Google / OpenSky / AISStream / TomTom / FIRMS quota** for as long as the server runs. Do this only on networks you trust.
-- **Hosted mode** (`GEV_HOSTED=1`, used by the Hugging Face deployment in
+- **Hosted mode** (`GEV_HOSTED=1`, used by the GitHub Actions + Render deployment in
   [docs/HOSTING.md](docs/HOSTING.md)) is the supported way to put the app on
   the internet. A sign-in gate (`server/hosted/auth.js`) runs right after the
   Host check and before every provider route and static file; the server
@@ -92,7 +92,9 @@ The dev server is a **key broker**: every server-side key above is spendable by 
   headers, the cross-site gate accepts them in hosted mode only (Origin and
   `Sec-Fetch-Site` checks still apply); `/mcp` and the key-setup panel keep
   refusing proxied requests. Hosted mode is not a billing cap either: set the
-  provider-side limits that docs/HOSTING.md lists.
+  provider-side limits that docs/HOSTING.md lists. Hosted builds contain no browser
+  keys; authenticated HTML receives escaped runtime JSON with no-store caching.
+  Login validation runs at server startup, so secret-free image builds succeed.
 - **App-level throttles (on by default):** `GEV_RATELIMIT_OPENAI_PER_MIN` (default `30`) and `GEV_RATELIMIT_GOOGLE_PER_MIN` (default `120`) — the values the Pinokio build already ships — cap the cost-bearing endpoints per client IP per minute (over-limit requests receive a sanitized `429`). Both defaults sit well above what the app itself generates; set either to exactly `0` to run unthrottled. They are **per-IP, process-local, in-memory guards** — they reset on restart, a caller with several addresses gets a bucket per address, and they are **not billing caps**.
 - **Provider-side budgets are the real backstop.** For hard spend protection, configure limits where the money is: OpenAI platform usage limits, Google Cloud budget alerts + per-API quotas, and equivalent controls for any other keyed provider.
 - **Pinokio LAN and Cloudflare sharing are refused.** The current supported

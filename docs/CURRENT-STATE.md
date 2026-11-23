@@ -1,5 +1,16 @@
 # The Watcher Current State
 
+Hosted deployment builds secret-free images in GitHub Actions and runs Vite
+preview on Render without a startup build. Login validation runs at server
+startup. Signed-in root HTML receives escaped runtime browser-key JSON with
+no-store caching; local builds retain their existing environment inputs. See
+[HOSTING.md](HOSTING.md). The image runs as node with a 384 MB V8 heap cap and
+honors PORT and RENDER_EXTERNAL_HOSTNAME. Docker and Render acceptance remain
+separate from local tests; no deployment was performed.
+The focused gate is `node scripts/qa-hosted-runtime.mjs` after a hosted build
+using its documented fake browser values. Offline sandbox loopback restrictions
+prevented the HTTP smoke and post-load RSS measurement; see the deployment report.
+
 Vessel sources can report healthy empty coverage using a current, complete
 snapshot with zero raw rows, a healthy transport and a positive last-message
 time. This clears obsolete contacts and settles startup without manufacturing

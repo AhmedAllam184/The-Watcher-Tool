@@ -10,6 +10,8 @@
  * short password stops the server from starting rather than running open.
  */
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { isHostedMode } from './mode.js';
 
@@ -320,16 +322,63 @@ export function createHostedAuthMiddleware({
  */
 export function hostedAuthPlugin({ env = process.env } = {}) {
   const enabled = isHostedMode(env);
-  // Validate at config time so a bad login stops the server before it listens.
-  const login = enabled ? readHostedLogin(env) : null;
+  let runtimeEnv;
   const install = (server) => {
     if (!enabled) return;
+    const login = readHostedLogin(env);
+    runtimeEnv = { ...env };
     server.middlewares.use(createHostedAuthMiddleware({ login }));
   };
   return {
     name: 'hosted-auth',
     enforce: 'pre',
     configureServer: install,
-    configurePreviewServer: install,
+    configurePreviewServer(server) {
+      install(server);
+      if (!enabled) return;
+      const html = injectHostedRuntime(
+        readFileSync(
+          resolve(server.config.root, server.config.build.outDir, 'index.html'),
+          'utf8',
+        ),
+        runtimeEnv,
+      );
+      server.middlewares.use((req, res, next) => {
+        const { pathname } = new URL(req.url || '/', 'http://hosted.invalid');
+        if (
+          !['GET', 'HEAD'].includes(req.method) ||
+          !['/', '/index.html'].includes(pathname)
+        )
+          return next();
+        res.writeHead(200, {
+          ...server.config.preview.headers,
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(req.method === 'HEAD' ? undefined : html);
+      });
+    },
+    transformIndexHtml(html, context) {
+      return enabled && context.server
+        ? injectHostedRuntime(html, runtimeEnv)
+        : html;
+    },
   };
+}
+
+/** Embed only browser credentials as inert JSON; never executable inline code. */
+export function injectHostedRuntime(html, env) {
+  const values = Object.fromEntries(
+    ['GOOGLE_MAPS_API_KEY', 'CESIUM_ION_TOKEN', 'MAPILLARY_CLIENT_TOKEN'].map(
+      (key) => [key, env[key] || ''],
+    ),
+  );
+  const json = JSON.stringify(values).replace(
+    /[<>&\u2028\u2029]/g,
+    (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`,
+  );
+  return html.replace(
+    '</head>',
+    `<script id="watcher-runtime" type="application/json">${json}</script></head>`,
+  );
 }

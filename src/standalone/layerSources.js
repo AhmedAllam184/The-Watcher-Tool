@@ -1,3 +1,4 @@
+import { runtimeBrowserKeys } from './runtimeKeys.js';
 import { createDirectionsSource } from '../layers/directions/source.js';
 import { createRecentImagerySource } from '../layers/recentImagery/source.js';
 import { createOpenFreeMapSource } from '../sources/openFreeMap.js';
@@ -58,7 +59,10 @@ export function createStandaloneLayerSources(overrides = {}) {
     'gps-jam': createGpsJamSource(),
     'conflict-events': createConflictSource(),
     mapillary: createMapillarySource({
-      token: import.meta.env?.MAPILLARY_CLIENT_TOKEN || '',
+      token:
+        runtimeBrowserKeys.MAPILLARY_CLIENT_TOKEN ??
+        import.meta.env?.MAPILLARY_CLIENT_TOKEN ??
+        '',
     }),
   };
   for (const name of Object.keys(overrides)) {

@@ -15,8 +15,11 @@ const baseEnv = {
   ...process.env,
   GEV_HOSTED: '1',
   NODE_OPTIONS: '--max-old-space-size=384',
+  // Plain output: colour codes split Vite's "Local:" ready line.
+  NO_COLOR: '1',
   ...keys,
 };
+delete baseEnv.FORCE_COLOR;
 delete baseEnv.GEV_LOGIN_USER;
 delete baseEnv.GEV_LOGIN_PASSWORD;
 const previewArgs = [

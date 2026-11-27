@@ -1,0 +1,420 @@
+/* Phone placement is deliberately one width rule, shared with PHONE_QUERY.
+   No desktop declarations: portals are also absent above this breakpoint. */
+@media (max-width: 768px) {
+  html.phone-layout,
+  .phone-layout body {
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  .phone-layout #cesiumContainer {
+    position: fixed;
+    inset: 0;
+    height: 100dvh;
+    touch-action: none;
+  }
+  .phone-layout #left-panel-stack,
+  .phone-layout #right-panel-stack,
+  .phone-layout #command-dock,
+  .phone-layout #title-bar,
+  .phone-layout #top-center-actions,
+  .phone-layout #style-indicator,
+  .phone-layout #intel-hud,
+  .phone-layout body > #selection-details,
+  .phone-layout #first-run-launcher {
+    display: none !important;
+  }
+
+  #mobile-shell {
+    --mobile-surface: var(--menu-bg);
+    --mobile-muted: #b9c3cc;
+    position: relative;
+    z-index: 140;
+    font-family: var(--font-sans);
+    color: var(--text-primary);
+    touch-action: manipulation;
+  }
+  #mobile-shell button {
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .mobile-search {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    height: 56px;
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    border-radius: 28px;
+    background: var(--mobile-surface);
+    box-shadow: 0 4px 18px #0006;
+    border: 1px solid var(--glass-border-hover);
+  }
+  .mobile-search > button,
+  .mobile-map-actions > button {
+    flex: 0 0 48px;
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--mobile-surface);
+    font-size: 22px !important;
+  }
+  #mobile-menu img {
+    width: 30px;
+    height: 30px;
+  }
+  #mobile-shell svg {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vertical-align: middle;
+  }
+  #mobile-search-slot {
+    flex: 1;
+    min-width: 0;
+  }
+  #mobile-search-slot .location-search-wrap {
+    width: 100%;
+    display: flex;
+  }
+  #mobile-search-slot #search-toggle {
+    display: none;
+  }
+  #mobile-search-slot #location-search {
+    display: block !important;
+    opacity: 1;
+    width: 100% !important;
+    min-width: 0;
+    height: 48px;
+    border: 0;
+    padding: 0 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font: 16px var(--font-sans);
+  }
+  #mobile-search-slot #location-search::placeholder {
+    color: var(--mobile-muted);
+    font-style: normal;
+  }
+  #mobile-chip-slot {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 78px);
+    left: 0;
+    right: 0;
+    overflow: hidden;
+  }
+  #mobile-chip-slot #quick-layer-chips {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 12px 10px;
+    scrollbar-width: none;
+  }
+  #mobile-chip-slot .quick-layer-chip {
+    flex: 0 0 auto;
+    min-height: 48px;
+    border: 1px solid var(--glass-border-hover);
+    border-radius: 24px;
+    padding: 0 16px;
+    background: var(--mobile-surface);
+    box-shadow: 0 3px 10px #0004;
+    font-size: 14px;
+  }
+  #mobile-chip-slot .quick-layer-chip {
+    order: 10;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+  }
+  #mobile-chip-slot [data-layer-id='flights'] {
+    order: 0;
+  }
+  #mobile-chip-slot [data-layer-id='ais-live-vessels'] {
+    order: 1;
+  }
+  #mobile-chip-slot [data-layer-id='weather-radar'] {
+    order: 2;
+  }
+  #mobile-chip-slot .quick-layer-chip::before {
+    content: '+';
+    margin-right: 6px;
+  }
+  #mobile-chip-slot .quick-layer-chip[aria-pressed='true']::before {
+    content: '✓';
+  }
+  #mobile-chip-slot .quick-layer-chip[aria-pressed='true'] {
+    border-color: var(--accent);
+  }
+  .mobile-map-actions {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 148px);
+    right: max(12px, env(safe-area-inset-right, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .mobile-map-actions > button {
+    box-shadow: 0 3px 14px #0006;
+    border: 1px solid var(--glass-border-hover);
+  }
+  #mobile-sheet {
+    position: fixed;
+    inset: auto 0 0;
+    display: flex;
+    flex-direction: column;
+    height: 50dvh;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 138px);
+    border-radius: 24px 24px 0 0;
+    background: var(--mobile-surface);
+    box-shadow: 0 -4px 24px #0006;
+    border: 1px solid var(--glass-border-hover);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overflow: hidden;
+  }
+  #mobile-sheet[hidden] {
+    display: none;
+  }
+  #mobile-sheet[data-snap='peek'] {
+    height: 25dvh;
+  }
+  #mobile-sheet[data-snap='full'] {
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - 138px);
+  }
+  .mobile-sheet-header {
+    flex: 0 0 auto;
+  }
+  #mobile-sheet-handle {
+    display: block;
+    width: 100%;
+    height: 48px;
+    border: 0;
+    background: transparent;
+    touch-action: none;
+  }
+  #mobile-sheet-handle span {
+    display: block;
+    margin: auto;
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--mobile-muted);
+  }
+  .mobile-sheet-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px 8px 20px;
+  }
+  #mobile-sheet-title {
+    font-size: 20px;
+    font-weight: 600;
+  }
+  #mobile-sheet-close {
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    font-size: 26px !important;
+  }
+  #mobile-sheet-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: 0 16px 24px;
+  }
+  .mobile-menu-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .mobile-menu-list button {
+    min-height: 56px;
+    text-align: left;
+    padding: 12px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--glass-border);
+    background: transparent;
+  }
+  #mobile-sheet-body [data-mobile-sheet-panel] {
+    position: static !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    transform: none !important;
+    clip-path: none !important;
+    overflow: visible !important;
+    background: transparent;
+    box-shadow: none;
+    border: 0;
+  }
+  #mobile-sheet-body [data-mobile-sheet-panel] > :not(.panel-glow) {
+    width: 100% !important;
+    max-height: none !important;
+    clip-path: none !important;
+  }
+  #mobile-sheet-body [data-mobile-sheet-panel] > .panel-glow,
+  #mobile-sheet-body [data-mobile-sheet-panel] > .panel-resize-edge,
+  #mobile-sheet-body [data-mobile-sheet-panel] > .panel-resize-grip,
+  #mobile-sheet-body [data-mobile-sheet-panel] > * > .panel-header,
+  #mobile-sheet-body [data-mobile-sheet-panel] > .pp-header-row,
+  #mobile-sheet-body .dock-pin-btn {
+    display: none !important;
+  }
+  /* Disclosure is a phone placement override; stored desktop collapse state
+     and all nested tool disclosures stay with PanelChrome. */
+  #mobile-sheet-body [data-mobile-sheet-panel] > * > #data-toggles,
+  #mobile-sheet-body [data-mobile-sheet-panel] > .pp-panel-body,
+  #mobile-sheet-body
+    [data-mobile-sheet-panel]
+    > .pp-panel-body
+    > .pp-toggle-group,
+  #mobile-sheet-body
+    [data-mobile-sheet-panel]
+    > .pp-panel-body
+    > #clean-view-toggle,
+  #mobile-sheet-body [data-mobile-sheet-panel] > * > .dock-popover-content,
+  #mobile-sheet-body [data-mobile-sheet-panel] > * > .cyber-panel-body {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  #mobile-sheet-body #data-toggles {
+    padding: 0;
+  }
+  #mobile-sheet-body button,
+  #mobile-sheet-body select,
+  #mobile-sheet-body input:not([type='checkbox']):not([type='radio']) {
+    min-height: 48px;
+    max-width: 100%;
+  }
+  #mobile-sheet-body .selection-details {
+    padding: 0;
+    font-size: 16px;
+  }
+  #mobile-sheet-body .selection-details__header {
+    display: flex !important;
+  }
+  #mobile-sheet-body .selection-details__close {
+    display: none;
+  }
+  .phone-layout #hud-footer {
+    bottom: env(safe-area-inset-bottom, 0px);
+    max-width: 100%;
+  }
+  .phone-layout #hud-footer-readouts {
+    display: none;
+  }
+  .phone-layout:has(#mobile-sheet[data-snap='peek']:not([hidden])) #hud-footer {
+    bottom: 25dvh;
+  }
+  .phone-layout:has(#mobile-sheet[data-snap='half']:not([hidden])) #hud-footer {
+    bottom: 50dvh;
+  }
+  .phone-layout:has(#mobile-sheet[data-snap='full']:not([hidden])) #hud-footer {
+    bottom: calc(100dvh - env(safe-area-inset-top, 0px) - 138px);
+  }
+  .phone-layout #toast {
+    max-width: calc(100% - 24px);
+  }
+  #mobile-sheet-body
+    #right-context-rail[data-mobile-sheet-panel].collapsed
+    > [data-panel-id]:not([hidden]) {
+    display: block !important;
+  }
+  #mobile-sheet-body #right-rail-header {
+    display: none;
+  }
+  #mobile-sheet-body .data-toggle-desc,
+  #mobile-sheet-body .data-count,
+  #mobile-sheet-body .layer-health-summary {
+    color: var(--mobile-muted);
+    opacity: 1;
+  }
+  #mobile-sheet-body .data-toggle-desc {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  #mobile-sheet-body .data-name {
+    font-size: 15px;
+  }
+  #mobile-sheet-body .data-toggle-row {
+    min-width: 0;
+  }
+  #mobile-sheet-body .selection-details dt,
+  #mobile-sheet-body .selection-details__subtitle,
+  #mobile-sheet-body .selection-details__identity-label {
+    color: var(--mobile-muted);
+  }
+  #mobile-sheet-body #pp-toggles .pp-toggle-group,
+  #mobile-sheet-body #pp-toggles .pp-toggle-btn,
+  #mobile-sheet-body #pp-toggles .pp-slider-row {
+    width: 100% !important;
+    min-width: 0;
+  }
+  #mobile-sheet-body #pp-toggles .pp-toggle-group {
+    margin-bottom: 12px;
+  }
+  #mobile-sheet-body #pp-toggles .pp-slider-row {
+    gap: 8px;
+    padding: 8px;
+  }
+  #mobile-sheet-body
+    #pp-toggles
+    :is(.pp-label, .pp-slider-mini-label, .pp-select, .pp-mode-btn) {
+    font: 14px var(--font-sans);
+    color: var(--text-primary);
+    letter-spacing: normal;
+  }
+  #mobile-sheet-body #pp-toggles .pp-slider-mini-label {
+    min-width: 64px;
+  }
+  #mobile-sheet-body #pp-toggles .detection-allocation-buttons {
+    flex-wrap: wrap;
+  }
+  #mobile-sheet-body #right-context-rail .right-rail-icon {
+    display: none;
+  }
+  #mobile-sheet-body #right-context-rail .panel-title {
+    font: 14px var(--font-sans);
+    letter-spacing: normal;
+  }
+  #mobile-sheet-body #context-radio-toggle-btn .material-symbols-outlined {
+    display: none;
+  }
+  #mobile-sheet-body #context-radio-toggle-btn::before {
+    content: 'Radio';
+    font: 14px var(--font-sans);
+  }
+  #mobile-sheet-body [hidden] {
+    display: none !important;
+  }
+  .phone-layout body.ui-clean-view #mobile-shell,
+  .phone-layout body.recording-mode #mobile-shell {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  #mobile-sheet {
+    transition: none;
+  }
+}

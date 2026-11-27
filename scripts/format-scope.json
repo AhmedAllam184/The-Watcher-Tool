@@ -1,5 +1,10 @@
 [
   ".prettierrc.json",
+  "src/ui/mobileSheetState.test.mjs",
+  "src/ui/styles/mobile.css",
+  "scripts/build-mobile-qa.mjs",
+  "scripts/mobile-preview.config.mjs",
+  "scripts/qa-mobile-layout.mjs",
   "package.json",
   "scripts/format-scope.json",
   "scripts/package-boundaries.json",

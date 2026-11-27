@@ -11,6 +11,13 @@ The focused gate is `node scripts/qa-hosted-runtime.mjs` after a hosted build
 using its documented fake browser values. Offline sandbox loopback restrictions
 prevented the HTTP smoke and post-load RSS measurement; see the deployment report.
 
+Phone layout is available at widths up to 768px through `mobileSheet.js` and
+`mobile.css`: existing place/object search, quick-layer chips, map actions and
+a three-snap nonmodal sheet for layers, tools and selection details. Desktop
+placement is restored through exact DOM anchors. See `MOBILE-LAYOUT.md` for
+coverage, offline visual acceptance commands and specialized panes still due
+for a phone pass. This work does not change providers, auth or deployment.
+
 Vessel sources can report healthy empty coverage using a current, complete
 snapshot with zero raw rows, a healthy transport and a positive last-message
 time. This clears obsolete contacts and settles startup without manufacturing

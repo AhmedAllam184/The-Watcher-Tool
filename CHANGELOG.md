@@ -4,6 +4,11 @@
   preview hosting; inject browser keys only into signed-in HTML, keep hosted
   builds secret-free and validate login settings at server startup.
 
+- Add a phone-only map-first layout with floating search, layer chips, map
+  actions and a draggable three-snap sheet for existing controls and object
+  details. Restore desktop placement on resize; add home-screen manifest/icons,
+  safe-area support and an environment-free offline visual acceptance harness.
+
 - Treat explicitly current, complete empty vessel coverage as a successful update,
   clearing obsolete contacts while retaining stale or incomplete snapshots.
 

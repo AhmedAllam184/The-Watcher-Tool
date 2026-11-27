@@ -14,6 +14,8 @@ scene playback and voice. It delegates; new behavior belongs with its owner.
 | `cockpitCoordinator.js` | Cockpit entry/rollback, readouts and the single Display portal |
 | `visualSettings.js` | Effects, detection overrides, visual restoration and render-loop lifetime |
 | `panelChrome.js` | Disclosure, docking, layout and Cockpit panel restoration |
+| `mobileSheet.js` | Phone-only search/chip portals and nonmodal sheet placement; restores exact DOM anchors on desktop resize/disposal. Feature and selection state remain with existing owners. |
+| `mobileSheetState.js` | Pure closed/peek/half/full gesture policy and the single phone breakpoint |
 | `aircraftDisplay.js` | Shared commercial/military 3D display preferences and controls |
 | `layerBindings.js` | Data-manager attachment, selected-tracker adoption and camera-entry listeners |
 | `displayBindings.js` | Keyboard/display subscriptions and frame-rate monitor lifetime |

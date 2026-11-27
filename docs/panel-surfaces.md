@@ -57,6 +57,30 @@ fit when those contents should instead scroll.
 
 ## Placement and ownership
 
+### Phone placement
+
+At `(max-width: 768px)`, `mobileSheet.js` supplies a nonmodal bottom-sheet
+host for existing panels. `data-mobile-sheet-panel` opts the current portal
+into `mobile.css` geometry; it does not register a second feature controller.
+The owner moves live nodes using return anchors, including search and the
+existing quick-layer row. Dismissal and desktop resize return each panel to
+its original parent/order. No stored desktop collapse preference is changed
+by sheet snaps. Nested tool disclosure remains with `PanelChrome`.
+
+The sheet has peek (25dvh), half (50dvh), and full (available height below
+the search/chips), plus dismissed. Its handle supports taps, pointer drags,
+and keyboard activation; Escape and a named close button dismiss. It does
+not trap focus or cover the map above the sheet with a backdrop. Selection
+details follow their existing hidden-state owner and open at half height;
+sheet dismissal hides details through that owner, stopping refresh work.
+The placement attribute survives the details owner's class-name refresh.
+
+Panels retain stable IDs, listeners, native hidden state and feature logic.
+Phone styling overrides the outer collapsed geometry only while portaled;
+it never forces a native hidden feature visible. Clean UI and recording hide
+the phone chrome. See [MOBILE-LAYOUT.md](MOBILE-LAYOUT.md) for coverage and
+the remaining specialized surfaces.
+
 | Mount                                 | Shared contract                                                                                     | Owner responsibilities                                                                                                                                                                                   |
 | ------------------------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Direct child of `#left-panel-stack`   | An owner with a direct `[data-panel-surface]` child receives relative positioning and allocated height; inner surface/body skin | Add the wrapper shown above, use the existing layout/disclosure owners, and retain left-rail focus/auto-collapse rules.                                                                                  |

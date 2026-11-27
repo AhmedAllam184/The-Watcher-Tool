@@ -36,6 +36,7 @@ import { createSquawkAlerts } from './squawkAlerts.js';
 import { createHelpPanel } from './helpPanel.js';
 import { createVisualPresetLayers } from './visualPresetLayers.js';
 import { initFooterReadouts } from './footerReadouts.js';
+import { createMobileSheet } from './mobileSheet.js';
 import { applyStoredTextSize } from './textSize.js';
 import { createMapSourceControls } from './mapSource.js';
 import { STYLES } from './effects.js';
@@ -625,6 +626,9 @@ export class StyleManager extends ShellFacade {
     this._footerReadouts?.destroy();
     this._footerReadouts = initFooterReadouts(document);
     this._initClearSelectedLayersButton();
+    this._mobileSheet = createMobileSheet({
+      hideDetails: () => this._selectionDetails?.hide(),
+    });
     this._initHUDToggle();
     this._initModels3dToggle();
     this._applyGlobalPostDefaults();
@@ -1692,6 +1696,7 @@ export class StyleManager extends ShellFacade {
     this._shareState.destroy();
     this._locationNavigation.destroy();
     this._lifetime.destroy();
+    this._mobileSheet?.destroy();
     this._recording.destroy();
     this._panelChrome.destroy();
     this._feedback.destroy();

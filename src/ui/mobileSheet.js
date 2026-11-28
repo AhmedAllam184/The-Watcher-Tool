@@ -66,6 +66,10 @@ export function createMobileSheet({
   function releasePanel() {
     if (panelPortal) {
       panelPortal.removeAttribute('data-mobile-sheet-panel');
+      // Give back the desktop fold state that open() lifted for the sheet.
+      if (panelPortal.dataset.mobileSheetWasCollapsed === '1')
+        panelPortal.classList.add('collapsed');
+      delete panelPortal.dataset.mobileSheetWasCollapsed;
       restore(panelPortal);
       panelPortal = null;
     }
@@ -127,6 +131,12 @@ export function createMobileSheet({
       if (!node) return setState('closed');
       panelPortal = node;
       node.setAttribute('data-mobile-sheet-panel', '');
+      // The sheet hides panel headers, so a panel folded on desktop (Places,
+      // Guided tours, CCTV, Street Level) would open as an empty sheet.
+      if (node.classList.contains('collapsed')) {
+        node.dataset.mobileSheetWasCollapsed = '1';
+        node.classList.remove('collapsed');
+      }
       move(node, body);
     }
     setState(snap);

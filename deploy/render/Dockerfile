@@ -11,6 +11,10 @@ FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 # Vite and its config plugins are required by preview, including dev dependencies.
 COPY --from=build --chown=node:node /app /app
+# WORKDIR leaves /app owned by root, so the node user could not create the
+# .gev-cache (terrain, FIRMS, satellites...) and .gev-logs folders at runtime.
+RUN mkdir -p /app/.gev-cache /app/.gev-logs \
+ && chown node:node /app /app/.gev-cache /app/.gev-logs
 ENV NODE_ENV=production \
     GEV_HOSTED=1 \
     NODE_OPTIONS=--max-old-space-size=384 \

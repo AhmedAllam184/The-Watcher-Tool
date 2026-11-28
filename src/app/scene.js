@@ -76,8 +76,13 @@ export async function createApplicationScene({
       googleTokens,
       cesiumToken,
     });
+  // With a 3D credential, a visitor with no remembered pick starts on Google
+  // 3D (the full local look); without one, the flat street map.
+  const startStack =
+    readRememberedMapStack() ||
+    (hasPhotorealCredentials ? 'photoreal' : DEFAULT_MAP_STACK_ID);
   const eagerPhotoreal =
-    !hasPhotorealCredentials || readRememberedMapStack() === 'photoreal';
+    !hasPhotorealCredentials || startStack === 'photoreal';
   loaderStatus.textContent = eagerPhotoreal
     ? hasPhotorealCredentials
       ? 'Loading Google 3D Tiles...'
@@ -141,9 +146,9 @@ export async function createApplicationScene({
             return loaded.tileset;
           },
     cesiumToken,
-    // Flat OSM streets unless the visitor picked otherwise last time. A
-    // shared link's map value is applied later by share restoration and wins.
-    initialStack: readRememberedMapStack() || DEFAULT_MAP_STACK_ID,
+    // The remembered pick, else Google 3D when a credential exists, else flat
+    // OSM. A shared link's map value is applied later by share restoration and wins.
+    initialStack: startStack,
     // Task 5 (height-datum fix): rebroadcast stack changes as a window
     // CustomEvent so data layers (CCTV per-regime ground resolution) can
     // react without coupling MapStackController to layer modules. Fires on
